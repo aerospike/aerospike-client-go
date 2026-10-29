@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,6 +72,9 @@ type Cluster struct {
 	closed      iatomic.Bool
 	tendCount   int
 
+	// Closed when the initial tend goroutine started by waitTillStabilized exits.
+	initialTendDone chan struct{}
+
 	supportsPartitionQuery iatomic.Bool // whether all nodes in the cluster support query by partition.
 
 	// User name in UTF-8 encoded bytes.
@@ -115,9 +118,10 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 
 	newCluster := &Cluster{
-		clientPolicy: clientPolicy,
-		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
-		tendChannel:  make(chan struct{}),
+		clientPolicy:    clientPolicy,
+		infoPolicy:      InfoPolicy{Timeout: policy.Timeout},
+		tendChannel:     make(chan struct{}),
+		initialTendDone: make(chan struct{}),
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -150,7 +154,9 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
-	if policy.FailIfNotConnected && !newCluster.IsConnected() {
+	if policy.FailIfNotConnected && (err != nil || !newCluster.IsConnected()) {
+		// Closing a node waits for its in-flight info request, so do not block the caller on it.
+		go newCluster.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +182,6 @@ func (clstr *Cluster) String() string {
 }
 
 // Maintains the cluster on intervals.
-// All clean up code for cluster is here as well.
 func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 	logger.Logger.Info("Starting the cluster tend goroutine...")
 
@@ -188,6 +193,13 @@ func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 	}()
 
 	defer clstr.wgTend.Done()
+
+	// tend() must not run on more than one goroutine at a time.
+	select {
+	case <-clstr.initialTendDone:
+	case <-clstr.tendChannel:
+		return
+	}
 
 	tendInterval := policy.TendInterval
 	if tendInterval <= 10*time.Millisecond {
@@ -213,13 +225,6 @@ Loop:
 				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
 			}
 		}
-	}
-
-	// cleanup code goes here
-	// close the nodes
-	nodeArray := clstr.GetNodes()
-	for _, node := range nodeArray {
-		node.Close()
 	}
 }
 
@@ -442,10 +447,18 @@ func (clstr *Cluster) waitTillStabilized() Error {
 
 	doneCh := make(chan Error, 10)
 
-	// will run until the cluster is stabilized
+	// will run until the cluster is stabilized or closed
 	go func() {
+		defer func() {
+			close(clstr.initialTendDone)
+			// Close does not wait for this goroutine, so nodes added after Close are closed here.
+			if clstr.closed.Get() {
+				clstr.closeNodes()
+			}
+		}()
+
 		var err Error
-		for {
+		for !clstr.closed.Get() {
 			if err = clstr.tend(); err != nil {
 				if err.Matches(types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR) {
 					select {
@@ -466,19 +479,17 @@ func (clstr *Cluster) waitTillStabilized() Error {
 
 			count = len(clstr.GetNodes())
 		}
-		doneCh <- err
+
+		select {
+		case doneCh <- err:
+		default:
+		}
 	}()
 
 	select {
 	case <-time.After(clstr.clientPolicy.Timeout):
-		if clstr.clientPolicy.FailIfNotConnected {
-			clstr.Close()
-		}
 		return ErrTimeout.err()
 	case err := <-doneCh:
-		if err != nil && clstr.clientPolicy.FailIfNotConnected {
-			clstr.Close()
-		}
 		return err
 	}
 }
@@ -852,9 +863,13 @@ func (clstr *Cluster) Close() {
 		// wait until tend is over
 		clstr.wgTend.Wait()
 
-		// remove node references from the partition table
-		// to allow GC to work its magic. Leaks otherwise.
-		clstr.getPartitions().cleanup()
+		clstr.closeNodes()
+	}
+}
+
+func (clstr *Cluster) closeNodes() {
+	for _, node := range clstr.GetNodes() {
+		node.Close()
 	}
 }
 
