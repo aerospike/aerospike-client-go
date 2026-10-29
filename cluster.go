@@ -172,9 +172,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 
 	// apply policy rules
 	if loadedPolicy.FailIfNotConnected && (err != nil || !newCluster.IsConnected()) {
-		// The initial tend goroutine can still be in the middle of a tend, and each of its
-		// info requests can take up to ClientPolicy.Timeout. Close in the background so the
-		// caller is not blocked until that tend finishes.
+		// Closing a node waits for its in-flight info request, so do not block the caller on it.
 		go newCluster.Close()
 		if err != nil {
 			return nil, err
@@ -501,10 +499,14 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	doneCh := make(chan Error, 10)
 
 	// will run until the cluster is stabilized or closed
-	clstr.wgTend.Add(1)
 	go func() {
-		defer clstr.wgTend.Done()
-		defer close(clstr.initialTendDone)
+		defer func() {
+			close(clstr.initialTendDone)
+			// Close does not wait for this goroutine, so nodes added after Close are closed here.
+			if clstr.closed.Get() {
+				clstr.closeNodes()
+			}
+		}()
 
 		var err Error
 		for !clstr.closed.Get() {
@@ -529,8 +531,6 @@ func (clstr *Cluster) waitTillStabilized() Error {
 			count = len(clstr.GetNodes())
 		}
 
-		// Close waits for this goroutine, so this send must not block after
-		// waitTillStabilized has returned.
 		select {
 		case doneCh <- err:
 		default:
@@ -928,16 +928,16 @@ func (clstr *Cluster) Close() {
 		// send close signal to maintenance channel
 		close(clstr.tendChannel)
 
-		// wait until the initial tend goroutine and clusterBoss are over
+		// wait until tend is over
 		clstr.wgTend.Wait()
 
-		for _, node := range clstr.GetNodes() {
-			node.Close()
-		}
+		clstr.closeNodes()
+	}
+}
 
-		// remove node references from the partition table
-		// to allow GC to work its magic. Leaks otherwise.
-		clstr.getPartitions().cleanup()
+func (clstr *Cluster) closeNodes() {
+	for _, node := range clstr.GetNodes() {
+		node.Close()
 	}
 }
 
