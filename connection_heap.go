@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,23 +43,25 @@ func newSingleConnectionHeap(size int) *singleConnectionHeap {
 	}
 }
 
+// cleanup empties the heap and closes all of its connections.
+// Connections are closed after the lock is released so that a socket
+// close that blocks cannot stall Offer and Poll on this heap.
 func (h *singleConnectionHeap) cleanup() {
 	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	for i := range h.data {
-		if h.data[i] != nil {
-			h.data[i].Close()
-		}
-
-		h.data[i] = nil
-	}
+	conns := h.data
 
 	// make sure offer and poll both fail
 	h.data = nil
 	h.full = true
 	h.head = 0
 	h.tail = 0
+	h.mutex.Unlock()
+
+	for _, conn := range conns {
+		if conn != nil {
+			conn.Close()
+		}
+	}
 }
 
 // Offer adds an item to the heap unless the heap is full.
@@ -134,7 +136,11 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 		if conn.node != nil {
 			conn.node.stats.ConnectionsIdleDropped.IncrementAndGet()
 		}
-		conn.Close()
+
+		// DropIdleTail runs on the tend goroutine while holding the heap lock.
+		// A socket close that never returns must not stall the tend cycle for
+		// the whole cluster, nor block Poll and Offer on this heap.
+		conn.closeAsync()
 
 		return true
 	}
