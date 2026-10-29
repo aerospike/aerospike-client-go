@@ -35,7 +35,8 @@ jobs:
         with:
           default_json: |
             {
-              "${{ env.AEROSPIKE_VERSION }}": { "version": "${{ env.AEROSPIKE_VERSION }}" }
+              "${{ env.AEROSPIKE_VERSION }}": { "version": "${{ env.AEROSPIKE_VERSION }}" },
+              "8.2.0.0": { "version": "8.2.0.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: ${{ github.actor == 'dependabot[bot]' && 'AP' || 'AP,SC' }}
@@ -142,7 +143,7 @@ jobs:
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@f484eec846448c97c777a26f8b58c5a69a327e12 # v2.20.0
+        uses: vladopajic/go-test-coverage@239670d50ed072bfce8b9ab1765227a53429d664 # v2.20.1
         continue-on-error: true
         with:
           config: ./.testcoverage.yml

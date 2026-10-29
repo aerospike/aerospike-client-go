@@ -15,11 +15,13 @@
 package aerospike_test
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -1785,6 +1787,158 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(result).ToNot(gm.BeNil())
 			gm.Expect(result.Bins["sizeCheck"]).To(gm.BeTrue())
+		})
+	})
+
+	gg.Describe("Path Expressions Reject Invalid Flags", func() {
+
+		const binName = "res"
+
+		expectParameterError := func(err error, msg string) {
+			gm.Expect(err).To(gm.HaveOccurred())
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+			gm.Expect(aerr.Error()).To(gm.HaveSuffix(": " + msg))
+		}
+
+		putSimpleMap := func() {
+			client.Delete(nil, key)
+			bin := as.NewBin(binName, map[any]any{"a": 1, "b": 2, "c": 3})
+			gm.Expect(client.PutBins(wpolicy, key, bin)).ToNot(gm.HaveOccurred())
+		}
+
+		expectBinUnchanged := func() {
+			rec, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[binName]).To(gm.Equal(map[any]any{"a": 1, "b": 2, "c": 3}))
+		}
+
+		selectExp := func(f as.SelectFlag) *as.Expression {
+			return as.ExpSelectByPath(as.ExpTypeLIST, f, as.ExpMapBin(binName), as.CtxAllChildren())
+		}
+
+		modifyExp := func(f as.ModifyFlag) *as.Expression {
+			return as.ExpModifyByPath(
+				as.ExpTypeMAP,
+				f,
+				as.ExpMapBin(binName),
+				as.ExpNumAdd(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(5)),
+				as.CtxAllChildren(),
+			)
+		}
+
+		invalidSelectFlags := []as.SelectFlag{-1, -2, -3, -9, -12, -16, 4, 5, 6, 7}
+		for _, f := range invalidSelectFlags {
+			msg := fmt.Sprintf("invalid select flag %d", int(f))
+
+			gg.It(fmt.Sprintf("should reject ExpSelectByPath flag %d in ExpReadOp", int(f)), func() {
+				putSimpleMap()
+				_, err := client.Operate(nil, key, as.ExpReadOp(binName, selectExp(f), as.ExpReadFlagDefault))
+				expectParameterError(err, msg)
+			})
+
+			gg.It(fmt.Sprintf("should reject ExpSelectByPath flag %d in FilterExpression", int(f)), func() {
+				putSimpleMap()
+				policy := as.NewPolicy()
+				policy.FilterExpression = as.ExpEq(as.ExpListSize(selectExp(f)), as.ExpIntVal(3))
+				_, err := client.Get(policy, key)
+				expectParameterError(err, msg)
+			})
+
+			gg.It(fmt.Sprintf("should return an error from Base64 for ExpSelectByPath flag %d", int(f)), func() {
+				var err error
+				gm.Expect(func() { _, err = selectExp(f).Base64() }).ToNot(gm.Panic())
+				expectParameterError(err, msg)
+			})
+		}
+
+		invalidModifyFlags := []as.ModifyFlag{-1, -2, -12, -16, 4, 5, 6, 7}
+		for _, f := range invalidModifyFlags {
+			msg := fmt.Sprintf("invalid modify flag %d", int(f))
+
+			gg.It(fmt.Sprintf("should reject ExpModifyByPath flag %d in ExpReadOp", int(f)), func() {
+				putSimpleMap()
+				_, err := client.Operate(nil, key, as.ExpReadOp(binName, modifyExp(f), as.ExpReadFlagDefault))
+				expectParameterError(err, msg)
+			})
+
+			gg.It(fmt.Sprintf("should reject ExpModifyByPath flag %d in ExpWriteOp and leave the bin unchanged", int(f)), func() {
+				putSimpleMap()
+				_, err := client.Operate(nil, key, as.ExpWriteOp(binName, modifyExp(f), as.ExpWriteFlagDefault))
+				expectParameterError(err, msg)
+				expectBinUnchanged()
+			})
+
+			gg.It(fmt.Sprintf("should reject ExpModifyByPath flag %d in FilterExpression", int(f)), func() {
+				putSimpleMap()
+				policy := as.NewPolicy()
+				policy.FilterExpression = as.ExpEq(as.ExpMapSize(modifyExp(f)), as.ExpIntVal(3))
+				_, err := client.Get(policy, key)
+				expectParameterError(err, msg)
+			})
+
+			gg.It(fmt.Sprintf("should return an error from Base64 for ExpModifyByPath flag %d", int(f)), func() {
+				var err error
+				gm.Expect(func() { _, err = modifyExp(f).Base64() }).ToNot(gm.Panic())
+				expectParameterError(err, msg)
+			})
+		}
+
+		gg.It("should still accept ExpSelectByPath flag EXP_PATH_SELECT_VALUE", func() {
+			putSimpleMap()
+			rec, err := client.Operate(nil, key, as.ExpReadOp(binName, selectExp(as.EXP_PATH_SELECT_VALUE), as.ExpReadFlagDefault))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[binName]).To(gm.ConsistOf(1, 2, 3))
+		})
+
+		gg.It("should still accept ExpSelectByPath flag EXP_PATH_SELECT_NO_FAIL", func() {
+			putSimpleMap()
+			exp := as.ExpSelectByPath(as.ExpTypeMAP, as.EXP_PATH_SELECT_NO_FAIL, as.ExpMapBin(binName), as.CtxAllChildren())
+			rec, err := client.Operate(nil, key, as.ExpReadOp(binName, exp, as.ExpReadFlagDefault))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[binName]).To(gm.Equal(map[any]any{"a": 1, "b": 2, "c": 3}))
+		})
+
+		for _, f := range []as.ModifyFlag{as.EXP_PATH_MODIFY_DEFAULT, as.EXP_PATH_MODIFY_NO_FAIL} {
+			gg.It(fmt.Sprintf("should still accept ExpModifyByPath flag %d", int(f)), func() {
+				putSimpleMap()
+				_, err := client.Operate(nil, key, as.ExpWriteOp(binName, modifyExp(f), as.ExpWriteFlagDefault))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				rec, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins[binName]).To(gm.Equal(map[any]any{"a": 6, "b": 7, "c": 8}))
+			})
+		}
+
+		gg.It("should pack valid path flags with an unchanged wire encoding", func() {
+			ctx := []*as.CDTContext{as.CtxMapKey(as.NewStringValue("book")), as.CtxAllChildren()}
+			expectedSelect := map[as.SelectFlag]string{
+				0x00: "lX8EAJPM/pQipQNib29rBMMAk1EFo3Jlcw==",
+				0x01: "lX8EAJPM/pQipQNib29rBMMBk1EFo3Jlcw==",
+				0x02: "lX8EAJPM/pQipQNib29rBMMCk1EFo3Jlcw==",
+				0x03: "lX8EAJPM/pQipQNib29rBMMDk1EFo3Jlcw==",
+				0x10: "lX8EAJPM/pQipQNib29rBMMQk1EFo3Jlcw==",
+				0x11: "lX8EAJPM/pQipQNib29rBMMRk1EFo3Jlcw==",
+				0x12: "lX8EAJPM/pQipQNib29rBMMSk1EFo3Jlcw==",
+				0x13: "lX8EAJPM/pQipQNib29rBMMTk1EFo3Jlcw==",
+			}
+			for f, expected := range expectedSelect {
+				s, err := as.ExpSelectByPath(as.ExpTypeLIST, f, as.ExpMapBin(binName), ctx...).Base64()
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(s).To(gm.Equal(expected), fmt.Sprintf("select flag %d", int(f)))
+			}
+
+			expectedModify := map[as.ModifyFlag]string{
+				as.EXP_PATH_MODIFY_DEFAULT: "lX8FQJTM/pIEwwSTFJN6AgEFk1EFo3Jlcw==",
+				as.EXP_PATH_MODIFY_NO_FAIL: "lX8FQJTM/pIEwxSTFJN6AgEFk1EFo3Jlcw==",
+			}
+			for f, expected := range expectedModify {
+				s, err := modifyExp(f).Base64()
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(s).To(gm.Equal(expected), fmt.Sprintf("modify flag %d", int(f)))
+			}
 		})
 	})
 })

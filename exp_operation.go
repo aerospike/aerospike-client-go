@@ -64,7 +64,7 @@ const (
 func ExpWriteOp(binName string, exp *Expression, flags ExpWriteFlags) *Operation {
 	val, err := encodeExpOperation(exp, int(flags))
 	if err != nil {
-		panic(err)
+		return newExpErrorOperation(_EXP_MODIFY, binName, err)
 	}
 	return &Operation{
 		opType:   _EXP_MODIFY,
@@ -78,13 +78,24 @@ func ExpWriteOp(binName string, exp *Expression, flags ExpWriteFlags) *Operation
 func ExpReadOp(name string, exp *Expression, flags ExpReadFlags) *Operation {
 	val, err := encodeExpOperation(exp, int(flags))
 	if err != nil {
-		panic(err)
+		return newExpErrorOperation(_EXP_READ, name, err)
 	}
 	return &Operation{
 		opType:   _EXP_READ,
 		binName:  name,
 		binValue: NewValue(val),
 		encoder:  nil,
+	}
+}
+
+func newExpErrorOperation(opType OperationType, binName string, err Error) *Operation {
+	return &Operation{
+		opType:   opType,
+		binName:  binName,
+		binValue: NewNullValue(),
+		encoder: func(*Operation, BufferEx) (int, Error) {
+			return 0, err
+		},
 	}
 }
 

@@ -35,11 +35,11 @@ import (
 // Four areas:
 //
 //  1. Eval-phase (PHASE_EVAL) expression traces for filter runtime faults:
-//     div/mod by zero, INT64_MIN overflow, CDT out-of-bounds (sub-code dropped
-//     under FILTERED_OUT; message/trace still ship), unordered-map compare.
-//  2. Verbosity tier-1 suppression semantics: AS_SUB_NONE faults and filter
-//     CDT OOB (sub-code dropped) have nothing to send at tier 1, so field 45
-//     is suppressed entirely.
+//     div/mod by zero, INT64_MIN overflow, CDT out-of-bounds,
+//     unordered-map compare.
+//  2. Verbosity tier-1 suppression semantics: a filter fault reaches the
+//     client with no subcode, so verbosity 1 stages no error details at
+//     all.
 //  3. Verb parity: build / fault / FALSE / absent / metadata-FALSE / tier-2 /
 //     clean-pass filter scenarios across put, delete and operate, including
 //     the verb-specific metadata-filter messages.
@@ -247,10 +247,9 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		assertEvalTrace(ae, "eq", 1, []string{"eq"})
 	})
 
-	gg.It("filter fault CDT out of bounds carries message and eval trace", func() {
-		// The CDT out-of-bounds sub-code is bound to OP_NOT_APPLICABLE, so the
+	gg.It("filter fault CDT out of bounds carries eval trace but no subcode", func() {
+		// The CDT out-of-bounds subcode is bound to OP_NOT_APPLICABLE, so the
 		// server drops it under FILTERED_OUT; message and trace still ship.
-		// Aligns with Java/C# TestExpErrorDetail.
 		exp := as.ExpEq(cdtOobExp(), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
@@ -264,8 +263,8 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	// 2. Verbosity tier-1 suppression semantics.
 	//
 	// Python: CASES_FILTER_VERBOSITY / CASES_MP_VERBOSITY. Build failures and
-	// div-by-zero faults carry AS_SUB_NONE, and a CDT fault's sub-code is
-	// dropped under FILTERED_OUT, so at tier 1 (sub-code only) they have
+	// div-by-zero faults carry AS_SUB_NONE, and a CDT fault's subcode is
+	// dropped under FILTERED_OUT, so at tier 1 (subcode-only) they have
 	// nothing to send and field 45 is suppressed entirely.
 	// ---------------------------------------------------------------------
 
@@ -279,7 +278,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		assertNoDetails(ae, types.FILTERED_OUT)
 	})
 
-	gg.It("verbosity 1 CDT fault under filter has no details", func() {
+	gg.It("verbosity 1 CDT fault under a filter has no details", func() {
 		exp := as.ExpEq(cdtOobExp(), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(1, exp, types.FILTERED_OUT)
