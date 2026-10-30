@@ -117,6 +117,17 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", func() {
 			p := peerListParser{ipMap: map[string]string{"10.88.0.7": "[fe80::1]"}}
 			assertParseHost(p, "10.88.0.7:3100", "[fe80::1]", 3100)
 		})
+
+		gg.It("treats an IPv6 literal value ending in digits as a whole host, preserving the port", func() {
+			// The trailing "::10" group is hex digits of the address, not a port.
+			p := peerListParser{ipMap: map[string]string{"10.88.0.7": "2001:db8:ffff::10"}}
+			assertParseHost(p, "10.88.0.7:3100", "2001:db8:ffff::10", 3100)
+		})
+
+		gg.It("treats an IPv6 literal value ending in a hex letter as a whole host, preserving the port", func() {
+			p := peerListParser{ipMap: map[string]string{"10.88.0.7": "2001:db8::a"}}
+			assertParseHost(p, "10.88.0.7:3100", "2001:db8::a", 3100)
+		})
 	})
 
 	// ---- 1b. Parse: the full peers-discovery path (peers_parser.go). ----
