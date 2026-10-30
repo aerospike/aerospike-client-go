@@ -1,0 +1,75 @@
+// Copyright 2014-2026 Aerospike, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package aerospike
+
+// SourceList identifies which server-advertised address list an endpoint came from.
+type SourceList uint8
+
+const (
+	// SourceListStandard is the standard address list, used when
+	// ClientPolicy.UseServicesAlternate is false.
+	SourceListStandard SourceList = iota
+
+	// SourceListAlternate is the alternate address list, used when
+	// ClientPolicy.UseServicesAlternate is true.
+	SourceListAlternate
+)
+
+// String implements the Stringer interface.
+func (sourceList SourceList) String() string {
+	if sourceList == SourceListAlternate {
+		return "alternate"
+	}
+	return "standard"
+}
+
+// Endpoint is one server-advertised node address, exactly as the server
+// advertised it, before any translation.
+type Endpoint struct {
+	// NodeName is the name of the node that advertised the address.
+	NodeName string
+
+	// TLSName is the node's TLS name; translation cannot change it.
+	TLSName string
+
+	// Host is the advertised host name or IP address.
+	Host string
+
+	// Port is the advertised port.
+	Port int
+
+	// SourceList says which advertised address list the endpoint came from.
+	SourceList SourceList
+}
+
+// AddressTranslator maps a server-advertised endpoint to the address the
+// client connects to. It changes only the transport address; TLS still
+// authenticates against the node's own TLS name.
+// Translate runs on the tend goroutine once per advertised address and must
+// be in-memory only: no locking, no I/O. Returning ok false is a miss;
+// ClientPolicy.TranslationOnMiss decides what happens next.
+// A translator may additionally implement ClusterViewChangeObserver.
+type AddressTranslator interface {
+	Translate(advertised Endpoint) (translated Host, ok bool)
+}
+
+// ClusterViewChangeObserver is optionally implemented by an AddressTranslator
+// to invalidate cached state when the cluster view changes.
+// OnClusterViewChanged runs on the tend goroutine whenever the node set or an
+// advertised address changed; viewChange increases by one per change. It must
+// not block or perform I/O.
+type ClusterViewChangeObserver interface {
+	OnClusterViewChanged(viewChange int64)
+}

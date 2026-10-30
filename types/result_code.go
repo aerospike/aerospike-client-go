@@ -23,6 +23,17 @@ type ResultCode int
 const (
 	// Multi-record transaction failed
 	// Multi-record transaction commit called, but the transaction was already aborted.
+	// SEED_DISCOVERY_FAILED means the seed candidate provider failed during
+	// client initialization and no usable seed host was left.
+	SEED_DISCOVERY_FAILED ResultCode = -27
+
+	// TRANSLATION_COLLISION means two nodes translated to the same address.
+	TRANSLATION_COLLISION ResultCode = -26
+
+	// TRANSLATION_MISS means the address translator had no mapping for a
+	// server-advertised address and strict miss handling is configured.
+	TRANSLATION_MISS ResultCode = -25
+
 	TXN_ALREADY_ABORTED ResultCode = -24
 
 	// Multi-record transaction abort called, but the transaction was already committed.
@@ -352,6 +363,15 @@ const (
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
 
+	case SEED_DISCOVERY_FAILED:
+		return "Seed discovery failed and no usable seed host was left"
+
+	case TRANSLATION_COLLISION:
+		return "Address translation collision"
+
+	case TRANSLATION_MISS:
+		return "Address translation miss"
+
 	case TXN_ALREADY_ABORTED:
 		return "Multi-record transaction commit called, but the transaction was already aborted"
 
@@ -676,6 +696,12 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 func (rc ResultCode) String() string {
 	switch rc {
+	case SEED_DISCOVERY_FAILED:
+		return "SEED_DISCOVERY_FAILED"
+	case TRANSLATION_COLLISION:
+		return "TRANSLATION_COLLISION"
+	case TRANSLATION_MISS:
+		return "TRANSLATION_MISS"
 	case TXN_ALREADY_ABORTED:
 		return "TXN_ALREADY_ABORTED"
 	case TXN_ALREADY_COMMITTED:

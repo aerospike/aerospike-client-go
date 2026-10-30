@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"io"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -192,17 +193,7 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 	// client-reachable one. A map value may replace the host alone ("host") or both
 	// host and port ("host:port"). A nil map is safe to index. See ClientPolicy.IpMap.
 	if translated, ok := p.ipMap[addr]; ok && translated != "" {
-		if idx := strings.LastIndex(translated, ":"); idx >= 0 {
-			if translatedPort, perr := strconv.Atoi(translated[idx+1:]); perr == nil {
-				addr = translated[:idx]
-				port = translatedPort
-			} else {
-				// no parseable port suffix (e.g. bare IPv6) — treat whole value as host
-				addr = translated
-			}
-		} else {
-			addr = translated
-		}
+		addr, port = parseTranslationValue(translated, port)
 		// IpMap/NLB fork: logged at Debug (opt-in). Kept off the normal log path so a
 		// long-running client does not re-log every peer on every tend (~1s); raise the
 		// level to Debug to trace a failed `Add node` back to exactly what the cluster
@@ -211,6 +202,31 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 	}
 
 	return NewHost(addr, port), nil
+}
+
+// parseTranslationValue splits a translation map value into the host and port
+// to connect to. An IP literal value is a bare host and keeps the advertised
+// port. A trailing ":<number>" replaces the port. Any other value is a bare
+// host.
+func parseTranslationValue(value string, advertisedPort int) (translatedHost string, translatedPort int) {
+	firstColon := strings.IndexByte(value, ':')
+	if firstColon < 0 {
+		return value, advertisedPort
+	}
+
+	lastColon := strings.LastIndexByte(value, ':')
+	if firstColon != lastColon {
+		// Only a value with more than one colon can be an IPv6 literal.
+		if _, err := netip.ParseAddr(value); err == nil {
+			return value, advertisedPort
+		}
+	}
+
+	if port, err := strconv.Atoi(value[lastColon+1:]); err == nil {
+		return value[:lastColon], port
+	}
+
+	return value, advertisedPort
 }
 
 func (p *peerListParser) readHosts(tlsName string) ([]*Host, Error) {
