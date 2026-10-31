@@ -342,6 +342,13 @@ func (nd *Node) refreshPeers(peers *peers) {
 		return
 	}
 
+	for _, missingNodeName := range peerParser.missingAlternates {
+		logger.Logger.Error("Node %s has no alternate address while UseServicesAlternate is set", missingNodeName)
+	}
+	if len(peerParser.missingAlternates) > 0 {
+		peers.partialView.Set(true)
+	}
+
 	// If node has no peers, it is suspected to be orphan
 	// if !nd.isOrphan.Get() {
 	if len(peerParser.peers) > 0 {

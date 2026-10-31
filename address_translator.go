@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	"fmt"
+)
+
 // SourceList identifies which server-advertised address list an endpoint came from.
 type SourceList uint8
 
@@ -72,4 +76,17 @@ type AddressTranslator interface {
 // not block or perform I/O.
 type ClusterViewChangeObserver interface {
 	OnClusterViewChanged(viewChange int64)
+}
+
+// translatorDisplayName names a translator in logs and errors.
+func translatorDisplayName(translator AddressTranslator) string {
+	switch translator.(type) {
+	case staticMapAddressTranslator:
+		return translatorNameStaticMap
+	case portMapAddressTranslator:
+		return translatorNamePortMap
+	case passThroughAddressTranslator:
+		return translatorNamePassThrough
+	}
+	return fmt.Sprintf("%T", translator)
 }
