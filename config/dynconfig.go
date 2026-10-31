@@ -64,9 +64,12 @@ type DynamicConfig struct {
 
 type Client struct {
 	// static config
-	ConfigInterval        *int `yaml:"config_interval"`
-	ConnectionQueueSize   *int `yaml:"max_connections_per_node"`
-	MinConnectionsPerNode *int `yaml:"min_connections_per_node"`
+	ConfigInterval        *int               `yaml:"config_interval"`
+	ConnectionQueueSize   *int               `yaml:"max_connections_per_node"`
+	MinConnectionsPerNode *int               `yaml:"min_connections_per_node"`
+	IpMap                 *map[string]string `yaml:"ip_map"`
+	Discovery             *DiscoveryConfig   `yaml:"discovery"`
+	Translation           *TranslationConfig `yaml:"translation"`
 
 	// dynamic config
 	IdleTimeout         *int    `yaml:"max_socket_idle"`
@@ -79,6 +82,25 @@ type Client struct {
 	TendInterval        *int    `yaml:"tend_interval"`
 	UseServiceAlternate *bool   `yaml:"use_service_alternate"`
 	ApplicationId       *string `yaml:"app_id"`
+}
+
+// DiscoveryConfig holds the static.client.discovery keys. Values are raw
+// tokens, the client parses and validates them when the policy is built.
+type DiscoveryConfig struct {
+	MergePolicy           *string `yaml:"merge_policy"`
+	ExecutionMode         *string `yaml:"execution_mode"`
+	RefreshIntervalMs     *int    `yaml:"refresh_interval_ms"`
+	RefreshTimeoutMs      *int    `yaml:"refresh_timeout_ms"`
+	TendRefreshDeadlineMs *int    `yaml:"tend_refresh_deadline_ms"`
+}
+
+// TranslationConfig holds the static.client.translation keys. Values are raw
+// tokens, the client parses and validates them when the policy is built.
+type TranslationConfig struct {
+	Provider  *string            `yaml:"provider"`
+	OnMiss    *string            `yaml:"on_miss"`
+	StaticMap *map[string]string `yaml:"static_map"`
+	PortMap   *map[string]string `yaml:"port_map"`
 }
 
 type Read struct {

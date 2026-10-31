@@ -18,7 +18,9 @@ import (
 	"crypto/tls"
 	"time"
 
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 // ClientPolicy encapsulates parameters for client policy command.
@@ -431,9 +433,146 @@ func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
 		if currentConfig.Static.Client.MinConnectionsPerNode != nil {
 			cp.MinConnectionsPerNode = *currentConfig.Static.Client.MinConnectionsPerNode
 		}
+		if currentConfig.Static.Client.IpMap != nil {
+			cp.IpMap = *currentConfig.Static.Client.IpMap
+		}
+		cp.applyStaticTranslation(currentConfig.Static.Client.Translation)
+		cp.applyStaticDiscovery(currentConfig.Static.Client.Discovery)
 	}
 
 	return cp
+}
+
+// applyStaticDiscovery maps the static.client.discovery keys. An invalid
+// token is logged and the code-level value is kept; duration ranges are
+// validated when the cluster is created.
+func (cp *ClientPolicy) applyStaticDiscovery(discovery *dynconfig.DiscoveryConfig) {
+	if discovery == nil {
+		return
+	}
+	if discovery.MergePolicy != nil {
+		if policy, err := parseSeedMergePolicy(*discovery.MergePolicy); err != nil {
+			logger.Logger.Warn("Ignoring static.client.discovery.merge_policy: %s", err.Error())
+		} else {
+			cp.SeedMergePolicy = policy
+		}
+	}
+	if discovery.ExecutionMode != nil {
+		if mode, err := parseDiscoveryExecutionMode(*discovery.ExecutionMode); err != nil {
+			logger.Logger.Warn("Ignoring static.client.discovery.execution_mode: %s", err.Error())
+		} else {
+			cp.DiscoveryExecutionMode = mode
+		}
+	}
+	if discovery.RefreshIntervalMs != nil {
+		cp.DiscoveryRefreshInterval = time.Duration(*discovery.RefreshIntervalMs) * time.Millisecond
+	}
+	if discovery.RefreshTimeoutMs != nil {
+		cp.DiscoveryRefreshTimeout = time.Duration(*discovery.RefreshTimeoutMs) * time.Millisecond
+	}
+	if discovery.TendRefreshDeadlineMs != nil {
+		cp.DiscoveryTendRefreshDeadline = time.Duration(*discovery.TendRefreshDeadlineMs) * time.Millisecond
+	}
+}
+
+// applyStaticTranslation maps the static.client.translation keys. A block
+// that is not a valid translator is logged and ignored as a whole. An invalid
+// on_miss token is logged and the code-level value is kept.
+func (cp *ClientPolicy) applyStaticTranslation(translation *dynconfig.TranslationConfig) {
+	if translation == nil {
+		return
+	}
+
+	translator, err := translatorFromStaticConfig(translation)
+	if err != nil {
+		logger.Logger.Warn("Ignoring static.client.translation: %s", err.Error())
+		return
+	}
+
+	if translation.OnMiss != nil {
+		if mode, err := parseTranslationMissMode(*translation.OnMiss); err != nil {
+			logger.Logger.Warn("Ignoring static.client.translation.on_miss: %s", err.Error())
+		} else {
+			cp.TranslationOnMiss = mode
+		}
+	}
+
+	if translator != nil {
+		cp.AddressTranslator = translator
+	}
+}
+
+// translatorFromStaticConfig builds the YAML translator. A nil translator
+// with a nil error means the block leaves the default translator in place.
+func translatorFromStaticConfig(translation *dynconfig.TranslationConfig) (AddressTranslator, Error) {
+	name := translatorNameStaticMap
+	if translation.Provider != nil {
+		name = *translation.Provider
+	}
+
+	if name != translatorNameStaticMap && name != translatorNamePortMap && name != translatorNamePassThrough {
+		return nil, newError(types.PARAMETER_ERROR, "Invalid static.client.translation.provider `"+name+"`. Valid values are static-map, port-map and pass-through")
+	}
+	if translation.StaticMap != nil && name != translatorNameStaticMap {
+		return nil, newError(types.PARAMETER_ERROR, "static.client.translation.static_map is only valid with provider static-map, not `"+name+"`")
+	}
+	if translation.PortMap != nil && name != translatorNamePortMap {
+		return nil, newError(types.PARAMETER_ERROR, "static.client.translation.port_map is only valid with provider port-map, not `"+name+"`")
+	}
+
+	switch name {
+	case translatorNameStaticMap:
+		if translation.StaticMap == nil {
+			return nil, nil
+		}
+		return NewStaticMapAddressTranslator(*translation.StaticMap), nil
+	case translatorNamePortMap:
+		if translation.PortMap == nil {
+			return nil, newError(types.PARAMETER_ERROR, "static.client.translation.port_map is required with provider port-map")
+		}
+		return NewPortMapAddressTranslator(*translation.PortMap)
+	default:
+		return NewPassThroughAddressTranslator(), nil
+	}
+}
+
+// validateStaticConfig rejects a configuration whose discovery, translation
+// or ip_map settings are invalid. The caller then ignores the whole file,
+// instead of applying the valid keys.
+func validateStaticConfig(config *dynconfig.Config) Error {
+	if config == nil || config.Static == nil || config.Static.Client == nil {
+		return nil
+	}
+	client := config.Static.Client
+
+	if discovery := client.Discovery; discovery != nil {
+		if discovery.MergePolicy != nil {
+			if _, err := parseSeedMergePolicy(*discovery.MergePolicy); err != nil {
+				return err
+			}
+		}
+		if discovery.ExecutionMode != nil {
+			if _, err := parseDiscoveryExecutionMode(*discovery.ExecutionMode); err != nil {
+				return err
+			}
+		}
+	}
+
+	if translation := client.Translation; translation != nil {
+		if client.IpMap != nil && translation.StaticMap != nil {
+			return newError(types.PARAMETER_ERROR, "static.client.translation.static_map and static.client.ip_map are both set. Set one of them")
+		}
+		if translation.OnMiss != nil {
+			if _, err := parseTranslationMissMode(*translation.OnMiss); err != nil {
+				return err
+			}
+		}
+		if _, err := translatorFromStaticConfig(translation); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // patchDynamic applies the dynamic configuration and generates a new policy.

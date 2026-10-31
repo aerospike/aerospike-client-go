@@ -189,6 +189,12 @@ func (dc *DynConfig) providerLoadConfig() {
 func (dc *DynConfig) initConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
+		if err := validateStaticConfig(loadedConfig); err != nil {
+			// An invalid file is ignored as a whole, like any other bad
+			// file, and re-read on the next config interval.
+			logger.Logger.Warn("Ignoring configuration file: %s", err.Error())
+			return
+		}
 		dc.config = loadedConfig // Atomically store the config
 
 		if dc.client != nil {
