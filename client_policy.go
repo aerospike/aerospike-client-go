@@ -149,6 +149,33 @@ type ClientPolicy struct {
 	// and retries next tend.
 	TranslationOnMiss TranslationMissMode //= TranslationMissPassThrough
 
+	// SeedProvider supplies bootstrap and re-seed hosts. Nil uses the
+	// constructor seeds, matching today's behaviour. A provider shared
+	// between clients is closed by each of them.
+	SeedProvider SeedCandidateProvider //= nil
+
+	// SeedMergePolicy combines the constructor seeds with discovered ones.
+	SeedMergePolicy SeedMergePolicy //= SeedMergePolicyMerge
+
+	// DiscoveryExecutionMode is where periodic seed discovery runs: a
+	// dedicated goroutine, or the tend goroutine under
+	// DiscoveryTendRefreshDeadline. Changing TendInterval after the client
+	// is created does not retime discovery.
+	DiscoveryExecutionMode DiscoveryExecutionMode //= DiscoveryExecutionThread
+
+	// DiscoveryRefreshInterval is the time between periodic seed refreshes.
+	// In tend execution mode it must be at least TendInterval.
+	DiscoveryRefreshInterval time.Duration //= 30 seconds
+
+	// DiscoveryRefreshTimeout bounds the wait for the first seed refresh at
+	// client creation in thread execution mode.
+	DiscoveryRefreshTimeout time.Duration //= 10 seconds
+
+	// DiscoveryTendRefreshDeadline is the run time a refresh must stay
+	// within in tend execution mode. Must be greater than zero and at most
+	// half of TendInterval.
+	DiscoveryTendRefreshDeadline time.Duration //= 100 milliseconds
+
 	// UseServicesAlternate determines if the client should use "services-alternate" instead of "services"
 	// in info request during cluster tending.
 	//"services-alternate" returns server configured external IP addresses that client
@@ -247,6 +274,10 @@ func NewClientPolicy() *ClientPolicy {
 		ErrorRateWindow:             1,
 		SeedOnlyCluster:             false,
 		ConfigInterval:              time.Second * 5,
+
+		DiscoveryRefreshInterval:     30 * time.Second,
+		DiscoveryRefreshTimeout:      10 * time.Second,
+		DiscoveryTendRefreshDeadline: 100 * time.Millisecond,
 	}
 }
 

@@ -71,6 +71,9 @@ type Cluster struct {
 	translationOnMiss  TranslationMissMode
 	viewChangeObserver ClusterViewChangeObserver
 
+	// Periodic seed refresh, fixed at construction.
+	seedRefresher *seedRefresher
+
 	// Cluster view snapshot for change notification.
 	// Only accessed within cluster tend goroutine.
 	viewChangeCount int64
@@ -104,6 +107,29 @@ type Cluster struct {
 	clientModuleVersion string // e.g. v8.0.0, v8.1.0, etc."
 }
 
+// defaultSeedTLSNames fills each seed's missing TLS name from the cluster
+// name or the host name when TLS verification is on.
+func defaultSeedTLSNames(policy *ClientPolicy, hosts []*Host) []*Host {
+	if policy.TlsConfig == nil || policy.TlsConfig.InsecureSkipVerify {
+		return hosts
+	}
+
+	useClusterName := len(policy.ClusterName) > 0
+	named := make([]*Host, 0, len(hosts))
+	for _, host := range hosts {
+		hostCopy := *host
+		if hostCopy.TLSName == "" {
+			if useClusterName {
+				hostCopy.TLSName = policy.ClusterName
+			} else {
+				hostCopy.TLSName = host.Name
+			}
+		}
+		named = append(named, &hostCopy)
+	}
+	return named
+}
+
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, Error) {
 	loadedPolicy := policy.Load()
@@ -113,23 +139,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 	}
 
 	// Default TLS names when TLS enabled.
-	newHosts := make([]*Host, 0, len(hosts))
-	if loadedPolicy.TlsConfig != nil && !loadedPolicy.TlsConfig.InsecureSkipVerify {
-		useClusterName := len(loadedPolicy.ClusterName) > 0
-
-		for _, host := range hosts {
-			nh := *host
-			if nh.TLSName == "" {
-				if useClusterName {
-					nh.TLSName = loadedPolicy.ClusterName
-				} else {
-					nh.TLSName = host.Name
-				}
-			}
-			newHosts = append(newHosts, &nh)
-		}
-		hosts = newHosts
-	}
+	hosts = defaultSeedTLSNames(loadedPolicy, hosts)
 
 	// Set a default Idle Timeout for the connection
 	if loadedPolicy.IdleTimeout <= 0 {
@@ -186,11 +196,30 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 		newCluster.password = *iatomic.NewSyncVal(hashedPass)
 	}
 
+	refresher, rerr := newSeedRefresher(loadedPolicy, hosts, func(seeds []*Host) {
+		if newCluster.closed.Get() {
+			return
+		}
+		newCluster.seeds.Set(defaultSeedTLSNames(loadedPolicy, seeds))
+	})
+	if rerr != nil {
+		return nil, rerr
+	}
+	newCluster.seedRefresher = refresher
+
+	initialSeeds, rerr := refresher.start()
+	if rerr != nil {
+		refresher.close()
+		return nil, rerr
+	}
+	newCluster.seeds.Set(defaultSeedTLSNames(loadedPolicy, initialSeeds))
+
 	// try to seed connections for first use
 	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
 	if loadedPolicy.FailIfNotConnected && !newCluster.IsConnected() {
+		refresher.close()
 		if err != nil {
 			return nil, err
 		}
@@ -267,6 +296,8 @@ Loop:
 
 // AddSeeds adds new hosts to the cluster.
 // They will be added to the cluster on next tend call.
+// When a periodic SeedProvider is configured, the next seed refresh
+// replaces the seed list and hosts added here are dropped.
 func (clstr *Cluster) AddSeeds(hosts []*Host) {
 	clstr.seeds.Update(func(seeds []*Host) ([]*Host, error) {
 		seeds = append(seeds, hosts...)
@@ -293,6 +324,7 @@ func (clstr *Cluster) tend() Error {
 	// If active nodes don't exist, seed cluster.
 	if clientPolicy := clstr.clientPolicy.Load(); len(nodes) == 0 || (clientPolicy != nil && clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
+		clstr.seedRefresher.requestUrgentRefresh()
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
 		}
@@ -426,6 +458,8 @@ func (clstr *Cluster) tend() Error {
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
 	clstr.notifyClusterViewChanged()
+
+	clstr.seedRefresher.tendTick(clstr.tendCount)
 
 	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
@@ -1032,6 +1066,10 @@ func (clstr *Cluster) Close() {
 
 		// wait until tend is over
 		clstr.wgTend.Wait()
+
+		if clstr.seedRefresher != nil {
+			clstr.seedRefresher.close()
+		}
 
 		// remove node references from the partition table
 		// to allow GC to work its magic. Leaks otherwise.
