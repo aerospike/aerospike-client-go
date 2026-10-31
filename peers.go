@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v8/internal/atomic"
 	sm "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
@@ -26,6 +27,18 @@ type peers struct {
 	_nodesToRemove sm.Map[string, *Node]
 	refreshCount   atomic.Int
 	genChanged     atomic.Bool
+
+	// partialView is set when a peers reply named nodes it could not
+	// address; node removal is skipped for that tend.
+	partialView atomic.Bool
+
+	// collided maps a peer that translated to an address another node
+	// already uses to that other node's name. Colliding peers are not
+	// added to the cluster.
+	collided sm.Map[string, string]
+
+	claimsLock       sync.Mutex
+	claimedAddresses map[hostAndPort]string
 }
 
 // newPeers creates a new peers object
@@ -35,6 +48,9 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 		_nodes:         *sm.New[string, *Node](addCapacity),
 		_nodesToRemove: *sm.New[string, *Node](addCapacity),
 		genChanged:     *atomic.NewBool(true),
+
+		collided:         *sm.New[string, string](4),
+		claimedAddresses: make(map[hostAndPort]string, addCapacity),
 	}
 }
 
@@ -91,6 +107,19 @@ func (ps *peers) getNodesToRemove() []*Node {
 // containsNodeToRemove checks if a node is already marked for removal
 func (ps *peers) containsNodeToRemove(node *Node) bool {
 	return ps._nodesToRemove.Exists(node.String())
+}
+
+// claimAddress records the validated address of a new node. It returns the
+// name of the node that already claimed the address, or "".
+func (ps *peers) claimAddress(address hostAndPort, nodeName string) string {
+	ps.claimsLock.Lock()
+	defer ps.claimsLock.Unlock()
+
+	if owner, exists := ps.claimedAddresses[address]; exists && owner != nodeName {
+		return owner
+	}
+	ps.claimedAddresses[address] = nodeName
+	return ""
 }
 
 // peer is a peer of a node

@@ -64,6 +64,18 @@ type Cluster struct {
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
+	// Address translation, fixed at construction. The observer is the
+	// translator when it implements ClusterViewChangeObserver, else nil.
+	addressTranslator  AddressTranslator
+	translatorName     string
+	translationOnMiss  TranslationMissMode
+	viewChangeObserver ClusterViewChangeObserver
+
+	// Cluster view snapshot for change notification.
+	// Only accessed within cluster tend goroutine.
+	viewChangeCount int64
+	lastClusterView map[string]Host
+
 	maxRetriesExceededCount   iatomic.Int // number of times the commands on this cluster were exceeded the specifiedmax retries
 	totalTimeoutExceededCount iatomic.Int // number of times the commands on this cluster were exceeded the specified total timeout
 
@@ -143,6 +155,17 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 	newCluster.maxErrorCount.Set(loadedPolicy.MaxErrorRate)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
+
+	translator := loadedPolicy.AddressTranslator
+	if translator == nil {
+		translator = NewStaticMapAddressTranslator(loadedPolicy.IpMap)
+	}
+	newCluster.addressTranslator = translator
+	newCluster.translatorName = translatorDisplayName(translator)
+	newCluster.translationOnMiss = loadedPolicy.TranslationOnMiss
+	if observer, isObserver := translator.(ClusterViewChangeObserver); isObserver {
+		newCluster.viewChangeObserver = observer
+	}
 
 	// setup auth info for cluster
 	if loadedPolicy.RequiresAuthentication() {
@@ -296,12 +319,18 @@ func (clstr *Cluster) tend() Error {
 		})
 	}
 
+	clstr.detectTranslationCollisions(peers)
+
 	var partMap iatomic.Guard[partitionMap]
 
 	// find the first host that connects
 	seq.ParDo(peers.peers(), func(_peer *peer) {
 		if clstr.peerExists(peers, _peer) {
 			// Node already exists. Do not even try to connect to hosts.
+			return
+		}
+
+		if peers.collided.Exists(_peer.nodeName) {
 			return
 		}
 
@@ -320,6 +349,18 @@ func (clstr *Cluster) tend() Error {
 			// Must look for new node name in the unlikely event that node names do not agree.
 			if _peer.nodeName != nv.name {
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
+			}
+
+			// A validated newcomer that turns out to be a node the cluster
+			// already holds, or whose address another peer validated first,
+			// is a translation collision and is not added.
+			if existing := clstr.findNodeByName(nv.name); existing != nil && existing.name != _peer.nodeName {
+				logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, _peer.nodeName, existing.name, nv.primaryHost.Name, nv.primaryHost.Port)
+				return seq.Break
+			}
+			if otherNodeName := peers.claimAddress(hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}, nv.name); otherNodeName != "" {
+				logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, _peer.nodeName, otherNodeName, nv.primaryHost.Name, nv.primaryHost.Port)
+				return seq.Break
 			}
 
 			// Create new node.
@@ -346,7 +387,7 @@ func (clstr *Cluster) tend() Error {
 		}
 	})
 
-	if peers.genChanged.Get() {
+	if peers.genChanged.Get() && !peers.partialView.Get() {
 		clstr.findNodesToRemove(peers)
 
 		// Remove nodes in a batch.
@@ -383,6 +424,8 @@ func (clstr *Cluster) tend() Error {
 	}
 
 	clstr.aggregateNodeStats(clstr.GetNodes())
+
+	clstr.notifyClusterViewChanged()
 
 	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
@@ -438,6 +481,76 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	}
 
 	return res
+}
+
+// detectTranslationCollisions marks new peers whose translated addresses
+// clash with another peer in the same view or with a live node. A colliding
+// pair of new peers creates neither node, a clash with a live node keeps the
+// live node. Runs on the tend goroutine before new nodes are validated.
+func (clstr *Cluster) detectTranslationCollisions(peers *peers) {
+	newPeers := peers.peers()
+	if len(newPeers) == 0 {
+		return
+	}
+
+	liveNodes := clstr.GetNodes()
+	addressOwners := make(map[hostAndPort]string, len(newPeers)+len(liveNodes))
+	for _, liveNode := range liveNodes {
+		addressOwners[hostAndPort{host: liveNode.host.Name, port: liveNode.host.Port}] = liveNode.name
+	}
+
+	for _, newPeer := range newPeers {
+		for _, host := range newPeer.hosts {
+			address := hostAndPort{host: host.Name, port: host.Port}
+			ownerName, taken := addressOwners[address]
+			if !taken {
+				addressOwners[address] = newPeer.nodeName
+				continue
+			}
+			if ownerName == newPeer.nodeName {
+				continue
+			}
+
+			peers.collided.Set(newPeer.nodeName, ownerName)
+			if clstr.findNodeByName(ownerName) == nil {
+				// Both owners are new peers; neither becomes a node.
+				peers.collided.Set(ownerName, newPeer.nodeName)
+			}
+			logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, newPeer.nodeName, ownerName, host.Name, host.Port)
+		}
+	}
+}
+
+// notifyClusterViewChanged tells the translator's observer when the node set
+// or any node address changed since the previous tend.
+func (clstr *Cluster) notifyClusterViewChanged() {
+	if clstr.viewChangeObserver == nil {
+		return
+	}
+
+	liveNodes := clstr.GetNodes()
+	currentView := make(map[string]Host, len(liveNodes))
+	for _, liveNode := range liveNodes {
+		currentView[liveNode.name] = *liveNode.host
+	}
+
+	if clstr.lastClusterView == nil {
+		clstr.lastClusterView = currentView
+		return
+	}
+	if maps.Equal(clstr.lastClusterView, currentView) {
+		return
+	}
+
+	clstr.lastClusterView = currentView
+	clstr.viewChangeCount++
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Logger.Warn("Address translator %s OnClusterViewChanged failed: %v", clstr.translatorName, recovered)
+		}
+	}()
+	clstr.viewChangeObserver.OnClusterViewChanged(clstr.viewChangeCount)
 }
 
 func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {

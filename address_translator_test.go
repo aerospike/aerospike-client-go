@@ -23,40 +23,37 @@ import (
 
 var _ = gg.Describe("Address translators", func() {
 
-	// The static-map translator must behave exactly like the IpMap lookup it
-	// replaces. Every IpMap scenario runs through both paths: the parser's
-	// legacy map lookup, and the translator with a pass-through miss. The two
-	// must produce the same address.
-	gg.Describe("static-map equivalence with IpMap", func() {
+	// The static-map translator carries the IpMap contract. Every IpMap
+	// value shape is pinned here with its expected address; a miss with the
+	// default pass-through handling keeps the advertised address unchanged.
+	gg.Describe("static-map keeps the IpMap contract", func() {
 
 		type scenario struct {
-			name       string
-			addressMap map[string]string
-			advertised string
+			name         string
+			addressMap   map[string]string
+			advertised   string
+			expectedHost string
+			expectedPort int
 		}
 
 		scenarios := []scenario{
-			{"nil map", nil, "10.88.0.7:3100"},
-			{"host with no entry", map[string]string{"9.9.9.9": "1.1.1.1"}, "10.88.0.7:3100"},
-			{"empty mapping value", map[string]string{"10.88.0.7": ""}, "10.88.0.7:3100"},
-			{"host-only value", map[string]string{"10.88.0.7": "127.0.0.1"}, "10.88.0.7:3100"},
-			{"host and port value", map[string]string{"10.88.0.7": "127.0.0.1:3100"}, "10.88.0.7:3100"},
-			{"key carrying a port never matches", map[string]string{"10.88.0.7:3100": "127.0.0.1:9999"}, "10.88.0.7:3100"},
-			{"IPv6 advertised address keyed without brackets", map[string]string{"fe80::1": "127.0.0.1:3100"}, "[fe80::1]:3000"},
-			{"one endpoint name with distinct ports", map[string]string{"10.0.0.1": "nlb.example.com:4001"}, "10.0.0.1:3000"},
-			{"bare host value without a colon", map[string]string{"10.88.0.7": "reachable.internal"}, "10.88.0.7:3100"},
-			{"bracketed IPv6 value", map[string]string{"10.88.0.7": "[fe80::1]"}, "10.88.0.7:3100"},
-			{"IPv6 literal value ending in digits", map[string]string{"10.88.0.7": "2001:db8:ffff::10"}, "10.88.0.7:3100"},
-			{"IPv6 literal value ending in a hex letter", map[string]string{"10.88.0.7": "2001:db8::a"}, "10.88.0.7:3100"},
+			{"nil map", nil, "10.88.0.7:3100", "10.88.0.7", 3100},
+			{"host with no entry", map[string]string{"9.9.9.9": "1.1.1.1"}, "10.88.0.7:3100", "10.88.0.7", 3100},
+			{"empty mapping value", map[string]string{"10.88.0.7": ""}, "10.88.0.7:3100", "10.88.0.7", 3100},
+			{"host-only value", map[string]string{"10.88.0.7": "127.0.0.1"}, "10.88.0.7:3100", "127.0.0.1", 3100},
+			{"host and port value", map[string]string{"10.88.0.7": "127.0.0.1:3100"}, "10.88.0.7:3100", "127.0.0.1", 3100},
+			{"key carrying a port never matches", map[string]string{"10.88.0.7:3100": "127.0.0.1:9999"}, "10.88.0.7:3100", "10.88.0.7", 3100},
+			{"IPv6 advertised address keyed without brackets", map[string]string{"fe80::1": "127.0.0.1:3100"}, "[fe80::1]:3000", "127.0.0.1", 3100},
+			{"one endpoint name with distinct ports", map[string]string{"10.0.0.1": "nlb.example.com:4001"}, "10.0.0.1:3000", "nlb.example.com", 4001},
+			{"bare host value without a colon", map[string]string{"10.88.0.7": "reachable.internal"}, "10.88.0.7:3100", "reachable.internal", 3100},
+			{"bracketed IPv6 value", map[string]string{"10.88.0.7": "[fe80::1]"}, "10.88.0.7:3100", "[fe80::1]", 3100},
+			{"IPv6 literal value ending in digits", map[string]string{"10.88.0.7": "2001:db8:ffff::10"}, "10.88.0.7:3100", "2001:db8:ffff::10", 3100},
+			{"IPv6 literal value ending in a hex letter", map[string]string{"10.88.0.7": "2001:db8::a"}, "10.88.0.7:3100", "2001:db8::a", 3100},
 		}
 
 		for _, each := range scenarios {
 			current := each
-			gg.It("matches the parser for "+current.name, func() {
-				legacyParser := peerListParser{ipMap: current.addressMap}
-				expected, err := legacyParser.ParseHost(current.advertised)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-
+			gg.It("resolves "+current.name, func() {
 				plainParser := peerListParser{}
 				advertised, err := plainParser.ParseHost(current.advertised)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -64,13 +61,11 @@ var _ = gg.Describe("Address translators", func() {
 				endpoint := Endpoint{NodeName: "BB9000000000001", Host: advertised.Name, Port: advertised.Port}
 				translated, found := NewStaticMapAddressTranslator(current.addressMap).Translate(endpoint)
 				if !found {
-					// A miss with the default pass-through handling keeps the
-					// advertised address unchanged.
 					translated = Host{Name: advertised.Name, Port: advertised.Port}
 				}
 
-				gm.Expect(translated.Name).To(gm.Equal(expected.Name))
-				gm.Expect(translated.Port).To(gm.Equal(expected.Port))
+				gm.Expect(translated.Name).To(gm.Equal(current.expectedHost))
+				gm.Expect(translated.Port).To(gm.Equal(current.expectedPort))
 			})
 		}
 

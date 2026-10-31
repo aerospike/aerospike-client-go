@@ -140,6 +140,15 @@ type ClientPolicy struct {
 	// additionally accepts "host:port" values.
 	IpMap map[string]string
 
+	// AddressTranslator remaps advertised addresses to client-reachable ones.
+	// Nil uses a static-map over IpMap, matching today's IpMap behaviour.
+	AddressTranslator AddressTranslator //= nil
+
+	// TranslationOnMiss is used when the translator has no mapping.
+	// Default pass_through keeps the advertised address. Strict drops it
+	// and retries next tend.
+	TranslationOnMiss TranslationMissMode //= TranslationMissPassThrough
+
 	// UseServicesAlternate determines if the client should use "services-alternate" instead of "services"
 	// in info request during cluster tending.
 	//"services-alternate" returns server configured external IP addresses that client

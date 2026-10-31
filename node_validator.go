@@ -183,7 +183,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	}
 
 	addressCommand := clientPolicy.serviceString()
-	if ndv.detectLoadBalancer && !ndv.seedOnlyCluster {
+	if (ndv.detectLoadBalancer && !ndv.seedOnlyCluster) || clientPolicy.UseServicesAlternate {
 		infoKeys = append(infoKeys, addressCommand)
 	}
 
@@ -234,13 +234,28 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		return featError
 	}
 
+	if clientPolicy.UseServicesAlternate && infoMap[addressCommand] == "" {
+		return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) has no alternate address while UseServicesAlternate is set", nodeName, alias.String()))
+	}
+
 	// check if the host is a load-balancer
 	if peersStr, exists := infoMap[addressCommand]; exists {
 		var hostAddress []*Host
-		// IpMap/NLB fork: translate the seed's own advertised service address too
-		// (Java parity), so a load-balancer seed is replaced with a reachable per-node
-		// address rather than an internal one.
-		peerParser := peerListParser{buf: []byte("[" + peersStr + "]"), ipMap: clientPolicy.IpMap}
+		// The seed's own advertised service address is translated too, so a
+		// load-balancer seed is replaced with a reachable per-node address.
+		sourceList := SourceListStandard
+		if clientPolicy.UseServicesAlternate {
+			sourceList = SourceListAlternate
+		}
+		peerParser := peerListParser{
+			buf:            []byte("[" + peersStr + "]"),
+			translator:     cluster.addressTranslator,
+			translatorName: cluster.translatorName,
+			onMiss:         cluster.translationOnMiss,
+			sourceList:     sourceList,
+			nodeName:       nodeName,
+			tlsName:        alias.TLSName,
+		}
 		if hostAddress, err = peerParser.readHosts(alias.TLSName); err != nil {
 			logger.Logger.Error("Failed to parse `%s` results... err: %s", alias.String(), err.Error())
 		}

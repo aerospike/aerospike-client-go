@@ -27,9 +27,22 @@ import (
 var aeroerr = newError(types.PARSE_ERROR, "Error parsing peers list.")
 
 func parsePeers(cluster *Cluster, node *Node) (*peerListParser, Error) {
-	cmd := cluster.clientPolicy.Load().peersString()
+	policy := cluster.clientPolicy.Load()
+	cmd := policy.peersString()
 
-	info, err := node.RequestInfo(&cluster.infoPolicy, cmd)
+	// The alternate list omits peers with no alternate address, so the
+	// standard list is fetched alongside to name them.
+	commands := []string{cmd}
+	standardCmd := ""
+	if policy.UseServicesAlternate {
+		standardCmd = "peers-clear-std"
+		if policy.TlsConfig != nil {
+			standardCmd = "peers-tls-std"
+		}
+		commands = append(commands, standardCmd)
+	}
+
+	info, err := node.RequestInfo(&cluster.infoPolicy, commands...)
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +52,49 @@ func parsePeers(cluster *Cluster, node *Node) (*peerListParser, Error) {
 		return nil, newError(types.PARSE_ERROR, "Info Command response was empty.")
 	}
 
-	p := peerListParser{buf: []byte(peersStr), ipMap: cluster.clientPolicy.Load().IpMap}
+	sourceList := SourceListStandard
+	if policy.UseServicesAlternate {
+		sourceList = SourceListAlternate
+	}
+
+	p := peerListParser{
+		buf:            []byte(peersStr),
+		translator:     cluster.addressTranslator,
+		translatorName: cluster.translatorName,
+		onMiss:         cluster.translationOnMiss,
+		sourceList:     sourceList,
+	}
 	if err := p.Parse(); err != nil {
 		return nil, err
 	}
 
+	if standardCmd != "" {
+		p.addMissingAlternates(info[standardCmd])
+	}
+
 	return &p, nil
+}
+
+// addMissingAlternates names the peers present in the standard list but
+// absent from the parsed alternate list.
+func (p *peerListParser) addMissingAlternates(standardPeersStr string) {
+	standardParser := peerListParser{buf: []byte(standardPeersStr)}
+	if err := standardParser.Parse(); err != nil {
+		return
+	}
+
+	for _, standardPeer := range standardParser.peers {
+		found := false
+		for _, alternatePeer := range p.peers {
+			if alternatePeer.nodeName == standardPeer.nodeName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			p.missingAlternates = append(p.missingAlternates, standardPeer.nodeName)
+		}
+	}
 }
 
 type peerListParser struct {
@@ -55,9 +105,22 @@ type peerListParser struct {
 	gen     *int64
 	peers   []*peer
 
-	// ipMap, when set, translates each discovered peer address into a
-	// client-reachable one (IpMap/NLB fork). See ClientPolicy.IpMap.
-	ipMap map[string]string
+	// translator, when set, translates each advertised address into a
+	// client-reachable one. onMiss decides what a miss does and sourceList
+	// names the advertised list being parsed.
+	translator     AddressTranslator
+	translatorName string
+	onMiss         TranslationMissMode
+	sourceList     SourceList
+
+	// nodeName and tlsName identify the peer whose hosts are being parsed.
+	nodeName string
+	tlsName  string
+
+	// parsedHostCount counts the advertised hosts of the current peer before
+	// translation. missingAlternates names peers with no alternate address.
+	parsedHostCount   int
+	missingAlternates []string
 }
 
 func (p *peerListParser) generation() int64 {
@@ -189,16 +252,19 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 		}
 	}
 
-	// IpMap/NLB fork: translate the advertised address (host, no port) into a
-	// client-reachable one. A map value may replace the host alone ("host") or both
-	// host and port ("host:port"). A nil map is safe to index. See ClientPolicy.IpMap.
-	if translated, ok := p.ipMap[addr]; ok && translated != "" {
-		addr, port = parseTranslationValue(translated, port)
-		// IpMap/NLB fork: logged at Debug (opt-in). Kept off the normal log path so a
-		// long-running client does not re-log every peer on every tend (~1s); raise the
-		// level to Debug to trace a failed `Add node` back to exactly what the cluster
-		// advertised before IpMap rewrote it.
-		logger.Logger.Debug("IpMap translated peer `%s` -> `%s:%d`", host, addr, port)
+	if p.translator != nil {
+		advertised := Endpoint{NodeName: p.nodeName, TLSName: p.tlsName, Host: addr, Port: port, SourceList: p.sourceList}
+		if translated, found := p.translator.Translate(advertised); found {
+			addr = translated.Name
+			port = translated.Port
+			// Debug level keeps the per-peer, per-tend translation off the
+			// normal log path; raise to Debug to trace a failed `Add node`
+			// back to the advertised address.
+			logger.Logger.Debug("Translated peer `%s` -> `%s:%d`", host, addr, port)
+		} else if p.onMiss == TranslationMissStrict {
+			logger.Logger.Warn("Address translator %s has no mapping for node %s advertised address %s:%d in the %s list. Add a mapping for that endpoint or node, or set TranslationOnMiss to pass_through", p.translatorName, p.nodeName, addr, port, p.sourceList.String())
+			return nil, nil
+		}
 	}
 
 	return NewHost(addr, port), nil
@@ -234,6 +300,7 @@ func (p *peerListParser) readHosts(tlsName string) ([]*Host, Error) {
 		return nil, aeroerr
 	}
 
+	p.parsedHostCount = 0
 	hostList := []*Host{}
 	for {
 		hostStr, err := p.readString()
@@ -245,13 +312,18 @@ func (p *peerListParser) readHosts(tlsName string) ([]*Host, Error) {
 			break
 		}
 
+		p.parsedHostCount++
 		host, err := p.ParseHost(hostStr)
 		if err != nil {
 			return nil, aeroerr
 		}
 
-		host.TLSName = tlsName
-		hostList = append(hostList, host)
+		// A nil host is a strict translation miss; the address is dropped and
+		// retried on the next tend.
+		if host != nil {
+			host.TLSName = tlsName
+			hostList = append(hostList, host)
+		}
 
 		if !p.Expect(',') {
 			break
@@ -287,9 +359,15 @@ func (p *peerListParser) readPeer() (*peer, Error) {
 		return nil, aeroerr
 	}
 
+	p.nodeName = nodeName
+	p.tlsName = tlsName
 	hostList, err := p.readHosts(tlsName)
 	if err != nil {
 		return nil, err
+	}
+
+	if p.sourceList == SourceListAlternate && p.parsedHostCount == 0 {
+		p.missingAlternates = append(p.missingAlternates, nodeName)
 	}
 
 	if !p.Expect(']') {
