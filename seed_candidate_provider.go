@@ -24,8 +24,10 @@ type SeedCandidateContext struct {
 	// The slice and its hosts are read-only.
 	ConfiguredSeeds []*Host
 
-	// TendIteration is the cluster tend counter at the time of the call.
-	// It is zero during client initialization.
+	// TendIteration counts refresh calls to this provider: the cluster tend
+	// iteration in tend mode, the refresh loop iteration in thread mode.
+	// It is zero on the first call during client initialization. Gate one-time
+	// setup on provider state, not on this value.
 	TendIteration int64
 }
 
