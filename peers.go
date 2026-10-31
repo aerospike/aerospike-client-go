@@ -49,8 +49,7 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 		_nodesToRemove: *sm.New[string, *Node](addCapacity),
 		genChanged:     *atomic.NewBool(true),
 
-		collided:         *sm.New[string, string](4),
-		claimedAddresses: make(map[hostAndPort]string, addCapacity),
+		collided: *sm.New[string, string](4),
 	}
 }
 
@@ -117,6 +116,9 @@ func (ps *peers) claimAddress(address hostAndPort, nodeName string) string {
 
 	if owner, exists := ps.claimedAddresses[address]; exists && owner != nodeName {
 		return owner
+	}
+	if ps.claimedAddresses == nil {
+		ps.claimedAddresses = make(map[hostAndPort]string, 4)
 	}
 	ps.claimedAddresses[address] = nodeName
 	return ""
