@@ -31,7 +31,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-var _ = gg.Describe("Seed validation against a scripted server", func() {
+var _ = gg.Describe("Seed validation against a scripted server", gg.Label("discovery"), func() {
 
 	var server *fakeInfoServer
 

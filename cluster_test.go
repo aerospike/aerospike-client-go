@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"crypto/tls"
 	"sync/atomic"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -23,7 +24,7 @@ import (
 	sm "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 )
 
-var _ = gg.Describe("Translation collision detection", func() {
+var _ = gg.Describe("Translation collision detection", gg.Label("discovery"), func() {
 
 	newTestPeer := func(nodeName string, hosts ...*Host) *peer {
 		return &peer{nodeName: nodeName, hosts: hosts}
@@ -102,7 +103,7 @@ func (panickingViewObserver) OnClusterViewChanged(int64) {
 	panic("observer failure")
 }
 
-var _ = gg.Describe("Cluster view change notification", func() {
+var _ = gg.Describe("Cluster view change notification", gg.Label("discovery"), func() {
 
 	newClusterWithNodes := func(observer ClusterViewChangeObserver, nodes ...*Node) *Cluster {
 		cluster := &Cluster{viewChangeObserver: observer, translatorName: "static-map"}
@@ -139,5 +140,30 @@ var _ = gg.Describe("Cluster view change notification", func() {
 		cluster.notifyClusterViewChanged()
 		cluster.nodes.Set([]*Node{})
 		gm.Expect(cluster.notifyClusterViewChanged).ToNot(gm.Panic())
+	})
+})
+
+var _ = gg.Describe("Seed TLS name defaults", gg.Label("discovery"), func() {
+
+	gg.It("fills a missing TLS name from the cluster name when TLS verification is on", func() {
+		policy := NewClientPolicy()
+		policy.TlsConfig = &tls.Config{}
+		policy.ClusterName = "prod.cluster"
+
+		named := defaultSeedTLSNames(policy, []*Host{NewHost("found.internal", 3000)})
+
+		gm.Expect(named).To(gm.HaveLen(1))
+		gm.Expect(named[0].Name).To(gm.Equal("found.internal"))
+		gm.Expect(named[0].TLSName).To(gm.Equal("prod.cluster"))
+	})
+
+	gg.It("leaves TLS names unchanged when TLS verification is off", func() {
+		policy := NewClientPolicy()
+		seed := NewHost("found.internal", 3000)
+
+		named := defaultSeedTLSNames(policy, []*Host{seed})
+
+		gm.Expect(named[0]).To(gm.BeIdenticalTo(seed))
+		gm.Expect(named[0].TLSName).To(gm.BeEmpty())
 	})
 })

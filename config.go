@@ -17,12 +17,16 @@ package aerospike
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 	"runtime/debug"
 	"strings"
+
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	registry "github.com/aerospike/aerospike-client-go/v8/config/registry"
@@ -48,6 +52,16 @@ type DynConfig struct {
 	scheme    string
 	dsn       string
 	logUpdate *atomic.Bool
+
+	// Factories registered on the construction policy, snapshotted when the
+	// watcher starts, and the instances built from them during the client
+	// creation load only; skipFactoryBuild is set after that load so a
+	// reload cannot call a factory. A reloaded file keeps the registered instances.
+	seedCandidateProviderFactories map[string]SeedCandidateProviderFactory
+	addressTranslatorFactories     map[string]AddressTranslatorFactory
+	registeredSeedProvider         SeedCandidateProvider
+	registeredTranslator           AddressTranslator
+	skipFactoryBuild               bool
 }
 
 func parseDsn(inputDsn string) map[string]string {
@@ -101,16 +115,21 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 
 	ctx, cancel := context.WithCancel(context.Background())
 	dynConfig := &DynConfig{
-		configInitialized: &atomic.Bool{},
-		logUpdate:         &atomic.Bool{},
-		metricsCallback:   fn,
-		scheme:            schema,
-		dsn:               urlPath,
-		configProvider:    provider,
-		cancel:            cancel,
+		configInitialized:              &atomic.Bool{},
+		logUpdate:                      &atomic.Bool{},
+		metricsCallback:                fn,
+		scheme:                         schema,
+		dsn:                            urlPath,
+		configProvider:                 provider,
+		cancel:                         cancel,
+		seedCandidateProviderFactories: maps.Clone(policy.seedCandidateProviderFactories),
+		addressTranslatorFactories:     maps.Clone(policy.addressTranslatorFactories),
 	}
 	dynConfig.logUpdate.Store(false)
 	dynConfig.initConfig()
+	// Registered factories run during the load above only; the watcher
+	// starts after this write, so no synchronization is needed.
+	dynConfig.skipFactoryBuild = true
 
 	go dynConfig.watchConfig(ctx, policy.ConfigInterval)
 
@@ -184,14 +203,99 @@ func (dc *DynConfig) providerLoadConfig() {
 	}
 }
 
+// registerFactories calls the seed-provider and translator factories the
+// file names, each at most once, later loads reuse the instances.
+func (dc *DynConfig) registerFactories(config *dynconfig.Config) (err Error) {
+	if config.Static == nil || config.Static.Client == nil {
+		return nil
+	}
+	client := config.Static.Client
+
+	var path, name string
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = invalidFactory(path, name, fmt.Sprintf("factory failed: %v", recovered))
+		}
+	}()
+
+	if discovery := client.Discovery; discovery != nil && discovery.Provider != nil && dc.registeredSeedProvider == nil {
+		if factory := dc.seedCandidateProviderFactories[*discovery.Provider]; factory != nil {
+			path, name = "static.client.discovery.provider", *discovery.Provider
+			provider, factoryErr := factory(discovery.Options)
+			if factoryErr != nil {
+				return invalidFactory(path, name, "factory failed: "+factoryErr.Error())
+			}
+			if provider == nil {
+				return invalidFactory(path, name, "factory returned nil")
+			}
+			dc.registeredSeedProvider = provider
+		}
+	}
+
+	if translation := client.Translation; translation != nil && translation.Provider != nil && dc.registeredTranslator == nil {
+		if factory := dc.addressTranslatorFactories[*translation.Provider]; factory != nil {
+			path, name = "static.client.translation.provider", *translation.Provider
+			translator, factoryErr := factory(translation.Options)
+			if factoryErr != nil {
+				return invalidFactory(path, name, "factory failed: "+factoryErr.Error())
+			}
+			if translator == nil {
+				return invalidFactory(path, name, "factory returned nil")
+			}
+			dc.registeredTranslator = translator
+		}
+	}
+	return nil
+}
+
+func invalidFactory(path, name, detail string) Error {
+	return newError(types.PARAMETER_ERROR, "Invalid "+path+" value '"+name+"': "+detail)
+}
+
+// pendingFactoryToBeRegistered is an error when a reload names a registered
+// seed provider or translator factory that this client never built. Those
+// factories run only at NewClient.
+func (dc *DynConfig) pendingFactoryToBeRegistered(config *dynconfig.Config) Error {
+	if config.Static == nil || config.Static.Client == nil {
+		return nil
+	}
+	client := config.Static.Client
+
+	if discovery := client.Discovery; discovery != nil && discovery.Provider != nil && dc.registeredSeedProvider == nil {
+		if _, registered := dc.seedCandidateProviderFactories[*discovery.Provider]; registered {
+			return newError(types.PARAMETER_ERROR, "static.client.discovery.provider '"+*discovery.Provider+
+				"' is built at client creation; restart the client to apply it")
+		}
+	}
+	if translation := client.Translation; translation != nil && translation.Provider != nil && dc.registeredTranslator == nil {
+		if _, registered := dc.addressTranslatorFactories[*translation.Provider]; registered {
+			return newError(types.PARAMETER_ERROR, "static.client.translation.provider '"+*translation.Provider+
+				"' is built at client creation; restart the client to apply it")
+		}
+	}
+	return nil
+}
+
 // initConfig is called only once on startup. It loads the config and
 // hydrates the static and dynamic policies. It also clears the cache to ensure that the new config is used.
 func (dc *DynConfig) initConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
-		if err := validateStaticConfig(loadedConfig); err != nil {
+		if err := validateStaticConfig(loadedConfig, dc.seedCandidateProviderFactories, dc.addressTranslatorFactories); err != nil {
 			// An invalid file is ignored as a whole, like any other bad
 			// file, and re-read on the next config interval.
+			logger.Logger.Warn("Ignoring configuration file: %s", err.Error())
+			return
+		}
+		if dc.skipFactoryBuild {
+			// A registered provider is built during the client creation
+			// load only; a running cluster cannot adopt one. A file that
+			// needs a build now is rejected as a whole until a restart.
+			if err := dc.pendingFactoryToBeRegistered(loadedConfig); err != nil {
+				logger.Logger.Warn("Ignoring configuration file: %s", err.Error())
+				return
+			}
+		} else if err := dc.registerFactories(loadedConfig); err != nil {
 			logger.Logger.Warn("Ignoring configuration file: %s", err.Error())
 			return
 		}

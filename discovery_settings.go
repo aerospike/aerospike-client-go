@@ -109,6 +109,22 @@ const (
 	translatorNamePassThrough = "pass-through"
 )
 
+func isStandardSeedProviderName(name string) bool {
+	switch name {
+	case seedProviderNameStatic, seedProviderNameDns, seedProviderNameAwsTags:
+		return true
+	}
+	return false
+}
+
+func isStandardTranslatorName(name string) bool {
+	switch name {
+	case translatorNameStaticMap, translatorNamePortMap, translatorNamePassThrough:
+		return true
+	}
+	return false
+}
+
 func parseSeedMergePolicy(token string) (SeedMergePolicy, Error) {
 	switch token {
 	case "merge":

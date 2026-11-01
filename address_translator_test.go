@@ -21,7 +21,7 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-var _ = gg.Describe("Address translators", func() {
+var _ = gg.Describe("Address translators", gg.Label("discovery"), func() {
 
 	// The static-map translator carries the IpMap contract. Every IpMap
 	// value shape is pinned here with its expected address; a miss with the

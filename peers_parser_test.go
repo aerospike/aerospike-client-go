@@ -46,7 +46,7 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-var _ = gg.Describe("ClientPolicy.IpMap translation", func() {
+var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), func() {
 
 	// ---- 1a. ParseHost: the leaf translation, exercised directly. ----
 	gg.Describe("ParseHost", func() {
@@ -221,7 +221,7 @@ func (translator *recordingAddressTranslator) Translate(advertised Endpoint) (Ho
 	return Host{}, false
 }
 
-var _ = gg.Describe("Peers parsing with a translator", func() {
+var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), func() {
 
 	const twoPeerReply = "7,3000,[[BB9010011AC4202,,[10.88.0.7]],[BB9020011AC4202,peer-2.internal,[10.88.0.8:3200]]]"
 

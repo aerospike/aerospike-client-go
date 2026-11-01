@@ -41,7 +41,7 @@ func staticPolicyFromYaml(yamlText string) *ClientPolicy {
 	return NewClientPolicy().mapStatic(&DynConfig{config: parsed})
 }
 
-var _ = gg.Describe("Discovery configuration from YAML", func() {
+var _ = gg.Describe("Discovery configuration from YAML", gg.Label("discovery"), func() {
 
 	gg.It("maps the ip_map key onto the policy", func() {
 		policy := staticPolicyFromYaml(`
@@ -118,6 +118,35 @@ static:
 		gm.Expect(ok).To(gm.BeTrue())
 		gm.Expect(translated.Name).To(gm.Equal("10.0.0.2"))
 		gm.Expect(translated.Port).To(gm.Equal(3000))
+	})
+
+	gg.It("selects thread execution mode from the file", func() {
+		policy := staticPolicyFromYaml(`
+static:
+  client:
+    discovery:
+      execution_mode: thread
+`)
+
+		gm.Expect(policy.DiscoveryExecutionMode).To(gm.Equal(DiscoveryExecutionThread))
+	})
+
+	gg.It("keeps the code translator when the translation block has no provider", func() {
+		codeTranslator := NewPassThroughAddressTranslator()
+		policy := NewClientPolicy()
+		policy.AddressTranslator = codeTranslator
+
+		parsed := &dynconfig.Config{}
+		gm.Expect(yaml.Unmarshal([]byte(`
+static:
+  client:
+    translation:
+      on_miss: strict
+`), parsed)).To(gm.Succeed())
+
+		patched := policy.mapStatic(&DynConfig{config: parsed})
+		gm.Expect(patched.AddressTranslator).To(gm.Equal(codeTranslator))
+		gm.Expect(patched.TranslationOnMiss).To(gm.Equal(TranslationMissStrict))
 	})
 
 	gg.It("keeps the code configuration for an invalid token and applies the valid keys", func() {
