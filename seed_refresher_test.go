@@ -108,7 +108,7 @@ func hostAddresses(hosts []*Host) []string {
 	return addresses
 }
 
-var _ = gg.Describe("Seed refresher", func() {
+var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 	staticSeeds := []*Host{NewHost("seed-1.internal", 3000), NewHost("seed-2.internal", 3000)}
 
@@ -243,6 +243,18 @@ var _ = gg.Describe("Seed refresher", func() {
 			gm.Expect(err.Error()).To(gm.ContainSubstring("at most half the tend interval"))
 		})
 
+		gg.It("skips tend-mode range checks when the provider is not periodic", func() {
+			policy := NewClientPolicy()
+			policy.DiscoveryExecutionMode = DiscoveryExecutionTend
+			policy.DiscoveryRefreshInterval = 500 * time.Millisecond
+			policy.DiscoveryTendRefreshDeadline = 600 * time.Millisecond
+			policy.TendInterval = time.Second
+
+			_, err := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
 		gg.It("refreshes once per interval worth of tends", func() {
 			provider := &scriptedSeedProvider{results: [][]*Host{{NewHost("found-1.internal", 3000)}}, periodic: true, deadline: true}
 			refresher, _ := newTendRefresher(provider, SeedMergePolicyMerge)
@@ -303,7 +315,7 @@ var _ = gg.Describe("Seed refresher", func() {
 			gm.Expect(provider.calls.Load()).To(gm.Equal(callsAtTrip))
 		})
 
-		gg.It("an on-time refresh resets the overrun count", func() {
+		gg.It("resets the overrun count after an on-time refresh", func() {
 			provider := &scriptedSeedProvider{results: [][]*Host{{NewHost("found-1.internal", 3000)}}, periodic: true, deadline: true}
 			refresher, _ := newTendRefresherWithDeadline(provider, SeedMergePolicyMerge, 20*time.Millisecond)
 
@@ -339,7 +351,7 @@ var _ = gg.Describe("Seed refresher", func() {
 			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000"}))
 		})
 
-		gg.It("fails construction only when discovery errors and no seed is left", func() {
+		gg.It("fails start when discovery errors and no seed is left", func() {
 			policy := NewClientPolicy()
 			policy.SeedProvider = &scriptedSeedProvider{results: [][]*Host{nil}, periodic: true, deadline: true}
 			policy.SeedMergePolicy = SeedMergePolicyReplace

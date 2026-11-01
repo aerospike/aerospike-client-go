@@ -16,6 +16,9 @@ package aerospike
 
 import (
 	"crypto/tls"
+	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -178,6 +181,11 @@ type ClientPolicy struct {
 	// half of TendInterval.
 	DiscoveryTendRefreshDeadline time.Duration //= 100 milliseconds
 
+	// Factories registered with RegisterSeedCandidateProvider and
+	// RegisterAddressTranslator, by name.
+	seedCandidateProviderFactories map[string]SeedCandidateProviderFactory
+	addressTranslatorFactories     map[string]AddressTranslatorFactory
+
 	// UseServicesAlternate determines if the client should use "services-alternate" instead of "services"
 	// in info request during cluster tending.
 	//"services-alternate" returns server configured external IP addresses that client
@@ -330,7 +338,81 @@ func (cp *ClientPolicy) copy() *ClientPolicy {
 	}
 
 	response := *cp
+	response.seedCandidateProviderFactories = maps.Clone(cp.seedCandidateProviderFactories)
+	response.addressTranslatorFactories = maps.Clone(cp.addressTranslatorFactories)
 	return &response
+}
+
+// SeedCandidateProviderFactory builds a seed candidate provider from the
+// option keys of the configuration file's discovery block.
+type SeedCandidateProviderFactory func(options map[string]any) (SeedCandidateProvider, Error)
+
+// AddressTranslatorFactory builds an address translator from the option keys
+// of the configuration file's translation block.
+type AddressTranslatorFactory func(options map[string]any) (AddressTranslator, Error)
+
+// RegisterSeedCandidateProvider registers a seed candidate provider factory
+// under a name. When static.client.discovery.provider in the configuration
+// file names it, the client calls the factory once, at client creation, with
+// the block's other keys as the options map and uses the result as the seed
+// provider. The factory runs at most once, at client creation; a factory
+// error makes the file invalid until the next restart, and a reloaded file
+// keeps the built provider. Register before creating the client, from one
+// goroutine. The name must not be a built-in provider name or already
+// registered.
+func (cp *ClientPolicy) RegisterSeedCandidateProvider(name string, factory SeedCandidateProviderFactory) Error {
+	if name == "" {
+		return invalidRegistration("seed candidate provider", name, "empty")
+	}
+	if isStandardSeedProviderName(name) {
+		return invalidRegistration("seed candidate provider", name, "built-in name")
+	}
+	if factory == nil {
+		return invalidRegistration("seed candidate provider", name, "nil factory")
+	}
+	return registerFactory(&cp.seedCandidateProviderFactories, "seed candidate provider", name, factory)
+}
+
+// RegisterAddressTranslator registers an address translator factory under a
+// name. When static.client.translation.provider in the configuration file
+// names it, the client calls the factory once, at client creation, with the
+// block's other keys as the options map and uses the result as the address
+// translator. The factory runs at most once, at client creation; a factory
+// error makes the file invalid until the next restart, and a reloaded file
+// keeps the built translator. Register before creating the client, from one
+// goroutine. The name must not be a built-in translator name or already
+// registered.
+func (cp *ClientPolicy) RegisterAddressTranslator(name string, factory AddressTranslatorFactory) Error {
+	if name == "" {
+		return invalidRegistration("address translator", name, "empty")
+	}
+	if isStandardTranslatorName(name) {
+		return invalidRegistration("address translator", name, "built-in name")
+	}
+	if factory == nil {
+		return invalidRegistration("address translator", name, "nil factory")
+	}
+	return registerFactory(&cp.addressTranslatorFactories, "address translator", name, factory)
+}
+
+func registerFactory[T any](dest *map[string]T, kind string, name string, factory T) Error {
+	factories := *dest
+	if factories == nil {
+		factories = make(map[string]T)
+		*dest = factories
+	}
+	if _, exists := factories[name]; exists {
+		return invalidRegistration(kind, name, "already registered")
+	}
+	factories[name] = factory
+	return nil
+}
+
+func invalidRegistration(kind string, name string, reason string) Error {
+	if name == "" {
+		return newError(types.PARAMETER_ERROR, "Invalid "+kind+" name: "+reason)
+	}
+	return newError(types.PARAMETER_ERROR, "Invalid "+kind+" name '"+name+"': "+reason)
 }
 
 func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
@@ -436,19 +518,30 @@ func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
 		if currentConfig.Static.Client.IpMap != nil {
 			cp.IpMap = *currentConfig.Static.Client.IpMap
 		}
-		cp.applyStaticTranslation(currentConfig.Static.Client.Translation)
-		cp.applyStaticDiscovery(currentConfig.Static.Client.Discovery)
+		cp.applyStaticTranslation(currentConfig.Static.Client.Translation, dynConfig.registeredTranslator)
+		cp.applyStaticDiscovery(currentConfig.Static.Client.Discovery, dynConfig.registeredSeedProvider)
 	}
 
 	return cp
 }
 
-// applyStaticDiscovery maps the static.client.discovery keys. An invalid
-// token is logged and the code-level value is kept; duration ranges are
-// validated when the cluster is created.
-func (cp *ClientPolicy) applyStaticDiscovery(discovery *dynconfig.DiscoveryConfig) {
+// applyStaticDiscovery maps the static.client.discovery keys onto this policy.
+// An invalid merge_policy or execution_mode is logged and the code-level value
+// is kept. Millisecond durations are copied as-is. Tend-mode range checks run
+// when the cluster is created.
+func (cp *ClientPolicy) applyStaticDiscovery(discovery *dynconfig.DiscoveryConfig, registeredSeedProvider SeedCandidateProvider) {
 	if discovery == nil {
 		return
+	}
+	// YAML static.client.discovery.provider → SeedProvider
+	//   static          → nil (NewClient hosts, StaticSeedCandidateProvider at cluster create)
+	//   registered name → registeredSeedProvider (factory ran once at NewClient)
+	if discovery.Provider != nil {
+		if *discovery.Provider == seedProviderNameStatic {
+			cp.SeedProvider = nil
+		} else if registeredSeedProvider != nil {
+			cp.SeedProvider = registeredSeedProvider
+		}
 	}
 	if discovery.MergePolicy != nil {
 		if policy, err := parseSeedMergePolicy(*discovery.MergePolicy); err != nil {
@@ -478,15 +571,23 @@ func (cp *ClientPolicy) applyStaticDiscovery(discovery *dynconfig.DiscoveryConfi
 // applyStaticTranslation maps the static.client.translation keys. A block
 // that is not a valid translator is logged and ignored as a whole. An invalid
 // on_miss token is logged and the code-level value is kept.
-func (cp *ClientPolicy) applyStaticTranslation(translation *dynconfig.TranslationConfig) {
+func (cp *ClientPolicy) applyStaticTranslation(translation *dynconfig.TranslationConfig, registeredTranslator AddressTranslator) {
 	if translation == nil {
 		return
 	}
 
-	translator, err := translatorFromStaticConfig(translation)
-	if err != nil {
-		logger.Logger.Warn("Ignoring static.client.translation: %s", err.Error())
-		return
+	// YAML static.client.translation.provider → AddressTranslator
+	//   registered name → registeredTranslator (factory ran once at NewClient)
+	//   static-map      → StaticMapAddressTranslator (nil map keeps the IpMap default)
+	//   port-map        → PortMapAddressTranslator
+	//   pass-through    → PassThroughAddressTranslator
+	translator := registeredTranslator
+	if translator == nil {
+		var err Error
+		if translator, err = translatorFromStaticConfig(translation); err != nil {
+			logger.Logger.Warn("Ignoring static.client.translation: %s", err.Error())
+			return
+		}
 	}
 
 	if translation.OnMiss != nil {
@@ -539,13 +640,21 @@ func translatorFromStaticConfig(translation *dynconfig.TranslationConfig) (Addre
 // validateStaticConfig rejects a configuration whose discovery, translation
 // or ip_map settings are invalid. The caller then ignores the whole file,
 // instead of applying the valid keys.
-func validateStaticConfig(config *dynconfig.Config) Error {
+func validateStaticConfig(config *dynconfig.Config,
+	seedCandidateProviderFactories map[string]SeedCandidateProviderFactory,
+	addressTranslatorFactories map[string]AddressTranslatorFactory) Error {
 	if config == nil || config.Static == nil || config.Static.Client == nil {
 		return nil
 	}
 	client := config.Static.Client
 
 	if discovery := client.Discovery; discovery != nil {
+		if discovery.Provider != nil && *discovery.Provider != seedProviderNameStatic {
+			if _, registered := seedCandidateProviderFactories[*discovery.Provider]; !registered {
+				return newError(types.PARAMETER_ERROR, "Invalid static.client.discovery.provider value '"+*discovery.Provider+
+					"': valid values: "+strings.Join(append([]string{seedProviderNameStatic}, slices.Sorted(maps.Keys(seedCandidateProviderFactories))...), ", "))
+			}
+		}
 		if discovery.MergePolicy != nil {
 			if _, err := parseSeedMergePolicy(*discovery.MergePolicy); err != nil {
 				return err
@@ -567,7 +676,22 @@ func validateStaticConfig(config *dynconfig.Config) Error {
 				return err
 			}
 		}
-		if _, err := translatorFromStaticConfig(translation); err != nil {
+		registered := false
+		if translation.Provider != nil {
+			_, registered = addressTranslatorFactories[*translation.Provider]
+		}
+		if registered {
+			if translation.StaticMap != nil {
+				return newError(types.PARAMETER_ERROR, "static.client.translation.static_map is only valid with provider static-map, not '"+*translation.Provider+"'")
+			}
+			if translation.PortMap != nil {
+				return newError(types.PARAMETER_ERROR, "static.client.translation.port_map is only valid with provider port-map, not '"+*translation.Provider+"'")
+			}
+		} else if _, err := translatorFromStaticConfig(translation); err != nil {
+			if translation.Provider != nil && !isStandardTranslatorName(*translation.Provider) {
+				return newError(types.PARAMETER_ERROR, "Invalid static.client.translation.provider value '"+*translation.Provider+
+					"': valid values: "+strings.Join(append([]string{translatorNameStaticMap, translatorNamePortMap, translatorNamePassThrough}, slices.Sorted(maps.Keys(addressTranslatorFactories))...), ", "))
+			}
 			return err
 		}
 	}

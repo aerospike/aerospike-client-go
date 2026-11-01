@@ -87,20 +87,54 @@ type Client struct {
 // DiscoveryConfig holds the static.client.discovery keys. Values are raw
 // tokens, the client parses and validates them when the policy is built.
 type DiscoveryConfig struct {
-	MergePolicy           *string `yaml:"merge_policy"`
-	ExecutionMode         *string `yaml:"execution_mode"`
-	RefreshIntervalMs     *int    `yaml:"refresh_interval_ms"`
-	RefreshTimeoutMs      *int    `yaml:"refresh_timeout_ms"`
-	TendRefreshDeadlineMs *int    `yaml:"tend_refresh_deadline_ms"`
+	Provider              *string                `yaml:"provider"`
+	MergePolicy           *string                `yaml:"merge_policy"`
+	ExecutionMode         *string                `yaml:"execution_mode"`
+	RefreshIntervalMs     *int                   `yaml:"refresh_interval_ms"`
+	RefreshTimeoutMs      *int                   `yaml:"refresh_timeout_ms"`
+	TendRefreshDeadlineMs *int                   `yaml:"tend_refresh_deadline_ms"`
+	Options               map[string]any `yaml:"-"`
+}
+
+// UnmarshalYAML decodes the declared keys and collects Options: every key of
+// the block except provider, for a provider registered by name.
+func (discovery *DiscoveryConfig) UnmarshalYAML(value *yaml.Node) error {
+	type plain DiscoveryConfig
+	if err := value.Decode((*plain)(discovery)); err != nil {
+		return err
+	}
+	discovery.Options = factoryOptions(value)
+	return nil
 }
 
 // TranslationConfig holds the static.client.translation keys. Values are raw
 // tokens, the client parses and validates them when the policy is built.
 type TranslationConfig struct {
-	Provider  *string            `yaml:"provider"`
-	OnMiss    *string            `yaml:"on_miss"`
-	StaticMap *map[string]string `yaml:"static_map"`
-	PortMap   *map[string]string `yaml:"port_map"`
+	Provider  *string                `yaml:"provider"`
+	OnMiss    *string                `yaml:"on_miss"`
+	StaticMap *map[string]string     `yaml:"static_map"`
+	PortMap   *map[string]string     `yaml:"port_map"`
+	Options   map[string]any `yaml:"-"`
+}
+
+// UnmarshalYAML decodes the declared keys and collects Options: every key of
+// the block except provider, for a translator registered by name.
+func (translation *TranslationConfig) UnmarshalYAML(value *yaml.Node) error {
+	type plain TranslationConfig
+	if err := value.Decode((*plain)(translation)); err != nil {
+		return err
+	}
+	translation.Options = factoryOptions(value)
+	return nil
+}
+
+func factoryOptions(block *yaml.Node) map[string]any {
+	options := map[string]any{}
+	if err := block.Decode(&options); err != nil {
+		return nil
+	}
+	delete(options, "provider")
+	return options
 }
 
 type Read struct {

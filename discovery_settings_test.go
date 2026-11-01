@@ -19,23 +19,39 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-var _ = gg.Describe("Discovery setting tokens", func() {
+var _ = gg.Describe("Discovery setting tokens", gg.Label("discovery"), func() {
 
 	gg.It("parses every valid token and formats it back", func() {
-		mergePolicy, err := parseSeedMergePolicy("discovery_only")
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(mergePolicy).To(gm.Equal(SeedMergePolicyDiscoveryOnly))
-		gm.Expect(mergePolicy.String()).To(gm.Equal("discovery_only"))
+		for token, want := range map[string]SeedMergePolicy{
+			"merge":          SeedMergePolicyMerge,
+			"replace":        SeedMergePolicyReplace,
+			"discovery_only": SeedMergePolicyDiscoveryOnly,
+		} {
+			got, err := parseSeedMergePolicy(token)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(got).To(gm.Equal(want))
+			gm.Expect(got.String()).To(gm.Equal(token))
+		}
 
-		missMode, err := parseTranslationMissMode("strict")
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(missMode).To(gm.Equal(TranslationMissStrict))
-		gm.Expect(missMode.String()).To(gm.Equal("strict"))
+		for token, want := range map[string]TranslationMissMode{
+			"pass_through": TranslationMissPassThrough,
+			"strict":       TranslationMissStrict,
+		} {
+			got, err := parseTranslationMissMode(token)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(got).To(gm.Equal(want))
+			gm.Expect(got.String()).To(gm.Equal(token))
+		}
 
-		executionMode, err := parseDiscoveryExecutionMode("tend")
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(executionMode).To(gm.Equal(DiscoveryExecutionTend))
-		gm.Expect(executionMode.String()).To(gm.Equal("tend"))
+		for token, want := range map[string]DiscoveryExecutionMode{
+			"thread": DiscoveryExecutionThread,
+			"tend":   DiscoveryExecutionTend,
+		} {
+			got, err := parseDiscoveryExecutionMode(token)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(got).To(gm.Equal(want))
+			gm.Expect(got.String()).To(gm.Equal(token))
+		}
 	})
 
 	gg.It("defaults match the zero values", func() {
@@ -51,8 +67,10 @@ var _ = gg.Describe("Discovery setting tokens", func() {
 
 		_, err = parseTranslationMissMode("advertised_address")
 		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("pass_through and strict"))
 
 		_, err = parseDiscoveryExecutionMode("background")
 		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("thread and tend"))
 	})
 })

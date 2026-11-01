@@ -19,7 +19,7 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-var _ = gg.Describe("Static seed candidate provider", func() {
+var _ = gg.Describe("Static seed candidate provider", gg.Label("discovery"), func() {
 
 	gg.It("returns the configured seeds in order and never needs a refresh", func() {
 		provider := NewStaticSeedCandidateProvider(
