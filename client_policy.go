@@ -535,6 +535,7 @@ func (cp *ClientPolicy) applyStaticDiscovery(discovery *dynconfig.DiscoveryConfi
 	}
 	// YAML static.client.discovery.provider → SeedProvider
 	//   static          → nil (NewClient hosts, StaticSeedCandidateProvider at cluster create)
+	//   dns             → registeredSeedProvider (built once at NewClient)
 	//   registered name → registeredSeedProvider (factory ran once at NewClient)
 	if discovery.Provider != nil {
 		if *discovery.Provider == seedProviderNameStatic {
@@ -649,10 +650,24 @@ func validateStaticConfig(config *dynconfig.Config,
 	client := config.Static.Client
 
 	if discovery := client.Discovery; discovery != nil {
-		if discovery.Provider != nil && *discovery.Provider != seedProviderNameStatic {
-			if _, registered := seedCandidateProviderFactories[*discovery.Provider]; !registered {
-				return newError(types.PARAMETER_ERROR, "Invalid static.client.discovery.provider value '"+*discovery.Provider+
-					"': valid values: "+strings.Join(append([]string{seedProviderNameStatic}, slices.Sorted(maps.Keys(seedCandidateProviderFactories))...), ", "))
+		providerName := ""
+		if discovery.Provider != nil {
+			providerName = *discovery.Provider
+		}
+		if providerName == seedProviderNameDns {
+			if discovery.DNS == nil {
+				return newError(types.PARAMETER_ERROR, dnsConfigPath+" is required with provider "+seedProviderNameDns)
+			}
+			if err := validateDnsConfig(discovery.DNS); err != nil {
+				return err
+			}
+		} else if discovery.DNS != nil {
+			return newError(types.PARAMETER_ERROR, dnsConfigPath+" is only valid with provider "+seedProviderNameDns)
+		}
+		if providerName != "" && providerName != seedProviderNameStatic && providerName != seedProviderNameDns {
+			if _, registered := seedCandidateProviderFactories[providerName]; !registered {
+				return newError(types.PARAMETER_ERROR, "Invalid static.client.discovery.provider value '"+providerName+
+					"': valid values: "+validSeedProviderValues(seedCandidateProviderFactories))
 			}
 		}
 		if discovery.MergePolicy != nil {
@@ -697,6 +712,14 @@ func validateStaticConfig(config *dynconfig.Config,
 	}
 
 	return nil
+}
+
+func validSeedProviderValues(factories map[string]SeedCandidateProviderFactory) string {
+	names := []string{seedProviderNameStatic, seedProviderNameDns}
+	if factories != nil {
+		names = append(names, slices.Sorted(maps.Keys(factories))...)
+	}
+	return strings.Join(names, ", ")
 }
 
 // patchDynamic applies the dynamic configuration and generates a new policy.

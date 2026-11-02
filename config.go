@@ -211,36 +211,46 @@ func (dc *DynConfig) registerFactories(config *dynconfig.Config) (err Error) {
 	}
 	client := config.Static.Client
 
-	var path, name string
+	var configPath, providerName string
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = invalidFactory(path, name, fmt.Sprintf("factory failed: %v", recovered))
+			err = invalidFactory(configPath, providerName, fmt.Sprintf("factory failed: %v", recovered))
 		}
 	}()
 
 	if discovery := client.Discovery; discovery != nil && discovery.Provider != nil && dc.registeredSeedProvider == nil {
-		if factory := dc.seedCandidateProviderFactories[*discovery.Provider]; factory != nil {
-			path, name = "static.client.discovery.provider", *discovery.Provider
-			provider, factoryErr := factory(discovery.Options)
-			if factoryErr != nil {
-				return invalidFactory(path, name, "factory failed: "+factoryErr.Error())
-			}
-			if provider == nil {
-				return invalidFactory(path, name, "factory returned nil")
+		switch *discovery.Provider {
+		case seedProviderNameDns:
+			configPath, providerName = dnsConfigPath, seedProviderNameDns
+			provider, buildErr := dnsProviderFromConfig(discovery.DNS)
+			if buildErr != nil {
+				return buildErr
 			}
 			dc.registeredSeedProvider = provider
+		default:
+			if factory := dc.seedCandidateProviderFactories[*discovery.Provider]; factory != nil {
+				configPath, providerName = "static.client.discovery.provider", *discovery.Provider
+				provider, buildErr := factory(discovery.Options)
+				if buildErr != nil {
+					return invalidFactory(configPath, providerName, "factory failed: "+buildErr.Error())
+				}
+				if provider == nil {
+					return invalidFactory(configPath, providerName, "factory returned nil")
+				}
+				dc.registeredSeedProvider = provider
+			}
 		}
 	}
 
 	if translation := client.Translation; translation != nil && translation.Provider != nil && dc.registeredTranslator == nil {
 		if factory := dc.addressTranslatorFactories[*translation.Provider]; factory != nil {
-			path, name = "static.client.translation.provider", *translation.Provider
-			translator, factoryErr := factory(translation.Options)
-			if factoryErr != nil {
-				return invalidFactory(path, name, "factory failed: "+factoryErr.Error())
+			configPath, providerName = "static.client.translation.provider", *translation.Provider
+			translator, buildErr := factory(translation.Options)
+			if buildErr != nil {
+				return invalidFactory(configPath, providerName, "factory failed: "+buildErr.Error())
 			}
 			if translator == nil {
-				return invalidFactory(path, name, "factory returned nil")
+				return invalidFactory(configPath, providerName, "factory returned nil")
 			}
 			dc.registeredTranslator = translator
 		}
@@ -248,8 +258,8 @@ func (dc *DynConfig) registerFactories(config *dynconfig.Config) (err Error) {
 	return nil
 }
 
-func invalidFactory(path, name, detail string) Error {
-	return newError(types.PARAMETER_ERROR, "Invalid "+path+" value '"+name+"': "+detail)
+func invalidFactory(configPath, providerName, detail string) Error {
+	return newError(types.PARAMETER_ERROR, "Invalid "+configPath+" value '"+providerName+"': "+detail)
 }
 
 // pendingFactoryToBeRegistered is an error when a reload names a registered
@@ -262,7 +272,8 @@ func (dc *DynConfig) pendingFactoryToBeRegistered(config *dynconfig.Config) Erro
 	client := config.Static.Client
 
 	if discovery := client.Discovery; discovery != nil && discovery.Provider != nil && dc.registeredSeedProvider == nil {
-		if _, registered := dc.seedCandidateProviderFactories[*discovery.Provider]; registered {
+		_, registered := dc.seedCandidateProviderFactories[*discovery.Provider]
+		if registered || *discovery.Provider == seedProviderNameDns {
 			return newError(types.PARAMETER_ERROR, "static.client.discovery.provider '"+*discovery.Provider+
 				"' is built at client creation; restart the client to apply it")
 		}
