@@ -17,6 +17,7 @@ package aerospike
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"math/rand"
 	"runtime"
@@ -25,7 +26,10 @@ import (
 
 	// "time"
 
+	"maps"
 	_ "net/http/pprof"
+	"reflect"
+	"slices"
 )
 
 var buf *benchBuffer
@@ -226,6 +230,7 @@ func (bb *benchBuffer) WriteBool(b bool) int {
 	return 1
 }
 
+//nolint:govet,stdmethods // deliberate bare signature, see BufferEx.
 func (bb *benchBuffer) WriteByte(b byte) {
 	bb.dataBuffer[bb.dataOffset] = b
 	bb.dataOffset++
@@ -241,4 +246,413 @@ func (bb *benchBuffer) Write(b []byte) (int, Error) {
 	copy(bb.dataBuffer[bb.dataOffset:bb.dataOffset+len(b)], b)
 	bb.dataOffset += len(b)
 	return len(b), nil
+}
+
+// --- MapValue (map[any]any) vs TypedMapValue (typed map) packing ---
+//
+// Both pack to the identical wire bytes; the difference under measurement is
+// the per-entry interface boxing and dynamic dispatch the untyped map pays,
+// versus the generic path. Each pair packs the same logical map.
+
+func doPackValue(v Value, b *testing.B) {
+	runtime.GC()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.dataOffset = 0
+		if _, err := v.pack(buf); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func stringIntMaps(n int) (map[any]any, map[string]int) {
+	untyped := make(map[any]any, n)
+	typed := make(map[string]int, n)
+	for i := 0; i < n; i++ {
+		k := "key-" + strings.Repeat("x", 8) + string(rune('a'+i%26))
+		untyped[k+string(rune('0'+i/26))] = i
+		typed[k+string(rune('0'+i/26))] = i
+	}
+	return untyped, typed
+}
+
+func intInt64Maps(n int) (map[any]any, map[int]int64) {
+	untyped := make(map[any]any, n)
+	typed := make(map[int]int64, n)
+	for i := 0; i < n; i++ {
+		untyped[i] = int64(i * 1000)
+		typed[i] = int64(i * 1000)
+	}
+	return untyped, typed
+}
+
+func Benchmark_Pack_MapValue_StringInt___10(b *testing.B) {
+	m, _ := stringIntMaps(10)
+	doPackValue(NewMapValue(m), b)
+}
+
+func Benchmark_Pack_TypedMapValue_StringInt___10(b *testing.B) {
+	_, m := stringIntMaps(10)
+	doPackValue(NewTypedMapValue(m), b)
+}
+
+func Benchmark_Pack_MapValue_StringInt__100(b *testing.B) {
+	m, _ := stringIntMaps(100)
+	doPackValue(NewMapValue(m), b)
+}
+
+func Benchmark_Pack_TypedMapValue_StringInt__100(b *testing.B) {
+	_, m := stringIntMaps(100)
+	doPackValue(NewTypedMapValue(m), b)
+}
+
+func Benchmark_Pack_MapValue_IntInt64____10(b *testing.B) {
+	m, _ := intInt64Maps(10)
+	doPackValue(NewMapValue(m), b)
+}
+
+func Benchmark_Pack_TypedMapValue_IntInt64____10(b *testing.B) {
+	_, m := intInt64Maps(10)
+	doPackValue(NewTypedMapValue(m), b)
+}
+
+func Benchmark_Pack_MapValue_IntInt64___100(b *testing.B) {
+	m, _ := intInt64Maps(100)
+	doPackValue(NewMapValue(m), b)
+}
+
+func Benchmark_Pack_TypedMapValue_IntInt64___100(b *testing.B) {
+	_, m := intInt64Maps(100)
+	doPackValue(NewTypedMapValue(m), b)
+}
+
+// --- MapIter: the third way to pack a map ---
+//
+// MapIter/ListIter are the documented reflection-free serialization hooks
+// (value_helpers.go): the user's PackMap/PackList drives the exported Pack*
+// helpers per entry, with no interface boxing anywhere. All Iter rows use
+// hand-written implementations following the value_helpers.go template,
+// measuring what a user-supplied iterator costs next to the typed values.
+
+type benchStringIntIter map[string]int
+
+func (m benchStringIntIter) PackMap(buf BufferEx) (int, error) {
+	size := 0
+	for k, v := range m {
+		n, err := PackString(buf, k)
+		size += n
+		if err != nil {
+			return size, err
+		}
+		n, err = PackInt64(buf, int64(v))
+		size += n
+		if err != nil {
+			return size, err
+		}
+	}
+	return size, nil
+}
+
+func (m benchStringIntIter) Len() int { return len(m) }
+
+type benchStringSliceIter []string
+
+func (l benchStringSliceIter) PackList(buf BufferEx) (int, error) {
+	size := 0
+	for i := range l {
+		n, err := PackString(buf, l[i])
+		size += n
+		if err != nil {
+			return size, err
+		}
+	}
+	return size, nil
+}
+
+func (l benchStringSliceIter) Len() int { return len(l) }
+
+type benchInt64SliceIter []int64
+
+func (l benchInt64SliceIter) PackList(buf BufferEx) (int, error) {
+	size := 0
+	for i := range l {
+		n, err := PackInt64(buf, l[i])
+		size += n
+		if err != nil {
+			return size, err
+		}
+	}
+	return size, nil
+}
+
+func (l benchInt64SliceIter) Len() int { return len(l) }
+
+type benchIntInt64Iter map[int]int64
+
+func (m benchIntInt64Iter) PackMap(buf BufferEx) (int, error) {
+	size := 0
+	for k, v := range m {
+		n, err := PackInt64(buf, int64(k))
+		size += n
+		if err != nil {
+			return size, err
+		}
+		n, err = PackInt64(buf, v)
+		size += n
+		if err != nil {
+			return size, err
+		}
+	}
+	return size, nil
+}
+
+func (m benchIntInt64Iter) Len() int { return len(m) }
+
+func Benchmark_Pack_MapIter_StringInt___10(b *testing.B) {
+	_, m := stringIntMaps(10)
+	doPackValue(NewMapperValue(benchStringIntIter(m)), b)
+}
+
+func Benchmark_Pack_MapIter_StringInt__100(b *testing.B) {
+	_, m := stringIntMaps(100)
+	doPackValue(NewMapperValue(benchStringIntIter(m)), b)
+}
+
+func Benchmark_Pack_MapIter_IntInt64____10(b *testing.B) {
+	_, m := intInt64Maps(10)
+	doPackValue(NewMapperValue(benchIntInt64Iter(m)), b)
+}
+
+func Benchmark_Pack_MapIter_IntInt64___100(b *testing.B) {
+	_, m := intInt64Maps(100)
+	doPackValue(NewMapperValue(benchIntInt64Iter(m)), b)
+}
+
+// The list trio mirrors the map trio: untyped ListValue (boxes per element),
+// typed TypedListValue (whole-slice dispatch to monomorphic loops), and a
+// hand-written user ListIter implementation.
+
+func benchStrings(n int) ([]any, []string) {
+	untyped := make([]any, n)
+	typed := make([]string, n)
+	for i := 0; i < n; i++ {
+		s := fmt.Sprintf("key_string_%05d", i)
+		untyped[i] = s
+		typed[i] = s
+	}
+	return untyped, typed
+}
+
+func benchInt64s(n int) ([]any, []int64) {
+	untyped := make([]any, n)
+	typed := make([]int64, n)
+	for i := 0; i < n; i++ {
+		v := int64(i)*7919 - 1000
+		untyped[i] = v
+		typed[i] = v
+	}
+	return untyped, typed
+}
+
+func Benchmark_Pack_ListValue_String____100(b *testing.B) {
+	l, _ := benchStrings(100)
+	doPackValue(NewListValue(l), b)
+}
+
+func Benchmark_Pack_TypedListValue_String___100(b *testing.B) {
+	_, l := benchStrings(100)
+	doPackValue(NewTypedListValue(l), b)
+}
+
+func Benchmark_Pack_ListIter_String_____100(b *testing.B) {
+	_, l := benchStrings(100)
+	doPackValue(NewListerValue(benchStringSliceIter(l)), b)
+}
+
+func Benchmark_Pack_ListValue_Int64_____100(b *testing.B) {
+	l, _ := benchInt64s(100)
+	doPackValue(NewListValue(l), b)
+}
+
+func Benchmark_Pack_TypedListValue_Int64____100(b *testing.B) {
+	_, l := benchInt64s(100)
+	doPackValue(NewTypedListValue(l), b)
+}
+
+func Benchmark_Pack_ListIter_Int64______100(b *testing.B) {
+	_, l := benchInt64s(100)
+	doPackValue(NewListerValue(benchInt64SliceIter(l)), b)
+}
+
+// Sequence-backed values: same data as the map/list trios, packed straight
+// from iter.Seq2/iter.Seq without materializing.
+
+func Benchmark_Pack_MapSeq_StringInt__100(b *testing.B) {
+	_, m := stringIntMaps(100)
+	doPackValue(NewSeqMapValue(maps.All(m), len(m)), b)
+}
+
+func Benchmark_Pack_MapSeq_IntInt64___100(b *testing.B) {
+	_, m := intInt64Maps(100)
+	doPackValue(NewSeqMapValue(maps.All(m), len(m)), b)
+}
+
+func Benchmark_Pack_ListSeq_String_____100(b *testing.B) {
+	_, l := benchStrings(100)
+	doPackValue(NewSeqListValue(slices.Values(l), len(l)), b)
+}
+
+func Benchmark_Pack_ListSeq_Int64______100(b *testing.B) {
+	_, l := benchInt64s(100)
+	doPackValue(NewSeqListValue(slices.Values(l), len(l)), b)
+}
+
+// An exotic shape that used to have a dedicated generics.go wrapper and now
+// runs TypedMapValue's per-entry typed loop -- the documented cost of retiring
+// the 142 stamped wrapper types for cold shapes.
+func Benchmark_Pack_TypedMapValue_ExoticShape100(b *testing.B) {
+	m := make(map[int16]uint32, 100)
+	for i := 0; i < 100; i++ {
+		m[int16(i)] = uint32(i * 7)
+	}
+	doPackValue(NewValue(m), b)
+}
+
+// The reflective values pack maps and slices whose types miss the NewValue
+// fast path (named key/element types). Zero per-entry allocations; the
+// per-entry cost is reflect's iterator, scratch copies, and Kind dispatch.
+
+type benchNamedKey string
+
+func Benchmark_Pack_ReflectMap_100(b *testing.B) {
+	m := make(map[benchNamedKey]int64, 100)
+	for i := 0; i < 100; i++ {
+		m[benchNamedKey(fmt.Sprintf("key_string_%05d", i))] = int64(i)
+	}
+	doPackValue(NewValue(m), b)
+}
+
+type benchNamedElem int64
+
+func Benchmark_Pack_ReflectList_100(b *testing.B) {
+	l := make([]benchNamedElem, 100)
+	for i := range l {
+		l[i] = benchNamedElem(i * 7919)
+	}
+	doPackValue(NewValue(l), b)
+}
+
+// End-to-end NewValue + pack, with construction inside the timed loop.
+// oldReflectFallbackValue replicates verbatim what value_reflect.go did for
+// maps and slices missing the fast path before reflectMapValue/
+// reflectListValue: materialize into map[any]any / []any, boxing every
+// entry via reflection. The new system's fallback allocates only a small
+// constant at construction (value struct, two scratch cells, map iterator)
+// and nothing per entry, while typed-switch shapes allocate nothing at all.
+func oldReflectFallbackValue(v any) Value {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Array, reflect.Slice:
+		l := rv.Len()
+		arr := make([]any, l)
+		for i := 0; i < l; i++ {
+			arr[i] = rv.Index(i).Interface()
+		}
+		return NewListValue(arr)
+	case reflect.Map:
+		l := rv.Len()
+		amap := make(map[any]any, l)
+		for _, i := range rv.MapKeys() {
+			amap[i.Interface()] = rv.MapIndex(i).Interface()
+		}
+		return NewMapValue(amap)
+	}
+	return nil
+}
+
+func doNewValuePack(b *testing.B, mk func() Value) {
+	runtime.GC()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.dataOffset = 0
+		if _, err := mk().pack(buf); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func namedMaps(n int) map[benchNamedKey]int64 {
+	m := make(map[benchNamedKey]int64, n)
+	for i := 0; i < n; i++ {
+		m[benchNamedKey(fmt.Sprintf("key_string_%05d", i))] = int64(i)
+	}
+	return m
+}
+
+func namedSlices(n int) []benchNamedElem {
+	l := make([]benchNamedElem, n)
+	for i := range l {
+		l[i] = benchNamedElem(i * 7919)
+	}
+	return l
+}
+
+var benchSizes = []int{1, 10, 100, 1000}
+
+func Benchmark_NewValuePack_Map_Named_Old(b *testing.B) {
+	for _, n := range benchSizes {
+		m := namedMaps(n)
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			doNewValuePack(b, func() Value { return oldReflectFallbackValue(m) })
+		})
+	}
+}
+
+func Benchmark_NewValuePack_Map_Named_New(b *testing.B) {
+	for _, n := range benchSizes {
+		m := namedMaps(n)
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			doNewValuePack(b, func() Value { return NewValue(m) })
+		})
+	}
+}
+
+func Benchmark_NewValuePack_List_Named_Old(b *testing.B) {
+	for _, n := range benchSizes {
+		l := namedSlices(n)
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			doNewValuePack(b, func() Value { return oldReflectFallbackValue(l) })
+		})
+	}
+}
+
+func Benchmark_NewValuePack_List_Named_New(b *testing.B) {
+	for _, n := range benchSizes {
+		l := namedSlices(n)
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			doNewValuePack(b, func() Value { return NewValue(l) })
+		})
+	}
+}
+
+// Unnamed primitive shapes hit the generated type switch: NewValue is a
+// zero-alloc conversion even with construction in the loop.
+func Benchmark_NewValuePack_Map_Typed_New(b *testing.B) {
+	for _, n := range benchSizes {
+		_, m := stringIntMaps(n)
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			doNewValuePack(b, func() Value { return NewValue(m) })
+		})
+	}
+}
+
+func Benchmark_NewValuePack_List_Typed_New(b *testing.B) {
+	for _, n := range benchSizes {
+		_, l := benchInt64s(n)
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			doNewValuePack(b, func() Value { return NewValue(l) })
+		})
+	}
 }
