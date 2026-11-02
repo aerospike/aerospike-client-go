@@ -4167,24 +4167,21 @@ func applyTransactionMetrics(node *Node, tt commandType, tb time.Time) {
 }
 
 func applyTransactionErrorMetrics(node *Node) {
-	if node == nil || !node.cluster.metricsEnabled.Load() {
-		return
+	if node != nil {
+		node.stats.TransactionErrorCount.GetAndIncrement()
 	}
-	node.stats.TransactionErrorCount.GetAndIncrement()
 }
 
 func applyTransactionRetryMetrics(node *Node) {
-	if node == nil || !node.cluster.metricsEnabled.Load() {
-		return
+	if node != nil {
+		node.stats.TransactionRetryCount.GetAndIncrement()
 	}
-	node.stats.TransactionRetryCount.GetAndIncrement()
 }
 
 func applyConnectionRecoveredMetrics(node *Node) {
-	if node == nil || !node.cluster.metricsEnabled.Load() {
-		return
+	if node != nil {
+		node.stats.ConnectionsRecovered.GetAndIncrement()
 	}
-	node.stats.ConnectionsRecovered.GetAndIncrement()
 }
 
 func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
