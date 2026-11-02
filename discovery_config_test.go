@@ -203,7 +203,7 @@ static:
 		gm.Expect(policy.AddressTranslator).To(gm.BeNil())
 	})
 
-	gg.It("ignores the whole file when a discovery value is invalid, until the file is fixed", func() {
+	gg.It("skips an invalid file and applies it on the next load once fixed", func() {
 		parsed := &dynconfig.Config{}
 		gm.Expect(yaml.Unmarshal([]byte(`
 static:

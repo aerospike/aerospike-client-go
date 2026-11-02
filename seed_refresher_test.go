@@ -29,6 +29,7 @@ import (
 	gm "github.com/onsi/gomega"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 // scriptedSeedProvider returns one scripted result per call and records the
@@ -243,6 +244,41 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(err.Error()).To(gm.ContainSubstring("at most half the tend interval"))
 		})
 
+		gg.It("rejects a dns timeout above the tend refresh deadline in tend mode", func() {
+			provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
+				Names:   []string{"seeds.example.com"},
+				Servers: []string{"127.0.0.1"},
+				Timeout: 200 * time.Millisecond,
+			})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			policy := NewClientPolicy()
+			policy.SeedProvider = provider
+			policy.DiscoveryExecutionMode = DiscoveryExecutionTend
+			policy.DiscoveryTendRefreshDeadline = 100 * time.Millisecond
+
+			_, verr := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
+			gm.Expect(verr).To(gm.HaveOccurred())
+			gm.Expect(verr.Error()).To(gm.ContainSubstring("DNS seed provider timeout 200ms must be less or equal to the discovery tend refresh deadline 100ms"))
+		})
+
+		gg.It("does not check dns timeout against the tend deadline in thread mode", func() {
+			provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
+				Names:   []string{"seeds.example.com"},
+				Servers: []string{"127.0.0.1"},
+				Timeout: 200 * time.Millisecond,
+			})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			policy := NewClientPolicy()
+			policy.SeedProvider = provider
+			policy.DiscoveryExecutionMode = DiscoveryExecutionThread
+			policy.DiscoveryTendRefreshDeadline = 100 * time.Millisecond
+
+			_, verr := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
+			gm.Expect(verr).ToNot(gm.HaveOccurred())
+		})
+
 		gg.It("skips tend-mode range checks when the provider is not periodic", func() {
 			policy := NewClientPolicy()
 			policy.DiscoveryExecutionMode = DiscoveryExecutionTend
@@ -380,6 +416,23 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			return refresher, recorder
 		}
+
+		gg.It("fails start when discovery errors and no seed is left", func() {
+			policy := NewClientPolicy()
+			policy.SeedProvider = &scriptedSeedProvider{results: [][]*Host{nil}, periodic: true}
+			policy.SeedMergePolicy = SeedMergePolicyReplace
+			policy.DiscoveryRefreshInterval = time.Hour
+
+			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer refresher.close()
+
+			_, serr := refresher.start()
+
+			gm.Expect(serr).To(gm.HaveOccurred())
+			gm.Expect(serr.Matches(types.SEED_DISCOVERY_FAILED)).To(gm.BeTrue())
+			gm.Expect(serr.Error()).To(gm.ContainSubstring("no seed host is left"))
+		})
 
 		gg.It("starts no goroutine for the default static provider", func() {
 			policy := NewClientPolicy()

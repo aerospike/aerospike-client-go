@@ -87,13 +87,24 @@ type Client struct {
 // DiscoveryConfig holds the static.client.discovery keys. Values are raw
 // tokens, the client parses and validates them when the policy is built.
 type DiscoveryConfig struct {
-	Provider              *string                `yaml:"provider"`
-	MergePolicy           *string                `yaml:"merge_policy"`
-	ExecutionMode         *string                `yaml:"execution_mode"`
-	RefreshIntervalMs     *int                   `yaml:"refresh_interval_ms"`
-	RefreshTimeoutMs      *int                   `yaml:"refresh_timeout_ms"`
-	TendRefreshDeadlineMs *int                   `yaml:"tend_refresh_deadline_ms"`
+	Provider              *string        `yaml:"provider"`
+	MergePolicy           *string        `yaml:"merge_policy"`
+	ExecutionMode         *string        `yaml:"execution_mode"`
+	RefreshIntervalMs     *int           `yaml:"refresh_interval_ms"`
+	RefreshTimeoutMs      *int           `yaml:"refresh_timeout_ms"`
+	TendRefreshDeadlineMs *int           `yaml:"tend_refresh_deadline_ms"`
+	DNS                   *DnsConfig     `yaml:"dns"`
 	Options               map[string]any `yaml:"-"`
+}
+
+// DnsConfig holds static.client.discovery.dns.
+type DnsConfig struct {
+	Names      *[]string `yaml:"names"`
+	RecordType *string   `yaml:"record_type"`
+	Port       *int      `yaml:"port"`
+	TLSName    *string   `yaml:"tls_name"`
+	TimeoutMs  *int      `yaml:"timeout_ms"`
+	Servers    *[]string `yaml:"servers"`
 }
 
 // UnmarshalYAML decodes the declared keys and collects Options: every key of
@@ -110,11 +121,11 @@ func (discovery *DiscoveryConfig) UnmarshalYAML(value *yaml.Node) error {
 // TranslationConfig holds the static.client.translation keys. Values are raw
 // tokens, the client parses and validates them when the policy is built.
 type TranslationConfig struct {
-	Provider  *string                `yaml:"provider"`
-	OnMiss    *string                `yaml:"on_miss"`
-	StaticMap *map[string]string     `yaml:"static_map"`
-	PortMap   *map[string]string     `yaml:"port_map"`
-	Options   map[string]any `yaml:"-"`
+	Provider  *string            `yaml:"provider"`
+	OnMiss    *string            `yaml:"on_miss"`
+	StaticMap *map[string]string `yaml:"static_map"`
+	PortMap   *map[string]string `yaml:"port_map"`
+	Options   map[string]any     `yaml:"-"`
 }
 
 // UnmarshalYAML decodes the declared keys and collects Options: every key of

@@ -132,6 +132,9 @@ func (refresher *seedRefresher) validate(policy *ClientPolicy) Error {
 	if refresher.tendDeadline > refresher.tendInterval/2 {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid discovery tend refresh deadline %s. Must be greater than zero and at most half the tend interval %s", refresher.tendDeadline, refresher.tendInterval))
 	}
+	if dnsProvider, ok := refresher.provider.(*dnsSeedCandidateProvider); ok && dnsProvider.timeout > refresher.tendDeadline {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("DNS seed provider timeout %s must be less or equal to the discovery tend refresh deadline %s", dnsProvider.timeout, refresher.tendDeadline))
+	}
 	return nil
 }
 
@@ -148,18 +151,26 @@ func (refresher *seedRefresher) start() ([]*Host, Error) {
 }
 
 func (refresher *seedRefresher) startThreadMode() ([]*Host, Error) {
-	firstResult := make(chan []*Host, 1)
+	lookup := make(chan startupSeedLookup, 1)
 
 	refresher.loopWg.Add(1)
-	go refresher.refreshLoop(firstResult)
+	go refresher.refreshLoop(lookup)
 
 	select {
-	case discovered := <-firstResult:
-		return refresher.resolveStartupSeeds(discovered, nil)
+	case result := <-lookup:
+		return refresher.resolveStartupSeeds(result.discovered, result.err)
 	case <-time.After(refresher.refreshTimeout):
 		logger.Logger.Warn("Seed provider %s did not finish the initial refresh within %s; starting from the configured seeds", refresher.providerName, refresher.refreshTimeout)
 		return refresher.resolveStartupSeeds(nil, nil)
 	}
+}
+
+// startupSeedLookup is the seed provider's first call at client start: the
+// hosts it found and whether that call failed. start uses both so a failed
+// lookup with no constructor seeds is SEED_DISCOVERY_FAILED.
+type startupSeedLookup struct {
+	discovered []*Host
+	err        error
 }
 
 // resolveStartupSeeds merges the first discovery result with the constructor
@@ -177,7 +188,7 @@ func (refresher *seedRefresher) resolveStartupSeeds(discovered []*Host, refreshE
 
 // refreshLoop is the thread-mode goroutine. The first result is handed to
 // start; later results publish directly.
-func (refresher *seedRefresher) refreshLoop(firstResult chan<- []*Host) {
+func (refresher *seedRefresher) refreshLoop(lookup chan<- startupSeedLookup) {
 	defer refresher.loopWg.Done()
 
 	defer func() {
@@ -193,10 +204,10 @@ func (refresher *seedRefresher) refreshLoop(firstResult chan<- []*Host) {
 		discovered, err := refresher.refreshOnce(iteration)
 		refresher.refreshing.Set(false)
 
-		if firstResult != nil {
+		if lookup != nil {
 			// start merges, checks and publishes the first result itself.
-			firstResult <- discovered
-			firstResult = nil
+			lookup <- startupSeedLookup{discovered: discovered, err: err}
+			lookup = nil
 		} else if err != nil {
 			logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
 		} else if merged := refresher.merge(discovered, false); len(merged) > 0 {
@@ -358,8 +369,12 @@ func distinctHosts(hostLists ...[]*Host) []*Host {
 
 // seedProviderDisplayName names a provider in logs and errors.
 func seedProviderDisplayName(provider SeedCandidateProvider) string {
-	if _, isStatic := provider.(staticSeedCandidateProvider); isStatic {
+	switch provider.(type) {
+	case staticSeedCandidateProvider:
 		return seedProviderNameStatic
+	case *dnsSeedCandidateProvider:
+		return seedProviderNameDns
+	default:
+		return fmt.Sprintf("%T", provider)
 	}
-	return fmt.Sprintf("%T", provider)
 }
