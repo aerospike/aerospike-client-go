@@ -368,7 +368,8 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 		gg.BeforeEach(func() {
 			maxErrorRate = 100
-			errRateWindow = 2
+			// keep the tend from closing the window mid-spec; specs drive ResetErrorRate
+			errRateWindow = 100000
 
 			clientPolicy = as.NewClientPolicy()
 			clientPolicy.TlsConfig = tlsConfig
@@ -402,8 +403,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				err := node.ValidateErrorCount()
 				gm.Expect(err).To(gm.BeNil())
 
-				// Error count should be reset
-				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+				// Validation is read-only
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(clientPolicy.MaxErrorRate - 1))
+				gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(clientPolicy.MaxErrorRate))
 			})
 
 			gg.It("should trip the circuit breaker when error count exceeds maxErrorRate", func() {
@@ -414,39 +416,39 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 					node.IncrementErrorCount()
 				}
 
-				// Verify circuit breaker trips
-				err := node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
-				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
+				// Verify circuit breaker trips and stays open until the window is reset
+				for i := 0; i < 10; i++ {
+					err := node.ValidateErrorCount()
+					gm.Expect(err).ToNot(gm.BeNil())
+					gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
+				}
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(clientPolicy.MaxErrorRate + 1))
 
-				// Error count should be reset
+				node.ResetErrorRate()
 				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+				gm.Expect(node.ValidateErrorCount()).To(gm.BeNil())
 			})
 
-			gg.It("should halve maxErrorCount threshold after each breach", func() {
+			gg.It("should halve maxErrorCount threshold after each breached window", func() {
 				node := client.GetNodes()[0]
-				initialMax := clientPolicy.MaxErrorRate
+				threshold := clientPolicy.MaxErrorRate
 
-				// First breach
-				for i := 0; i < initialMax+1; i++ {
+				for _, want := range []int{threshold / 2, threshold / 4, threshold / 8} {
+					for i := 0; i < node.GetMaxErrorCount()+1; i++ {
+						node.IncrementErrorCount()
+					}
+					gm.Expect(node.ValidateErrorCount()).ToNot(gm.BeNil())
+
+					node.ResetErrorRate()
+					gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(want))
+					gm.Expect(node.ValidateErrorCount()).To(gm.BeNil())
+				}
+
+				// Commands are gated on the halved threshold
+				for i := 0; i < threshold/8+1; i++ {
 					node.IncrementErrorCount()
 				}
-				err := node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
-
-				// Second breach with lower threshold
-				for i := 0; i < initialMax/2+1; i++ {
-					node.IncrementErrorCount()
-				}
-				err = node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
-
-				// Third breach with even lower threshold
-				for i := 0; i < initialMax/4+1; i++ {
-					node.IncrementErrorCount()
-				}
-				err = node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(node.ValidateErrorCount()).ToNot(gm.BeNil())
 			})
 
 			gg.It("should not reduce maxErrorCount below 1", func() {
@@ -455,24 +457,25 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				// Set up a small initial max error rate
 				node.SetMaxErrorCount(2)
 
-				// First breach - should halve to 1
+				// First breached window - should halve to 1
 				for i := 0; i < 3; i++ {
 					node.IncrementErrorCount()
 				}
-				err := node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(node.ValidateErrorCount()).ToNot(gm.BeNil())
+				node.ResetErrorRate()
+				gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(1))
 
-				// Second breach - should still be 1
+				// Second breached window - should still be 1
 				for i := 0; i < 2; i++ {
 					node.IncrementErrorCount()
 				}
-				err = node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(node.ValidateErrorCount()).ToNot(gm.BeNil())
+				node.ResetErrorRate()
+				gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(1))
 
 				// Should not breach with just 1 error (threshold is 1, so 1 <= 1 should pass)
 				node.IncrementErrorCount()
-				err = node.ValidateErrorCount()
-				gm.Expect(err).To(gm.BeNil())
+				gm.Expect(node.ValidateErrorCount()).To(gm.BeNil())
 			})
 
 			gg.It("should disable circuit breaker when MaxErrorRate is 0", func() {
@@ -503,28 +506,33 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				gm.Expect(err).To(gm.BeNil())
 			})
 
-			gg.It("should restore maxErrorCount to policy value after successful validation", func() {
+			gg.It("should double maxErrorCount back to policy value after clean windows", func() {
 				node := client.GetNodes()[0]
 				initialMax := clientPolicy.MaxErrorRate
 
-				// First breach - reduces threshold to half
+				// Breached window - reduces threshold to half
 				for i := 0; i < initialMax+1; i++ {
 					node.IncrementErrorCount()
 				}
-				err := node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(node.ValidateErrorCount()).ToNot(gm.BeNil())
+				node.ResetErrorRate()
+				gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(initialMax / 2))
 
-				// Successful validation with error count below new threshold
-				node.IncrementErrorCount() // Just one error
-				err = node.ValidateErrorCount()
-				gm.Expect(err).To(gm.BeNil())
+				// Clean window - doubles back, capped at the policy value
+				node.IncrementErrorCount()
+				gm.Expect(node.ValidateErrorCount()).To(gm.BeNil())
+				node.ResetErrorRate()
+				gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(initialMax))
+				node.ResetErrorRate()
+				gm.Expect(node.GetMaxErrorCount()).To(gm.Equal(initialMax))
 
-				// Verify maxErrorCount was restored to policy value
-				for i := 0; i < initialMax+1; i++ {
+				// Policy value is the threshold again
+				for i := 0; i < initialMax; i++ {
 					node.IncrementErrorCount()
 				}
-				err = node.ValidateErrorCount()
-				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(node.ValidateErrorCount()).To(gm.BeNil())
+				node.IncrementErrorCount()
+				gm.Expect(node.ValidateErrorCount()).ToNot(gm.BeNil())
 			})
 		})
 	})

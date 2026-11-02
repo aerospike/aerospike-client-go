@@ -385,10 +385,10 @@ func (clstr *Cluster) tend() Error {
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
 	clusterClientPolicy := *clstr.clientPolicy.Load()
-	// Reset connection error window for all nodes every connErrorWindow tend iterations.
+	// Close the error rate window for all nodes every ErrorRateWindow tend iterations.
 	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
-			node.resetErrorCount()
+			node.resetErrorRate(clusterClientPolicy.MaxErrorRate)
 		}
 	}
 
