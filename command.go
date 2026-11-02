@@ -4012,9 +4012,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			isClientTimeout = false
-			if deviceOverloadError(err) {
-				cmd.node.incrErrorCount()
-			}
 			// try to salvage the connection
 			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
@@ -4048,14 +4045,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
+			if deviceOverloadError(err) {
+				cmd.node.incrErrorCount()
+			}
+
 			if networkError(err) {
-				isTimeout := errors.Is(err, ErrTimeout)
-				isClientTimeout = isTimeout
-				if !isTimeout {
-					if deviceOverloadError(err) {
-						cmd.node.incrErrorCount()
-					}
-				}
+				isClientTimeout = errors.Is(err, ErrTimeout)
 
 				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
