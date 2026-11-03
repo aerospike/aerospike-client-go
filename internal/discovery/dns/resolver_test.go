@@ -15,26 +15,55 @@
 package dns
 
 import (
+	"fmt"
+	"io"
+	"log"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 const timeoutMargin = 200 * time.Millisecond
 
+type logCapture struct {
+	msgs []string
+}
+
+func (capture *logCapture) Printf(format string, v ...any) {
+	capture.msgs = append(capture.msgs, fmt.Sprintf(format, v...))
+}
+
+func (capture *logCapture) messages() []string {
+	return append([]string(nil), capture.msgs...)
+}
+
+func captureLogs(t *testing.T, level logger.LogPriority) *logCapture {
+	t.Helper()
+	capture := &logCapture{}
+	logger.Logger.SetLogger(capture)
+	logger.Logger.SetLevel(level)
+	t.Cleanup(func() {
+		logger.Logger.SetLevel(logger.OFF)
+		logger.Logger.SetLogger(log.New(io.Discard, "", 0))
+	})
+	return capture
+}
+
 func lookup(t *testing.T, server *stubDNSServer, cfg Config) ([]Candidate, []string, error) {
 	t.Helper()
-	var warnings []string
+	logs := captureLogs(t, logger.WARNING)
 	cfg.Servers = []string{server.Address()}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = time.Second
 	}
-	resolver, err := NewResolver(cfg, func(msg string) { warnings = append(warnings, msg) })
+	resolver, err := NewResolver(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hosts, lookupErr := resolver.Lookup()
-	return hosts, warnings, lookupErr
+	hosts, lookupErr := resolver.Lookup(resolver.Config().Timeout)
+	return hosts, logs.messages(), lookupErr
 }
 
 func TestAAndAAAARecords(t *testing.T) {
@@ -70,7 +99,7 @@ func TestDefaultPortIs3000(t *testing.T) {
 	server := newStubDNSServer(t)
 	server.a("seeds.example.com", "10.0.0.1")
 
-	resolver, err := NewResolver(Config{Names: []string{"seeds.example.com"}, Servers: []string{server.Address()}}, nil)
+	resolver, err := NewResolver(Config{Names: []string{"seeds.example.com"}, Servers: []string{server.Address()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +113,7 @@ func TestDefaultPortIs3000(t *testing.T) {
 		t.Fatalf("record type %d", resolver.Config().RecordType)
 	}
 
-	hosts, err := resolver.Lookup()
+	hosts, err := resolver.Lookup(resolver.Config().Timeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,14 +288,14 @@ func TestUnansweredQuerySharesOneRefreshDeadline(t *testing.T) {
 		Names:   []string{"a.example.com", "b.example.com"},
 		Timeout: timeout,
 		Servers: []string{server.Address()},
-	}, nil)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for i := 0; i < 3; i++ {
 		begin := time.Now()
-		_, lookupErr := resolver.Lookup()
+		_, lookupErr := resolver.Lookup(resolver.Config().Timeout)
 		elapsed := time.Since(begin)
 		if lookupErr == nil {
 			t.Fatal("expected error")
@@ -292,19 +321,19 @@ func TestUnansweredSRVTargetsShareOneBudget(t *testing.T) {
 	}
 
 	timeout := 60 * time.Millisecond
-	var warnings []string
+	logs := captureLogs(t, logger.WARNING)
 	resolver, err := NewResolver(Config{
 		Names:      []string{"_aerospike._tcp.example.com"},
 		RecordType: RecordTypeSRV,
 		Timeout:    timeout,
 		Servers:    []string{server.Address()},
-	}, func(msg string) { warnings = append(warnings, msg) })
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	begin := time.Now()
-	_, lookupErr := resolver.Lookup()
+	_, lookupErr := resolver.Lookup(resolver.Config().Timeout)
 	elapsed := time.Since(begin)
 	if lookupErr == nil {
 		t.Fatal("expected error")
@@ -316,6 +345,7 @@ func TestUnansweredSRVTargetsShareOneBudget(t *testing.T) {
 	if lookupErr.Error() != want {
 		t.Fatalf("got %q want %q", lookupErr.Error(), want)
 	}
+	warnings := logs.messages()
 	if len(warnings) != 3 {
 		t.Fatalf("warnings %v", warnings)
 	}
@@ -341,13 +371,13 @@ func TestTruncatedUDPWithHangingTCPStaysInsideRefreshDeadline(t *testing.T) {
 		Names:   []string{"a.example.com"},
 		Timeout: timeout,
 		Servers: []string{server.Address()},
-	}, nil)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	begin := time.Now()
-	_, lookupErr := resolver.Lookup()
+	_, lookupErr := resolver.Lookup(resolver.Config().Timeout)
 	elapsed := time.Since(begin)
 	if lookupErr == nil {
 		t.Fatal("expected error")
@@ -360,10 +390,108 @@ func TestTruncatedUDPWithHangingTCPStaysInsideRefreshDeadline(t *testing.T) {
 	}
 }
 
+func silentStubDNSServer(t *testing.T) *stubDNSServer {
+	t.Helper()
+	server, err := startStubDNSServer(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { server.Close() })
+	return server
+}
+
+func TestSilentFirstServerFailsOverToTheNext(t *testing.T) {
+	silent := silentStubDNSServer(t)
+	good := newStubDNSServer(t)
+	good.a("a.example.com", "10.0.0.1")
+
+	timeout := 400 * time.Millisecond
+	resolver, err := NewResolver(Config{
+		Names:   []string{"a.example.com"},
+		Timeout: timeout,
+		Servers: []string{silent.Address(), good.Address()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	begin := time.Now()
+	hosts, lookupErr := resolver.Lookup(timeout)
+	elapsed := time.Since(begin)
+	if lookupErr != nil {
+		t.Fatal(lookupErr)
+	}
+	if !candidatesEqual(hosts, []Candidate{{Address: "10.0.0.1", Port: DefaultPort}}) {
+		t.Fatalf("got %#v", hosts)
+	}
+	if elapsed > timeout+timeoutMargin {
+		t.Fatalf("elapsed %s timeout %s", elapsed, timeout)
+	}
+	if len(silent.Queries()) == 0 || len(good.Queries()) == 0 {
+		t.Fatalf("silent %v good %v", silent.Queries(), good.Queries())
+	}
+}
+
+func TestEverySilentServerIsAskedInsideOneTimeout(t *testing.T) {
+	first := silentStubDNSServer(t)
+	second := silentStubDNSServer(t)
+
+	timeout := 120 * time.Millisecond
+	resolver, err := NewResolver(Config{
+		Names:   []string{"a.example.com"},
+		Timeout: timeout,
+		Servers: []string{first.Address(), second.Address()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	begin := time.Now()
+	_, lookupErr := resolver.Lookup(timeout)
+	elapsed := time.Since(begin)
+	if lookupErr == nil {
+		t.Fatal("expected error")
+	}
+	if elapsed > timeout+timeoutMargin {
+		t.Fatalf("elapsed %s timeout %s", elapsed, timeout)
+	}
+	want := "DNS seed discovery failed for every name: a.example.com: timeout"
+	if lookupErr.Error() != want {
+		t.Fatalf("got %q want %q", lookupErr.Error(), want)
+	}
+	if len(first.Queries()) == 0 || len(second.Queries()) == 0 {
+		t.Fatalf("first %v second %v", first.Queries(), second.Queries())
+	}
+}
+
+func TestNXDOMAINFromTheFirstServerIsTheAnswer(t *testing.T) {
+	first := newStubDNSServer(t)
+	second := newStubDNSServer(t)
+	second.a("a.example.com", "10.0.0.1")
+
+	resolver, err := NewResolver(Config{
+		Names:   []string{"a.example.com"},
+		Timeout: time.Second,
+		Servers: []string{first.Address(), second.Address()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, lookupErr := resolver.Lookup(time.Second)
+	want := "DNS seed discovery failed for every name: a.example.com: NXDOMAIN"
+	if lookupErr == nil || lookupErr.Error() != want {
+		t.Fatalf("got %v want %q", lookupErr, want)
+	}
+	if len(second.Queries()) != 0 {
+		t.Fatalf("second server asked %v", second.Queries())
+	}
+}
+
 func TestConstructionDoesNotProbeSystemResolvers(t *testing.T) {
 	// Go nuance (GO-TEST-PLAN.md). Java probes system resolvers at build when
 	// servers is empty. Go constructs and uses the system resolvers on lookup.
-	resolver, err := NewResolver(Config{Names: []string{"seeds.example.com"}}, nil)
+	resolver, err := NewResolver(Config{Names: []string{"seeds.example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +501,7 @@ func TestConstructionDoesNotProbeSystemResolvers(t *testing.T) {
 }
 
 func TestInvalidConfigRejectedAtConstruction(t *testing.T) {
-	_, err := NewResolver(Config{}, nil)
+	_, err := NewResolver(Config{})
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -227,6 +227,13 @@ func (dc *DynConfig) registerFactories(config *dynconfig.Config) (err Error) {
 				return buildErr
 			}
 			dc.registeredSeedProvider = provider
+		case seedProviderNameAwsTags:
+			configPath, providerName = awsConfigPath, seedProviderNameAwsTags
+			provider, buildErr := awsProviderFromConfig(discovery.AWS)
+			if buildErr != nil {
+				return buildErr
+			}
+			dc.registeredSeedProvider = provider
 		default:
 			if factory := dc.seedCandidateProviderFactories[*discovery.Provider]; factory != nil {
 				configPath, providerName = "static.client.discovery.provider", *discovery.Provider
@@ -262,9 +269,9 @@ func invalidFactory(configPath, providerName, detail string) Error {
 	return newError(types.PARAMETER_ERROR, "Invalid "+configPath+" value '"+providerName+"': "+detail)
 }
 
-// pendingFactoryToBeRegistered is an error when a reload names a registered
-// seed provider or translator factory that this client never built. Those
-// factories run only at NewClient.
+// pendingFactoryToBeRegistered errors if a reload names dns, aws-tags, or a
+// registered factory this client did not build at NewClient. static uses
+// constructor seeds. Built-in translators are reapplied from the file.
 func (dc *DynConfig) pendingFactoryToBeRegistered(config *dynconfig.Config) Error {
 	if config.Static == nil || config.Static.Client == nil {
 		return nil
@@ -272,8 +279,7 @@ func (dc *DynConfig) pendingFactoryToBeRegistered(config *dynconfig.Config) Erro
 	client := config.Static.Client
 
 	if discovery := client.Discovery; discovery != nil && discovery.Provider != nil && dc.registeredSeedProvider == nil {
-		_, registered := dc.seedCandidateProviderFactories[*discovery.Provider]
-		if registered || *discovery.Provider == seedProviderNameDns {
+		if seedProviderBuiltAtCreation(*discovery.Provider, dc.seedCandidateProviderFactories) {
 			return newError(types.PARAMETER_ERROR, "static.client.discovery.provider '"+*discovery.Provider+
 				"' is built at client creation; restart the client to apply it")
 		}
@@ -285,6 +291,17 @@ func (dc *DynConfig) pendingFactoryToBeRegistered(config *dynconfig.Config) Erro
 		}
 	}
 	return nil
+}
+
+// seedProviderBuiltAtCreation is true for dns, aws-tags, and a factory
+// registered on the policy. Those are snapshotted in registerFactories.
+func seedProviderBuiltAtCreation(name string, factories map[string]SeedCandidateProviderFactory) bool {
+	switch name {
+	case seedProviderNameDns, seedProviderNameAwsTags:
+		return true
+	}
+	_, registered := factories[name]
+	return registered
 }
 
 // initConfig is called only once on startup. It loads the config and

@@ -94,6 +94,7 @@ type DiscoveryConfig struct {
 	RefreshTimeoutMs      *int           `yaml:"refresh_timeout_ms"`
 	TendRefreshDeadlineMs *int           `yaml:"tend_refresh_deadline_ms"`
 	DNS                   *DnsConfig     `yaml:"dns"`
+	AWS                   *AwsConfig     `yaml:"aws"`
 	Options               map[string]any `yaml:"-"`
 }
 
@@ -105,6 +106,23 @@ type DnsConfig struct {
 	TLSName    *string   `yaml:"tls_name"`
 	TimeoutMs  *int      `yaml:"timeout_ms"`
 	Servers    *[]string `yaml:"servers"`
+}
+
+// AwsConfig holds static.client.discovery.aws.
+type AwsConfig struct {
+	Region       *string      `yaml:"region"`
+	Filters      *[]AwsFilter `yaml:"filters"`
+	AddressField *string      `yaml:"address_field"`
+	Port         *int         `yaml:"port"`
+	TLSName      *string      `yaml:"tls_name"`
+	TimeoutMs    *int         `yaml:"timeout_ms"`
+	Endpoint     *string      `yaml:"endpoint"`
+}
+
+// AwsFilter is one static.client.discovery.aws.filters entry.
+type AwsFilter struct {
+	Name   *string   `yaml:"name"`
+	Values *[]string `yaml:"values"`
 }
 
 // UnmarshalYAML decodes the declared keys and collects Options: every key of

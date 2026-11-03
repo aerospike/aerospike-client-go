@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -536,6 +537,7 @@ func (cp *ClientPolicy) applyStaticDiscovery(discovery *dynconfig.DiscoveryConfi
 	// YAML static.client.discovery.provider → SeedProvider
 	//   static          → nil (NewClient hosts, StaticSeedCandidateProvider at cluster create)
 	//   dns             → registeredSeedProvider (built once at NewClient)
+	//   aws-tags        → registeredSeedProvider (built once at NewClient)
 	//   registered name → registeredSeedProvider (factory ran once at NewClient)
 	if discovery.Provider != nil {
 		if *discovery.Provider == seedProviderNameStatic {
@@ -654,17 +656,17 @@ func validateStaticConfig(config *dynconfig.Config,
 		if discovery.Provider != nil {
 			providerName = *discovery.Provider
 		}
-		if providerName == seedProviderNameDns {
-			if discovery.DNS == nil {
-				return newError(types.PARAMETER_ERROR, dnsConfigPath+" is required with provider "+seedProviderNameDns)
-			}
-			if err := validateDnsConfig(discovery.DNS); err != nil {
-				return err
-			}
-		} else if discovery.DNS != nil {
-			return newError(types.PARAMETER_ERROR, dnsConfigPath+" is only valid with provider "+seedProviderNameDns)
+		if err := requireYamlWithProvider(providerName, seedProviderNameDns, dnsConfigPath, discovery.DNS != nil, func() Error {
+			return validateDnsConfig(discovery.DNS)
+		}); err != nil {
+			return err
 		}
-		if providerName != "" && providerName != seedProviderNameStatic && providerName != seedProviderNameDns {
+		if err := requireYamlWithProvider(providerName, seedProviderNameAwsTags, awsConfigPath, discovery.AWS != nil, func() Error {
+			return validateAwsConfig(discovery.AWS)
+		}); err != nil {
+			return err
+		}
+		if providerName != "" && !isStandardSeedProviderName(providerName) {
 			if _, registered := seedCandidateProviderFactories[providerName]; !registered {
 				return newError(types.PARAMETER_ERROR, "Invalid static.client.discovery.provider value '"+providerName+
 					"': valid values: "+validSeedProviderValues(seedCandidateProviderFactories))
@@ -714,8 +716,49 @@ func validateStaticConfig(config *dynconfig.Config,
 	return nil
 }
 
+// requireYamlWithProvider enforces that a YAML map such as discovery.dns is
+// required with that provider and only valid with it.
+func requireYamlWithProvider(providerName, expectedName, configPath string, present bool, validate func() Error) Error {
+	if providerName == expectedName {
+		if !present {
+			return newError(types.PARAMETER_ERROR, configPath+" is required with provider "+expectedName)
+		}
+		return validate()
+	}
+	if present {
+		return newError(types.PARAMETER_ERROR, configPath+" is only valid with provider "+expectedName)
+	}
+	return nil
+}
+
+// missingYamlKey is the error when a required YAML field is absent.
+func missingYamlKey(path string) Error {
+	return newError(types.PARAMETER_ERROR, path+" is required")
+}
+
+// invalidYamlValue is the error when a YAML field is present but the wrong shape.
+func invalidYamlValue(path, shown, expected string) Error {
+	return newError(types.PARAMETER_ERROR, "Invalid "+path+" value '"+shown+"': expected "+expected)
+}
+
+// validateYamlPort accepts an unset port. A set port must be 1–65535.
+func validateYamlPort(path string, port *int) Error {
+	if port != nil && (*port < 1 || *port > 65535) {
+		return invalidYamlValue(path, strconv.Itoa(*port), "an integer from 1 to 65535")
+	}
+	return nil
+}
+
+// validateYamlTimeoutMs accepts an unset timeout. A set timeout_ms must be >= 1.
+func validateYamlTimeoutMs(path string, ms *int) Error {
+	if ms != nil && *ms < 1 {
+		return invalidYamlValue(path, strconv.Itoa(*ms), "an integer from 1 to 2147483647")
+	}
+	return nil
+}
+
 func validSeedProviderValues(factories map[string]SeedCandidateProviderFactory) string {
-	names := []string{seedProviderNameStatic, seedProviderNameDns}
+	names := []string{seedProviderNameStatic, seedProviderNameDns, seedProviderNameAwsTags}
 	if factories != nil {
 		names = append(names, slices.Sorted(maps.Keys(factories))...)
 	}

@@ -434,6 +434,142 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(serr.Error()).To(gm.ContainSubstring("no seed host is left"))
 		})
 
+		gg.It("fails start when a panicking periodic provider leaves no seed", func() {
+			policy := NewClientPolicy()
+			policy.SeedProvider = &panickingSeedProvider{}
+			policy.DiscoveryRefreshInterval = time.Hour
+
+			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+
+			gm.Expect(seeds).To(gm.BeNil())
+			gm.Expect(serr).To(gm.HaveOccurred())
+			gm.Expect(serr.Matches(types.SEED_DISCOVERY_FAILED)).To(gm.BeTrue())
+			gm.Expect(serr.Error()).To(gm.ContainSubstring("seed provider panicked"))
+		})
+
+		gg.It("starts from constructor seeds when a panicking periodic provider fails the first refresh", func() {
+			refresher, recorder := newThreadRefresher(&panickingSeedProvider{})
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.Equal(hostAddresses(staticSeeds)))
+			gm.Expect(recorder.count()).To(gm.BeZero())
+		})
+
+		gg.It("fails start when a one-shot provider errors and no seed is left", func() {
+			provider := &scriptedSeedProvider{results: [][]*Host{nil}}
+			policy := NewClientPolicy()
+			policy.SeedProvider = provider
+			policy.DiscoveryRefreshInterval = time.Hour
+
+			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer refresher.close()
+
+			_, serr := refresher.start()
+
+			gm.Expect(serr).To(gm.HaveOccurred())
+			gm.Expect(serr.Matches(types.SEED_DISCOVERY_FAILED)).To(gm.BeTrue())
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+			gm.Consistently(func() int64 { return provider.calls.Load() }, "200ms", "20ms").Should(gm.Equal(int64(1)))
+		})
+
+		gg.It("starts from constructor seeds when a one-shot provider errors and does not refresh again", func() {
+			provider := &scriptedSeedProvider{results: [][]*Host{nil}}
+			refresher, recorder := newThreadRefresher(provider)
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.Equal(hostAddresses(staticSeeds)))
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+			gm.Consistently(func() int64 { return provider.calls.Load() }, "200ms", "20ms").Should(gm.Equal(int64(1)))
+			gm.Expect(recorder.count()).To(gm.BeZero())
+		})
+
+		gg.It("keeps the current seeds when a later periodic refresh fails and publishes again when it recovers", func() {
+			provider := &scriptedSeedProvider{
+				results: [][]*Host{
+					{NewHost("found-1.internal", 3000)},
+					nil,
+					{NewHost("found-3.internal", 3000)},
+				},
+				periodic: true,
+			}
+			refresher, recorder := newThreadRefresher(provider)
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.ContainElement("found-1.internal:3000"))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.Equal(int64(2)))
+			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.Equal(0))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() []string {
+				return hostAddresses(recorder.last())
+			}, "2s", "10ms").Should(gm.ContainElement("found-3.internal:3000"))
+		})
+
+		gg.It("keeps the current seeds when a later periodic refresh blocks on I/O then fails, and continues after", func() {
+			release := make(chan struct{})
+			provider := &scriptedSeedProvider{
+				results: [][]*Host{
+					{NewHost("found-1.internal", 3000)},
+					nil,
+					{NewHost("found-3.internal", 3000)},
+				},
+				periodic: true,
+				blockOn:  release,
+			}
+			refresher, recorder := newThreadRefresher(provider)
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.ContainElement("found-1.internal:3000"))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.Equal(int64(2)))
+			gm.Consistently(func() int64 { return provider.calls.Load() }, "150ms", "20ms").Should(gm.Equal(int64(2)))
+			gm.Expect(recorder.count()).To(gm.Equal(0))
+
+			close(release)
+			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.Equal(0))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() []string {
+				return hostAddresses(recorder.last())
+			}, "2s", "10ms").Should(gm.ContainElement("found-3.internal:3000"))
+		})
+
+		gg.It("keeps the current seeds when a later periodic refresh panics and the loop continues", func() {
+			provider := &panickingAfterSeedProvider{hosts: []*Host{NewHost("found-1.internal", 3000)}, after: 1, periodic: true}
+			refresher, recorder := newThreadRefresher(provider)
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.ContainElement("found-1.internal:3000"))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.BeNumerically(">=", 2))
+			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.Equal(0))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.BeNumerically(">=", 3))
+			gm.Expect(recorder.count()).To(gm.Equal(0))
+		})
+
 		gg.It("starts no goroutine for the default static provider", func() {
 			policy := NewClientPolicy()
 			recorder := &publishRecorder{}
@@ -666,3 +802,21 @@ func (panickingSeedProvider) RefreshSeedCandidates(*SeedCandidateContext) ([]*Ho
 func (panickingSeedProvider) NeedsPeriodicRefresh() bool { return true }
 func (panickingSeedProvider) SupportsDeadline() bool     { return true }
 func (panickingSeedProvider) Close()                     {}
+
+// panickingAfterSeedProvider succeeds after times, then panics on every later call.
+type panickingAfterSeedProvider struct {
+	hosts    []*Host
+	after    int64
+	periodic bool
+	calls    atomic.Int64
+}
+
+func (provider *panickingAfterSeedProvider) RefreshSeedCandidates(*SeedCandidateContext) ([]*Host, error) {
+	if provider.calls.Add(1) > provider.after {
+		panic("provider failure")
+	}
+	return copyHosts(provider.hosts), nil
+}
+func (provider *panickingAfterSeedProvider) NeedsPeriodicRefresh() bool { return provider.periodic }
+func (*panickingAfterSeedProvider) SupportsDeadline() bool              { return false }
+func (*panickingAfterSeedProvider) Close()                              {}

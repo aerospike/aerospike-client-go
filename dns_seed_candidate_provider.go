@@ -21,7 +21,6 @@ import (
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	"github.com/aerospike/aerospike-client-go/v8/internal/discovery/dns"
-	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -62,7 +61,8 @@ type DnsSeedCandidateProviderConfig struct {
 	// to the same rule as constructor seeds.
 	TLSName string //= ""
 
-	// Timeout bounds every I/O of one refresh.
+	// Timeout bounds every I/O of one refresh, shared equally across Servers.
+	// In thread mode ClientPolicy.DiscoveryRefreshTimeout bounds the first.
 	Timeout time.Duration //= 80 milliseconds
 
 	// Servers are resolver addresses, each an IP with an optional port. An
@@ -92,8 +92,6 @@ func NewDnsSeedCandidateProvider(config DnsSeedCandidateProviderConfig) (SeedCan
 		Port:       config.Port,
 		Timeout:    config.Timeout,
 		Servers:    append([]string(nil), config.Servers...),
-	}, func(msg string) {
-		logger.Logger.Warn("%s", msg)
 	})
 	if resolveErr != nil {
 		return nil, newError(types.PARAMETER_ERROR, resolveErr.Error())
@@ -108,8 +106,12 @@ func NewDnsSeedCandidateProvider(config DnsSeedCandidateProviderConfig) (SeedCan
 }
 
 // RefreshSeedCandidates implements the SeedCandidateProvider interface.
-func (provider *dnsSeedCandidateProvider) RefreshSeedCandidates(*SeedCandidateContext) ([]*Host, error) {
-	candidates, err := provider.resolver.Lookup()
+func (provider *dnsSeedCandidateProvider) RefreshSeedCandidates(seedContext *SeedCandidateContext) ([]*Host, error) {
+	budget := provider.timeout
+	if seedContext != nil && seedContext.TendIteration == 0 && seedContext.refreshTimeout > 0 {
+		budget = seedContext.refreshTimeout
+	}
+	candidates, err := provider.resolver.Lookup(budget)
 	if err != nil {
 		return nil, err
 	}
@@ -205,24 +207,24 @@ func dnsProviderFromConfig(block *dynconfig.DnsConfig) (SeedCandidateProvider, E
 
 func validateDnsConfig(block *dynconfig.DnsConfig) Error {
 	if block.Names == nil {
-		return newError(types.PARAMETER_ERROR, dnsConfigPath+".names is required")
+		return missingYamlKey(dnsConfigPath + ".names")
 	}
 	if len(*block.Names) == 0 {
-		return newError(types.PARAMETER_ERROR, "Invalid "+dnsConfigPath+".names value '[]': expected a non-empty list of strings")
+		return invalidYamlValue(dnsConfigPath+".names", "[]", "a non-empty list of strings")
 	}
 	if block.RecordType != nil {
 		if _, err := parseDnsRecordType(*block.RecordType); err != nil {
 			return err
 		}
 	}
-	if block.Port != nil && (*block.Port < 1 || *block.Port > 65535) {
-		return newError(types.PARAMETER_ERROR, "Invalid "+dnsConfigPath+".port value '"+strconv.Itoa(*block.Port)+"': expected an integer from 1 to 65535")
+	if err := validateYamlPort(dnsConfigPath+".port", block.Port); err != nil {
+		return err
 	}
-	if block.TimeoutMs != nil && *block.TimeoutMs < 1 {
-		return newError(types.PARAMETER_ERROR, "Invalid "+dnsConfigPath+".timeout_ms value '"+strconv.Itoa(*block.TimeoutMs)+"': expected an integer from 1 to 2147483647")
+	if err := validateYamlTimeoutMs(dnsConfigPath+".timeout_ms", block.TimeoutMs); err != nil {
+		return err
 	}
 	if block.Servers != nil && len(*block.Servers) == 0 {
-		return newError(types.PARAMETER_ERROR, "Invalid "+dnsConfigPath+".servers value '[]': expected a non-empty list of strings")
+		return invalidYamlValue(dnsConfigPath+".servers", "[]", "a non-empty list of strings")
 	}
 	if block.TLSName != nil && *block.TLSName == "" {
 		return newError(types.PARAMETER_ERROR, "Invalid DNS seed provider tlsName: empty")
