@@ -326,6 +326,11 @@ func (clstr *Cluster) tend() Error {
 		logger.Logger.Info("No nodes available; seeding...")
 		clstr.seedRefresher.requestUrgentRefresh()
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
+			// Count this tend and run tend-mode discovery so a provider can
+			// refresh while the cluster stays empty. Thread-mode tendTick is a
+			// no-op, urgent already woke the loop.
+			clstr.tendCount++
+			clstr.seedRefresher.tendTick(clstr.tendCount)
 			return err
 		}
 
