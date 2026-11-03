@@ -229,7 +229,7 @@ static:
 		expectFileDropped(config, policy)
 		err := staticConfigError(registeredYaml, policy)
 		gm.Expect(err).To(gm.HaveOccurred())
-		gm.Expect(err.Error()).To(gm.ContainSubstring("Invalid static.client.discovery.provider value 'consul': valid values: static, dns"))
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Invalid static.client.discovery.provider value 'consul': valid values: static, dns, aws-tags"))
 	})
 
 	gg.It("names registered seed providers among the valid values for an unknown name", func() {
@@ -249,7 +249,7 @@ static:
 		err := staticConfigError(yamlText, policy)
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Error()).To(gm.ContainSubstring(
-			"Invalid static.client.discovery.provider value 'etcd': valid values: static, dns, consul"))
+			"Invalid static.client.discovery.provider value 'etcd': valid values: static, dns, aws-tags, consul"))
 	})
 
 	gg.It("names registered translators among the valid values for an unknown name", func() {

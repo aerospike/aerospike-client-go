@@ -24,7 +24,10 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-const seedRefreshMaxOverruns = 3
+const (
+	seedRefreshMaxOverruns         = 3
+	defaultDiscoveryRefreshTimeout = 10 * time.Second
+)
 
 // seedRefresher runs the configured SeedCandidateProvider and publishes the
 // merged seed list. In thread mode a periodic provider gets one dedicated
@@ -95,7 +98,7 @@ func newSeedRefresher(policy *ClientPolicy, staticSeeds []*Host, publish func([]
 		refresher.refreshInterval = 30 * time.Second
 	}
 	if refresher.refreshTimeout <= 0 {
-		refresher.refreshTimeout = 10 * time.Second
+		refresher.refreshTimeout = defaultDiscoveryRefreshTimeout
 	}
 	if refresher.tendDeadline <= 0 {
 		refresher.tendDeadline = 100 * time.Millisecond
@@ -119,6 +122,7 @@ func newSeedRefresher(policy *ClientPolicy, staticSeeds []*Host, publish func([]
 }
 
 func (refresher *seedRefresher) validate(policy *ClientPolicy) Error {
+	// Cadence and deadline rules apply only to a periodic provider in tend mode.
 	if !refresher.periodic || refresher.executionMode != DiscoveryExecutionTend {
 		return nil
 	}
@@ -161,7 +165,7 @@ func (refresher *seedRefresher) startThreadMode() ([]*Host, Error) {
 		return refresher.resolveStartupSeeds(result.discovered, result.err)
 	case <-time.After(refresher.refreshTimeout):
 		logger.Logger.Warn("Seed provider %s did not finish the initial refresh within %s; starting from the configured seeds", refresher.providerName, refresher.refreshTimeout)
-		return refresher.resolveStartupSeeds(nil, nil)
+		return refresher.resolveStartupSeeds(nil, fmt.Errorf("the initial refresh did not finish within %s", refresher.refreshTimeout))
 	}
 }
 
@@ -313,6 +317,9 @@ func (refresher *seedRefresher) refreshOnce(tendIteration int64) (discovered []*
 		ConfiguredSeeds: refresher.staticSeeds,
 		TendIteration:   tendIteration,
 	}
+	if refresher.executionMode == DiscoveryExecutionThread {
+		seedContext.refreshTimeout = refresher.refreshTimeout
+	}
 
 	result, err := refresher.provider.RefreshSeedCandidates(seedContext)
 	if err != nil {
@@ -374,6 +381,8 @@ func seedProviderDisplayName(provider SeedCandidateProvider) string {
 		return seedProviderNameStatic
 	case *dnsSeedCandidateProvider:
 		return seedProviderNameDns
+	case *awsEc2TagSeedCandidateProvider:
+		return seedProviderNameAwsTags
 	default:
 		return fmt.Sprintf("%T", provider)
 	}

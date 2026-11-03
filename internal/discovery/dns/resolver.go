@@ -17,11 +17,13 @@ package dns
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 var errNoSRVTarget = errors.New("no SRV target resolved")
@@ -53,35 +55,59 @@ type srvRecord struct {
 // Resolver resolves configured DNS names to IP literals.
 type Resolver struct {
 	config Config
-	net    *net.Resolver
-	warn   func(string)
+	// servers holds one resolver per configured server, in order, or one
+	// system resolver when none are configured.
+	servers []*net.Resolver
 }
 
-// NewResolver validates cfg and returns a resolver. warn is optional.
-func NewResolver(cfg Config, warn func(string)) (*Resolver, error) {
+// NewResolver validates cfg and returns a resolver.
+func NewResolver(cfg Config) (*Resolver, error) {
 	normalized, dial, err := normalize(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	resolver := &net.Resolver{PreferGo: true}
-	if len(dial) > 0 {
-		servers := append([]string(nil), dial...)
-		resolver.Dial = func(ctx context.Context, network, _ string) (net.Conn, error) {
-			dialer := net.Dialer{}
-			var last error
-			for _, server := range servers {
-				conn, err := dialer.DialContext(ctx, network, server)
-				if err == nil {
-					return conn, nil
-				}
-				last = err
-			}
-			return nil, last
+	if len(dial) == 0 {
+		return &Resolver{config: normalized, servers: []*net.Resolver{{PreferGo: true}}}, nil
+	}
+	servers := make([]*net.Resolver, len(dial))
+	for i, address := range dial {
+		address := address
+		servers[i] = &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				var dialer net.Dialer
+				return dialer.DialContext(ctx, network, address)
+			},
 		}
 	}
+	return &Resolver{config: normalized, servers: servers}, nil
+}
 
-	return &Resolver{config: normalized, net: resolver, warn: warn}, nil
+// ask sends one query to each server in turn until one answers. Each server
+// gets an equal share of the time left, so a silent server cannot use it all.
+// NXDOMAIN is an answer and ends the query.
+func ask[T any](ctx context.Context, servers []*net.Resolver, query func(context.Context, *net.Resolver) (T, error)) (T, error) {
+	var zero T
+	var last error
+	for i, server := range servers {
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
+		deadline, _ := ctx.Deadline()
+		attempt, cancel := context.WithTimeout(ctx, time.Until(deadline)/time.Duration(len(servers)-i))
+		result, err := query(attempt, server)
+		cancel()
+		if err == nil {
+			return result, nil
+		}
+		last = err
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+			return zero, err
+		}
+	}
+	return zero, last
 }
 
 // Config returns the validated settings.
@@ -90,9 +116,9 @@ func (resolver *Resolver) Config() Config {
 }
 
 // Lookup resolves every name. Partial failures are dropped with a warning.
-// An error is returned only when every name fails. I/O is bounded by Timeout.
-func (resolver *Resolver) Lookup() ([]Candidate, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), resolver.config.Timeout)
+// An error is returned only when every name fails. All I/O is bounded by budget.
+func (resolver *Resolver) Lookup(budget time.Duration) ([]Candidate, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 
 	hosts := make([]Candidate, 0)
@@ -151,7 +177,10 @@ func (resolver *Resolver) resolveA(ctx context.Context, name string) ([]Candidat
 }
 
 func (resolver *Resolver) resolveSRV(ctx context.Context, name string) ([]Candidate, error) {
-	_, addrs, err := resolver.net.LookupSRV(ctx, "", "", name)
+	addrs, err := ask(ctx, resolver.servers, func(ctx context.Context, server *net.Resolver) ([]*net.SRV, error) {
+		_, addrs, err := server.LookupSRV(ctx, "", "", name)
+		return addrs, err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +256,9 @@ func (resolver *Resolver) addresses(ctx context.Context, name string, first bool
 		if first && len(addresses) > 0 {
 			break
 		}
-		ips, err := resolver.net.LookupIP(ctx, network, name)
+		ips, err := ask(ctx, resolver.servers, func(ctx context.Context, server *net.Resolver) ([]net.IP, error) {
+			return server.LookupIP(ctx, network, name)
+		})
 		if err != nil {
 			last = err
 			continue
@@ -252,10 +283,7 @@ func (resolver *Resolver) addresses(ctx context.Context, name string, first bool
 }
 
 func (resolver *Resolver) warning(format string, args ...any) {
-	if resolver.warn == nil {
-		return
-	}
-	resolver.warn(fmt.Sprintf(format, args...))
+	logger.Logger.Warn(format, args...)
 }
 
 func ipString(ip net.IP) string {

@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "time"
+
 // SeedCandidateContext describes one seed refresh call to a
 // SeedCandidateProvider.
 type SeedCandidateContext struct {
@@ -29,6 +31,10 @@ type SeedCandidateContext struct {
 	// It is zero on the first call during client initialization. Gate one-time
 	// setup on provider state, not on this value.
 	TendIteration int64
+
+	// refreshTimeout is the client's refresh timeout in thread mode and zero
+	// in tend mode. The built-in providers bound their first call by it.
+	refreshTimeout time.Duration
 }
 
 // SeedCandidateProvider supplies bootstrap and re-seed hosts. It does not
