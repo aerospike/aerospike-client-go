@@ -445,7 +445,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	// will run until the cluster is stabilized
 	go func() {
 		var err Error
-		for {
+		for !clstr.closed.Get() {
 			if err = clstr.tend(); err != nil {
 				if err.Matches(types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR) {
 					select {
@@ -465,6 +465,13 @@ func (clstr *Cluster) waitTillStabilized() Error {
 			time.Sleep(time.Millisecond)
 
 			count = len(clstr.GetNodes())
+		}
+
+		// Close() ran before clusterBoss started, so nothing else will close these nodes.
+		if clstr.closed.Get() {
+			for _, node := range clstr.GetNodes() {
+				node.Close()
+			}
 		}
 		doneCh <- err
 	}()
