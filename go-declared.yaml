@@ -1,0 +1,7 @@
+# Expected Go result per conformance row. A row not listed here is declared pass
+# (blocked when the fixture row is blocked). The conformance test fails when any
+# row's actual result differs.
+#
+# Do not copy java-declared.yaml. Java's four TLS fails are CN fallback. Go
+# VerifyHostname rejects those certificates, so those rows pass.
+{}
