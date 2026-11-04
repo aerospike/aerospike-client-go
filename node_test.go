@@ -365,6 +365,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 		var client *as.Client
 		var maxErrorRate int
 		var errRateWindow int
+		var clientPolicy *as.ClientPolicy
 
 		gg.BeforeEach(func() {
 			maxErrorRate = 100

@@ -127,6 +127,8 @@ var _ = gg.Describe("Cluster initialization", func() {
 		cpolicy = *clientPolicy
 		cpolicy.Timeout = timeout
 		cpolicy.MinConnectionsPerNode = 5
+		// Short enough that every tend refreshes pooled connections in the background.
+		cpolicy.IdleTimeout = time.Second
 		// Keep every connection on the proxy instead of the addresses the server advertises.
 		cpolicy.SeedOnlyCluster = true
 	})
