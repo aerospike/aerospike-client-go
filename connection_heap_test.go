@@ -108,7 +108,7 @@ var _ = gg.Describe("Connection Heap tests", func() {
 
 		})
 
-		gg.It("Must not block DropIdleTail or the heap when closing an idle connection hangs", func() {
+		gg.It("Must release the heap lock before DropIdleTail closes an idle connection", func() {
 			netConn := newBlockingCloseConn()
 			defer close(netConn.release)
 
@@ -117,15 +117,15 @@ var _ = gg.Describe("Connection Heap tests", func() {
 			h := newSingleConnectionHeap(10)
 			gm.Expect(h.Offer(idleConn)).To(gm.BeTrue())
 
-			dropped := make(chan bool)
-			go func() {
-				dropped <- h.DropIdleTail()
-			}()
-			gm.Eventually(dropped).Should(gm.Receive(gm.BeTrue()))
+			go h.DropIdleTail()
 			gm.Eventually(netConn.closeStarted).Should(gm.BeClosed())
 
-			gm.Expect(h.Len()).To(gm.Equal(0))
-			gm.Expect(h.Offer(conn)).To(gm.BeTrue())
+			offered := make(chan bool)
+			go func() {
+				offered <- h.Offer(conn)
+			}()
+			gm.Eventually(offered).Should(gm.Receive(gm.BeTrue()))
+			gm.Expect(h.Len()).To(gm.Equal(1))
 			gm.Expect(h.Poll()).To(gm.BeIdenticalTo(conn))
 		})
 
