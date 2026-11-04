@@ -40,6 +40,7 @@ package aerospike
 import (
 	"flag"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -52,27 +53,27 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), fun
 	gg.Describe("ParseHost", func() {
 
 		gg.It("leaves the address unchanged when the map is nil", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(nil)}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(nil))}
 			assertParseHost(p, "10.88.0.7:3100", "10.88.0.7", 3100)
 		})
 
 		gg.It("leaves the address unchanged when the host has no entry", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"9.9.9.9": "1.1.1.1"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"9.9.9.9": "1.1.1.1"}))}
 			assertParseHost(p, "10.88.0.7:3100", "10.88.0.7", 3100)
 		})
 
 		gg.It("ignores an empty mapping value", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": ""})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": ""}))}
 			assertParseHost(p, "10.88.0.7:3100", "10.88.0.7", 3100)
 		})
 
 		gg.It("replaces the host only and preserves the advertised port (Java/C parity)", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1"}))}
 			assertParseHost(p, "10.88.0.7:3100", "127.0.0.1", 3100)
 		})
 
 		gg.It("replaces both host and port when the value carries a port (NLB extension)", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1:3100"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1:3100"}))}
 			assertParseHost(p, "10.88.0.7:3100", "127.0.0.1", 3100)
 		})
 
@@ -80,7 +81,7 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), fun
 			// The map key is the bare host. An entry that includes the port must
 			// NOT match — this is the contract that lets one internal host map
 			// regardless of the port it was advertised on.
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7:3100": "127.0.0.1:9999"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7:3100": "127.0.0.1:9999"}))}
 			assertParseHost(p, "10.88.0.7:3100", "10.88.0.7", 3100) // unchanged
 		})
 
@@ -88,44 +89,44 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), fun
 			// When the advertised address carries no port, defPort is used first,
 			// then a host-only mapping preserves that resolved port.
 			defPort := int64(3000)
-			p := peerListParser{defPort: &defPort, translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1"})}
+			p := peerListParser{defPort: &defPort, cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1"}))}
 			assertParseHost(p, "10.88.0.7", "127.0.0.1", 3000)
 		})
 
 		gg.It("keys an IPv6 advertised address on the bracket-stripped host", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"fe80::1": "127.0.0.1:3100"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"fe80::1": "127.0.0.1:3100"}))}
 			assertParseHost(p, "[fe80::1]:3000", "127.0.0.1", 3100)
 		})
 
 		gg.It("maps several internal hosts behind one NLB name to distinct ports", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{
 				"10.0.0.1": "nlb.example.com:4001",
 				"10.0.0.2": "nlb.example.com:4002",
-			})}
+			}))}
 			assertParseHost(p, "10.0.0.1:3000", "nlb.example.com", 4001)
 			assertParseHost(p, "10.0.0.2:3000", "nlb.example.com", 4002)
 		})
 
 		gg.It("treats a value with no colon as a bare host, preserving the port", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "reachable.internal"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "reachable.internal"}))}
 			assertParseHost(p, "10.88.0.7:3100", "reachable.internal", 3100)
 		})
 
 		gg.It("treats a value whose colon-suffix is not a port as a whole host", func() {
 			// e.g. a bracketed IPv6 literal: the text after the last ':' ("1]") is
 			// not numeric, so the entire value is used as the host, port preserved.
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "[fe80::1]"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "[fe80::1]"}))}
 			assertParseHost(p, "10.88.0.7:3100", "[fe80::1]", 3100)
 		})
 
 		gg.It("treats an IPv6 literal value ending in digits as a whole host, preserving the port", func() {
 			// The trailing "::10" group is hex digits of the address, not a port.
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "2001:db8:ffff::10"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "2001:db8:ffff::10"}))}
 			assertParseHost(p, "10.88.0.7:3100", "2001:db8:ffff::10", 3100)
 		})
 
 		gg.It("treats an IPv6 literal value ending in a hex letter as a whole host, preserving the port", func() {
-			p := peerListParser{translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "2001:db8::a"})}
+			p := peerListParser{cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "2001:db8::a"}))}
 			assertParseHost(p, "10.88.0.7:3100", "2001:db8::a", 3100)
 		})
 	})
@@ -135,8 +136,8 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), fun
 
 		gg.It("parses the real empty single-node fixture without translating anything", func() {
 			p := peerListParser{
-				buf:        []byte("0,3000,[]"), // captured: peers-clear-std on a single node
-				translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1:3100"}),
+				buf:     []byte("0,3000,[]"), // captured: peers-clear-std on a single node
+				cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1:3100"})),
 			}
 			gm.Expect(p.Parse()).ToNot(gm.HaveOccurred())
 			gm.Expect(p.generation()).To(gm.Equal(int64(0)))
@@ -152,10 +153,10 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), fun
 				"[BB9050033AC4202,,[192.168.5.5:3200]]]" // no entry -> untouched
 			p := peerListParser{
 				buf: []byte(buf),
-				translator: NewStaticMapAddressTranslator(map[string]string{
+				cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{
 					"10.88.0.7": "127.0.0.1:3100",
 					"10.88.0.8": "127.0.0.1:3200",
-				}),
+				})),
 			}
 
 			gm.Expect(p.Parse()).ToNot(gm.HaveOccurred())
@@ -191,8 +192,8 @@ var _ = gg.Describe("ClientPolicy.IpMap translation", gg.Label("discovery"), fun
 			// node_validator wraps the service-address string in brackets and passes
 			// the seed's TLS name through, exactly as reproduced here.
 			p := peerListParser{
-				buf:        []byte("[10.88.0.7:3100]"), // captured: service-clear-std
-				translator: NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1:3100"}),
+				buf:     []byte("[10.88.0.7:3100]"), // captured: service-clear-std
+				cluster: translationCluster(NewStaticMapAddressTranslator(map[string]string{"10.88.0.7": "127.0.0.1:3100"})),
 			}
 			hosts, err := p.readHosts("cluster-tls-name")
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -228,9 +229,8 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 	gg.It("hands the translator each advertised endpoint with its peer identity", func() {
 		recorder := &recordingAddressTranslator{}
 		parser := peerListParser{
-			buf:        []byte(twoPeerReply),
-			translator: recorder,
-			sourceList: SourceListAlternate,
+			buf:     []byte(twoPeerReply),
+			cluster: translationClusterAlternate(recorder),
 		}
 
 		gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
@@ -246,11 +246,11 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 		translator, err := NewPortMapAddressTranslator(map[string]string{"10.88.0.7:3000": "gateway.example.com:30001"})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
+		cluster := translationCluster(translator)
+		cluster.translationOnMiss = TranslationMissStrict
 		parser := peerListParser{
-			buf:            []byte(twoPeerReply),
-			translator:     translator,
-			translatorName: "port-map",
-			onMiss:         TranslationMissStrict,
+			buf:     []byte(twoPeerReply),
+			cluster: cluster,
 		}
 
 		gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
@@ -268,8 +268,8 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		parser := peerListParser{
-			buf:        []byte(twoPeerReply),
-			translator: translator,
+			buf:     []byte(twoPeerReply),
+			cluster: translationCluster(translator),
 		}
 
 		gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
@@ -300,6 +300,18 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 		gm.Expect(parser.missingAlternates).To(gm.Equal([]string{"BB9030011AC4202"}))
 	})
 })
+
+func translationCluster(translator AddressTranslator) *Cluster {
+	stored := new(atomic.Pointer[ClientPolicy])
+	stored.Store(NewClientPolicy())
+	return &Cluster{clientPolicy: stored, addressTranslator: translator}
+}
+
+func translationClusterAlternate(translator AddressTranslator) *Cluster {
+	cluster := translationCluster(translator)
+	cluster.clientPolicy.Load().UseServicesAlternate = true
+	return cluster
+}
 
 // hostNames extracts the Name of each host for order-sensitive comparison.
 func hostNames(hosts []*Host) []string {
@@ -363,10 +375,10 @@ func TestIpMapWiredIntoPeerDiscovery(t *testing.T) {
 	// The core regression guard: discovery must hand the policy's IpMap to the
 	// parser. (The peer list itself is empty on a single node — that is fine;
 	// what matters is that the map was threaded through.)
-	if p.translator == nil {
+	if p.cluster == nil || p.cluster.addressTranslator == nil {
 		t.Fatal("parsePeers did not wire an address translator into the parser")
 	}
-	translated, found := p.translator.Translate(Endpoint{Host: "10.88.0.7", Port: 3000})
+	translated, found := p.cluster.addressTranslator.Translate(Endpoint{Host: "10.88.0.7", Port: 3000})
 	if !found || translated.Name+":"+strconv.Itoa(translated.Port) != wanted["10.88.0.7"] {
 		t.Fatalf("parsePeers did not wire ClientPolicy.IpMap into the parser: got %v (found %v), want %v", translated, found, wanted)
 	}

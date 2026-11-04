@@ -522,6 +522,20 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	return res
 }
 
+func (clstr *Cluster) translate(nodeName, tlsName, host string, port int) (Host, Error) {
+	sourceList := SourceListStandard
+	if clstr.clientPolicy.Load().UseServicesAlternate {
+		sourceList = SourceListAlternate
+	}
+	return translate(clstr.addressTranslator, clstr.translationOnMiss, Endpoint{
+		NodeName:   nodeName,
+		TLSName:    tlsName,
+		Host:       host,
+		Port:       port,
+		SourceList: sourceList,
+	})
+}
+
 // detectTranslationCollisions marks new peers whose translated addresses
 // clash with another peer in the same view or with a live node. A colliding
 // pair of new peers creates neither node, a clash with a live node keeps the
