@@ -115,10 +115,10 @@ func (h *singleConnectionHeap) Poll() (res *Connection) {
 // It will return true if tail connection was idle and dropped
 func (h *singleConnectionHeap) DropIdleTail() bool {
 	h.mutex.Lock()
-	defer h.mutex.Unlock()
 
 	// the heap has been cleaned up
 	if h.data == nil {
+		h.mutex.Unlock()
 		return false
 	}
 
@@ -127,24 +127,26 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 		conn := h.data[(h.tail+1)%h.size]
 
 		if conn.IsConnected() && !conn.isIdle() {
+			h.mutex.Unlock()
 			return false
 		}
 
 		h.tail = (h.tail + 1) % h.size
 		h.data[h.tail] = nil
 		h.full = false
+		h.mutex.Unlock()
+
 		if conn.node != nil {
 			conn.node.stats.ConnectionsIdleDropped.IncrementAndGet()
 		}
 
-		// DropIdleTail runs on the tend goroutine while holding the heap lock.
-		// A socket close that never returns must not stall the tend cycle for
-		// the whole cluster, nor block Poll and Offer on this heap.
-		conn.closeAsync()
+		// close outside the lock so a slow socket close cannot block Poll and Offer
+		conn.Close()
 
 		return true
 	}
 
+	h.mutex.Unlock()
 	return false
 }
 
