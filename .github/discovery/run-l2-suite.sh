@@ -2,9 +2,10 @@
 # Runs the Go L2 discovery tests inside the L2 client container.
 #
 # discovery-l2.yaml compiles ./l2.test and passes the DISCOVERY_* variables
-# from the topology env file. DISCOVERY_SUBSET is ce or ee. Every listener is
-# checked first, so a cluster that never came up fails here instead of looking
-# like a run whose tests all skipped.
+# from the topology env file. DISCOVERY_SUBSET is ce or ee. Every test uses the
+# clear listeners, so they are always checked. TLS listeners exist only when
+# the topology was built with them, and are checked when listed. A cluster that
+# never came up fails here instead of looking like a run whose tests all skipped.
 set -euo pipefail
 
 readonly test_bin=./l2.test
@@ -33,12 +34,14 @@ subset="${DISCOVERY_SUBSET:?DISCOVERY_SUBSET is required}"
 [[ "${host}" =~ ^[A-Za-z0-9.-]+$ ]] || fail "Refusing unexpected endpoint hostname: ${host}"
 
 case "${subset}" in
-  ce) check_ports="${clear_ports}" ;;
-  ee) check_ports="${DISCOVERY_TLS_ENDPOINT_PORTS:?DISCOVERY_TLS_ENDPOINT_PORTS is required}" ;;
+  ce | ee) ;;
   *) fail "DISCOVERY_SUBSET must be ce or ee (got: ${subset})" ;;
 esac
 
-check_listeners "${host}" "${check_ports}"
+check_listeners "${host}" "${clear_ports}"
+if [[ -n "${DISCOVERY_TLS_ENDPOINT_PORTS:-}" ]]; then
+  check_listeners "${host}" "${DISCOVERY_TLS_ENDPOINT_PORTS}"
+fi
 
 [[ -x "${test_bin}" ]] || fail "L2 test binary not found or not executable: ${test_bin}"
 exec "${test_bin}" -test.run '^TestL2' -test.v -test.timeout 10m

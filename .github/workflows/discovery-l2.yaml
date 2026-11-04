@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       subset:
-        description: ce runs a community cluster without TLS
+        description: ce runs a community cluster without TLS, ee an enterprise cluster with TLS
         type: string
         required: true
       server-container-repo:
@@ -15,6 +15,11 @@ on:
         description: Aerospike image tag
         type: string
         required: true
+      tls-listen-port-base:
+        description: First TLS proxy listen port. Empty skips TLS proxies.
+        type: string
+        required: false
+        default: ""
       profile:
         description: A discovery-l2-topology profile. Smoke uses default.
         type: string
@@ -59,6 +64,7 @@ jobs:
           server-container-repo: ${{ inputs.server-container-repo }}
           server-tag: ${{ inputs.server-tag }}
           enable-tls: ${{ inputs.subset == 'ee' }}
+          tls-listen-port-base: ${{ inputs.tls-listen-port-base }}
           features-content: ${{ inputs.subset == 'ee' && secrets.FEATURES_CONF || '' }}
           oidc-provider: ${{ vars.OIDC_PROVIDER }}
           oidc-audience: ${{ vars.OIDC_AUDIENCE }}
@@ -68,8 +74,17 @@ jobs:
           CLIENT_NETWORK: ${{ steps.l2.outputs.client-network }}
           ENV_FILE: ${{ steps.l2.outputs.env-file }}
           CLIENT_HOSTS: ${{ steps.l2.outputs.client-hosts }}
+          TLS_CERT_DIR: ${{ steps.l2.outputs.tls-cert-dir }}
+          TLS_LISTEN_PORT_BASE: ${{ inputs.tls-listen-port-base }}
         run: |
           set -euo pipefail
+          # A requested TLS listener that never appeared must fail here, not skip N-6.
+          if [[ -n "${TLS_LISTEN_PORT_BASE}" ]]; then
+            grep -q '^DISCOVERY_TLS_ENDPOINT_PORTS=.' "${ENV_FILE}" ||
+              { echo "::error::tls-listen-port-base is set but the topology has no TLS listeners"; exit 1; }
+            [[ -n "${TLS_CERT_DIR}" ]] ||
+              { echo "::error::tls-listen-port-base is set but the topology has no TLS certificate"; exit 1; }
+          fi
           run_args=(
             --rm
             --network "${CLIENT_NETWORK}"
@@ -78,6 +93,10 @@ jobs:
             -e AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1
             -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}"
           )
+          if [[ -n "${TLS_CERT_DIR}" ]]; then
+            run_args+=(-v "${TLS_CERT_DIR}:/aerospike-tls:ro")
+            run_args+=(-e "AEROSPIKE_CA_CERT=/aerospike-tls/ca.crt")
+          fi
           if [[ -n "${CLIENT_HOSTS}" ]]; then
             IFS=',' read -r -a client_hosts <<< "${CLIENT_HOSTS}"
             for host in "${client_hosts[@]}"; do
