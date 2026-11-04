@@ -29,4 +29,5 @@ golangci.yml
 cover*.out
 .vscode/settings.json
 ginkgo.report
+/conformance-report.json
 .idea

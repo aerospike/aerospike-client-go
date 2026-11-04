@@ -1,0 +1,29 @@
+name: Discovery integration
+
+# Own workflow so the L2 runtime is not added to every build.yml matrix cell.
+#
+# CE default profile only. EE and the other profiles need the fork gate and
+# skipped-layer report before they can run here: fork pull requests do not
+# receive FEATURES_CONF.
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  pull_request:
+  push:
+    branches:
+      - stage
+  workflow_dispatch:
+
+jobs:
+  l2-ce:
+    name: L2 discovery (ce)
+    uses: ./.github/workflows/discovery-l2.yaml
+    with:
+      subset: ce
+      server-container-repo: database-docker-virtual/aerospike-server
+      server-tag: latest
+      profile: default
+    secrets: inherit
