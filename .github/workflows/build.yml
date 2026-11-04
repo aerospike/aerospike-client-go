@@ -107,6 +107,9 @@ jobs:
       - name: Test pkg tests
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites pkg
+      - name: Test internal discovery packages
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
+        run: go test -race -covermode=atomic -coverprofile=covprofile_discovery.out ./internal/discovery/...
       - name: Build Benchmark tool
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: cd tools/benchmark | go build -mod=vendor -tags as_proxy -o benchmark .

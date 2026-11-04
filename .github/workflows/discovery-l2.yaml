@@ -1,0 +1,97 @@
+name: Discovery L2 run
+
+on:
+  workflow_call:
+    inputs:
+      subset:
+        description: ce runs a community cluster without TLS
+        type: string
+        required: true
+      server-container-repo:
+        description: Aerospike image repository path
+        type: string
+        required: true
+      server-tag:
+        description: Aerospike image tag
+        type: string
+        required: true
+      profile:
+        description: A discovery-l2-topology profile. Smoke uses default.
+        type: string
+        required: false
+        default: default
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  l2:
+    name: cluster
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    timeout-minutes: 20
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compile L2 tests
+        env:
+          CGO_ENABLED: "0"
+        run: go test -c -o l2.test .
+
+      - name: Setup L2 topology
+        id: l2
+        uses: aerospike/aerospike-client-conformance/.github/actions/discovery-l2-topology@faa1474b97c83beb7c353bdca62733e6ad8ff1d4 # main
+        with:
+          profile: ${{ inputs.profile }}
+          subset: ${{ inputs.subset }}
+          server-edition: ${{ inputs.subset == 'ee' && 'enterprise' || 'community' }}
+          server-container-repo: ${{ inputs.server-container-repo }}
+          server-tag: ${{ inputs.server-tag }}
+          enable-tls: ${{ inputs.subset == 'ee' }}
+          features-content: ${{ inputs.subset == 'ee' && secrets.FEATURES_CONF || '' }}
+          oidc-provider: ${{ vars.OIDC_PROVIDER }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
+
+      - name: Run L2 discovery suite
+        env:
+          CLIENT_NETWORK: ${{ steps.l2.outputs.client-network }}
+          ENV_FILE: ${{ steps.l2.outputs.env-file }}
+          CLIENT_HOSTS: ${{ steps.l2.outputs.client-hosts }}
+        run: |
+          set -euo pipefail
+          run_args=(
+            --rm
+            --network "${CLIENT_NETWORK}"
+            --workdir "${GITHUB_WORKSPACE}"
+            --env-file "${ENV_FILE}"
+            -e AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1
+            -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}"
+          )
+          if [[ -n "${CLIENT_HOSTS}" ]]; then
+            IFS=',' read -r -a client_hosts <<< "${CLIENT_HOSTS}"
+            for host in "${client_hosts[@]}"; do
+              run_args+=(--add-host "${host}")
+            done
+          fi
+          docker run "${run_args[@]}" debian:bookworm-slim bash .github/discovery/run-l2-suite.sh
+
+      - name: Show the node server log
+        if: ${{ always() && steps.l2.outputs.node-server-log != '' }}
+        env:
+          LOG_FILE: ${{ steps.l2.outputs.node-server-log }}
+        run: cat "${LOG_FILE}"
+
+      - name: Fix bind-mount ownership
+        if: ${{ always() }}
+        run: sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"

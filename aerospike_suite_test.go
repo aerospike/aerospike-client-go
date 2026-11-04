@@ -178,12 +178,16 @@ func printConnectedNodes(client *as.Client) {
 	}
 }
 
+func skipSuiteConnect() bool {
+	return os.Getenv("AEROSPIKE_TEST_SKIP_SUITE_CLIENT") != ""
+}
+
 func TestMain(m *testing.M) {
 	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
-
-	// setup the client object
-	initTestVars()
+	if !skipSuiteConnect() {
+		initTestVars()
+	}
 	os.Exit(m.Run())
 }
 

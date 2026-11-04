@@ -73,6 +73,17 @@ func ConfiguredAsStrongConsistency(client *Client, namespace string) bool {
 	return p.SCMode
 }
 
+// PartitionMasters returns the master node of each partition of namespace in
+// the client's partition map, nil where the partition has no master.
+func PartitionMasters(client *Client, namespace string) []*Node {
+	masters := make([]*Node, _PARTITIONS)
+	p := client.cluster.getPartitions()[namespace]
+	if p != nil && len(p.Replicas) > 0 {
+		copy(masters, p.Replicas[0])
+	}
+	return masters
+}
+
 func NewWriteCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
