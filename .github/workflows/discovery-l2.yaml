@@ -69,6 +69,39 @@ jobs:
           oidc-provider: ${{ vars.OIDC_PROVIDER }}
           oidc-audience: ${{ vars.OIDC_AUDIENCE }}
 
+      - name: Build DNS zone
+        id: zone
+        if: ${{ inputs.profile == 'default' }}
+        env:
+          CLIENT_NETWORK: ${{ steps.l2.outputs.client-network }}
+          ENV_FILE: ${{ steps.l2.outputs.env-file }}
+        run: |
+          set -euo pipefail
+          setting() { sed -n "s/^$1=//p" "${ENV_FILE}"; }
+          host="$(setting DISCOVERY_ENDPOINT_HOSTNAME)"
+          proxy_ip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"${CLIENT_NETWORK}\").IPAddress}}" "$(setting TOXIPROXY_HOST)")"
+          {
+            echo "zone-name=${host}"
+            echo "zone-content<<EOF"
+            echo "\$ORIGIN ${host}."
+            echo "@ 3600 IN SOA ns.${host}. admin.${host}. 1 60 60 60 1"
+            echo "@ 1 IN A ${proxy_ip}"
+            IFS=',' read -r -a ports <<< "$(setting DISCOVERY_ENDPOINT_PORTS)"
+            for port in "${ports[@]}"; do
+              echo "_aerospike._tcp 1 IN SRV 10 10 ${port} ${host}."
+            done
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Setup DNS server
+        id: dns
+        if: ${{ inputs.profile == 'default' }}
+        uses: aerospike/shared-workflows/.github/actions/setup-dns-server@308f37e0cd5c7a6386a99ea7afc379d5a4ea9256 # v5.1.0
+        with:
+          network-name: ${{ steps.l2.outputs.client-network }}
+          zone-name: ${{ steps.zone.outputs.zone-name }}
+          zone-content: ${{ steps.zone.outputs.zone-content }}
+
       - name: Run L2 discovery suite
         env:
           CLIENT_NETWORK: ${{ steps.l2.outputs.client-network }}
@@ -76,8 +109,17 @@ jobs:
           CLIENT_HOSTS: ${{ steps.l2.outputs.client-hosts }}
           TLS_CERT_DIR: ${{ steps.l2.outputs.tls-cert-dir }}
           TLS_LISTEN_PORT_BASE: ${{ inputs.tls-listen-port-base }}
+          PROFILE: ${{ inputs.profile }}
+          DISCOVERY_DNS_SERVER: ${{ steps.dns.outputs.server-address }}
         run: |
           set -euo pipefail
+          # The default profile runs N-4 and N-11, which must fail here rather than skip.
+          if [[ "${PROFILE}" == "default" ]]; then
+            [[ -n "${DISCOVERY_DNS_SERVER}" ]] ||
+              { echo "::error::the default profile has no DNS server for N-4"; exit 1; }
+            grep -q '^DISCOVERY_CONTROL_DIR=.' "${ENV_FILE}" ||
+              { echo "::error::the default profile has no node control for N-11"; exit 1; }
+          fi
           # A requested TLS listener that never appeared must fail here, not skip N-6.
           if [[ -n "${TLS_LISTEN_PORT_BASE}" ]]; then
             grep -q '^DISCOVERY_TLS_ENDPOINT_PORTS=.' "${ENV_FILE}" ||
@@ -91,6 +133,7 @@ jobs:
             --workdir "${GITHUB_WORKSPACE}"
             --env-file "${ENV_FILE}"
             -e AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1
+            -e DISCOVERY_DNS_SERVER
             -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}"
           )
           if [[ -n "${TLS_CERT_DIR}" ]]; then

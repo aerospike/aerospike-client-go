@@ -15,8 +15,10 @@
 package aerospike_test
 
 import (
+	"cmp"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -42,7 +45,7 @@ const (
 	l2TendInterval = 250 * time.Millisecond
 	l2Wait         = 30 * time.Second
 	l2Poll         = 100 * time.Millisecond
-	l2DialTimeout  = time.Second
+	l2DialTimeout  = 2 * time.Second
 	l2Set          = "l2"
 	l2KeyCount     = 300
 	l2MissKeyCount = 200
@@ -52,6 +55,14 @@ const (
 	l2ReseedPoll            = 5 * time.Millisecond
 	l2TLSProxySuffix        = "-tls"
 	l2TLSKeyCount           = 20
+	l2HoldToxic             = "hold"
+	l2DropThreads           = 4
+	l2DropKeyCount          = 20
+	l2DropSocketTimeout     = 500 * time.Millisecond
+	l2DropTotalTimeout      = 1500 * time.Millisecond
+	l2DropMaxRetries        = 2
+	l2BreakerMaxErrorRate   = 2
+	l2BreakerWindow         = 4
 )
 
 var l2PeerPattern = regexp.MustCompile(`\[([0-9A-Fa-f]+),([^,\[\]]*),\[`)
@@ -124,6 +135,108 @@ func (capture *l2LogCapture) misses(node string) []string {
 	return misses
 }
 
+// l2Failure is one command that failed under l2Load.
+type l2Failure struct {
+	start   time.Time
+	elapsed time.Duration
+	err     as.Error
+}
+
+// codes returns the result codes down the error chain, outermost first.
+func (failure l2Failure) codes() string {
+	var codes []string
+	for err := error(failure.err); err != nil; err = errors.Unwrap(err) {
+		if aerospikeErr, ok := err.(*as.AerospikeError); ok {
+			codes = append(codes, aerospikeErr.ResultCode.String())
+		}
+	}
+	return strings.Join(codes, ">")
+}
+
+func (failure l2Failure) end() time.Time {
+	return failure.start.Add(failure.elapsed)
+}
+
+// l2Load runs a command in a loop on several goroutines until stopped.
+type l2Load struct {
+	stop      chan struct{}
+	stopOnce  sync.Once
+	done      sync.WaitGroup
+	successes atomic.Int64
+
+	mu     sync.Mutex
+	failed []l2Failure
+}
+
+func startL2Load(threads int, command func(thread, i int) as.Error) *l2Load {
+	load := &l2Load{stop: make(chan struct{})}
+	for thread := range threads {
+		load.done.Add(1)
+		go func() {
+			defer load.done.Done()
+			for i := 0; ; i++ {
+				select {
+				case <-load.stop:
+					return
+				default:
+				}
+				start := time.Now()
+				err := command(thread, i)
+				if err == nil {
+					load.successes.Add(1)
+					continue
+				}
+				failure := l2Failure{start: start, elapsed: time.Since(start), err: err}
+				load.mu.Lock()
+				load.failed = append(load.failed, failure)
+				load.mu.Unlock()
+			}
+		}()
+	}
+	return load
+}
+
+// stopWithin stops the load and reports whether every goroutine returned within bound.
+func (load *l2Load) stopWithin(bound time.Duration) bool {
+	load.stopOnce.Do(func() { close(load.stop) })
+	finished := make(chan struct{})
+	go func() {
+		load.done.Wait()
+		close(finished)
+	}()
+	select {
+	case <-finished:
+		return true
+	case <-time.After(bound):
+		return false
+	}
+}
+
+func (load *l2Load) String() string {
+	chains := map[string]int{}
+	for _, failure := range load.failures() {
+		chains[failure.codes()]++
+	}
+	return fmt.Sprintf("%d successes, failures by error chain %v", load.successes.Load(), chains)
+}
+
+// failures returns the failures with any of codes down their error chain, or
+// all of them if none is given.
+func (load *l2Load) failures(codes ...types.ResultCode) []l2Failure {
+	load.mu.Lock()
+	defer load.mu.Unlock()
+	if len(codes) == 0 {
+		return slices.Clone(load.failed)
+	}
+	var failures []l2Failure
+	for _, failure := range load.failed {
+		if failure.err.Matches(codes...) {
+			failures = append(failures, failure)
+		}
+	}
+	return failures
+}
+
 var (
 	l2Once  sync.Once
 	l2Host  string
@@ -139,6 +252,99 @@ func TestL2PortMapByNodeNameJoinsAllNodes(t *testing.T) {
 	assertL2PortMapJoins(t, l2PortMapByNodeName)
 }
 
+// The dns provider seeds from SRV records for the endpoint, one per listener,
+// and port-map brings in the peers.
+func TestL2DnsProviderSeedsThroughEndpoint(t *testing.T) {
+	host, nodes := l2Topology(t)
+	server := os.Getenv("DISCOVERY_DNS_SERVER")
+	if server == "" {
+		t.Skip("N-4 needs DISCOVERY_DNS_SERVER, the topology has no DNS server")
+	}
+	provider, err := as.NewDnsSeedCandidateProvider(as.DnsSeedCandidateProviderConfig{
+		Names:      []string{"_aerospike._tcp." + host},
+		RecordType: as.DnsRecordTypeSRV,
+		Servers:    []string{server},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := l2PortMapPolicy(t, l2PortMapByEndpoint(host, nodes))
+	policy.SeedProvider = provider
+	client := newL2Client(t, policy)
+	waitL2Cluster(t, client, l2NodeNames(nodes))
+}
+
+// Every node masters partitions as its own Node, and each key is served by its
+// master with no server proxy hop.
+func TestL2EveryPartitionOwnerIsADistinctNode(t *testing.T) {
+	host, nodes := l2Topology(t)
+	client := newL2Client(t, l2PortMapPolicy(t, l2PortMapByEndpoint(host, nodes)), as.NewHost(host, nodes[0].port))
+	waitL2Cluster(t, client, l2NodeNames(nodes))
+
+	masters := as.PartitionMasters(client, *namespace)
+	distinct := make(map[*as.Node]struct{}, len(nodes))
+	for _, master := range masters {
+		distinct[master] = struct{}{}
+	}
+	if len(distinct) != len(nodes) {
+		t.Fatalf("%d distinct partition masters, want %d", len(distinct), len(nodes))
+	}
+	cluster := client.Cluster()
+	for _, node := range client.GetNodes() {
+		if byName, err := cluster.GetNodeByName(node.GetName()); err != nil || byName != node {
+			t.Fatalf("cluster lookup of %s returned %v, %v, want the client's node", node.GetName(), byName, err)
+		}
+		if _, ok := distinct[node]; !ok {
+			t.Fatalf("node %s masters no partition", node.GetName())
+		}
+	}
+
+	before := make(map[string]map[string]int64, len(nodes))
+	for _, node := range nodes {
+		before[node.name] = l2NamespaceStats(t, host, node)
+	}
+
+	write := as.NewWritePolicy(0, 0)
+	write.ReplicaPolicy = as.MASTER
+	read := as.NewPolicy()
+	read.ReplicaPolicy = as.MASTER
+	served := make(map[string]int64, len(nodes))
+	for i := range l2KeyCount {
+		key := l2Key(t, "n5-", i)
+		owner := masters[key.PartitionId()]
+		assertL2RoutedTo(t, cluster, &write.BasePolicy, read, key, owner)
+		if err := client.Put(write, key, as.BinMap{"v": i}); err != nil {
+			t.Fatalf("put %v: %v", key, err)
+		}
+		record, err := client.Get(read, key)
+		if err != nil {
+			t.Fatalf("get %v: %v", key, err)
+		}
+		if record.Bins["v"] != i {
+			t.Fatalf("key %v holds %v, want %d", key, record.Bins["v"], i)
+		}
+		served[owner.GetName()]++
+	}
+
+	for _, node := range nodes {
+		after := l2NamespaceStats(t, host, node)
+		delta := func(stat string) int64 { return after[stat] - before[node.name][stat] }
+		want := served[node.name]
+		if want == 0 {
+			t.Fatalf("node %s served no keys", node.name)
+		}
+		if writes := delta("client_write_success"); writes != want {
+			t.Fatalf("node %s counted %d writes, want %d", node.name, writes, want)
+		}
+		if reads := delta("client_read_success"); reads != want {
+			t.Fatalf("node %s counted %d reads, want %d", node.name, reads, want)
+		}
+		if proxied := delta("client_proxy_complete") + delta("client_proxy_error") + delta("client_proxy_timeout"); proxied != 0 {
+			t.Fatalf("node %s proxied %d commands, want none", node.name, proxied)
+		}
+	}
+}
+
 // Startup must settle within ClientPolicy.Timeout, and a dial to an advertised
 // address the network drops takes that whole timeout. Java fails init with
 // "Peers not reachable" here instead.
@@ -151,6 +357,36 @@ func TestL2WithoutTranslatorFailsInitWithTimeout(t *testing.T) {
 	}
 	if !err.Matches(types.TIMEOUT) {
 		t.Fatalf("client without a translator failed with %v, want TIMEOUT", err)
+	}
+}
+
+// The nodes advertise no alternate address, so asking for one fails init
+// with an error naming the flag rather than starting with no nodes.
+func TestL2UseServicesAlternateWithoutAlternateFailsInit(t *testing.T) {
+	host, nodes := l2Topology(t)
+	seed := nodes[0]
+	info, err := l2RequestInfo(host, seed.port, "service-clear-alt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alternate := strings.TrimSpace(info["service-clear-alt"]); alternate != "" {
+		t.Fatalf("node %s advertises alternate address %s, want none", seed.name, alternate)
+	}
+
+	policy := l2Policy()
+	policy.UseServicesAlternate = true
+	client, initErr := as.NewClientWithPolicyAndHost(policy, as.NewHost(host, seed.port))
+	if initErr == nil {
+		client.Close()
+		t.Fatalf("client with UseServicesAlternate started with nodes %v, want init to fail", client.GetNodeNames())
+	}
+	if !initErr.Matches(types.INVALID_NODE_ERROR) {
+		t.Fatalf("client with UseServicesAlternate failed with %v, want INVALID_NODE_ERROR", initErr)
+	}
+	for _, part := range []string{"UseServicesAlternate", seed.name} {
+		if !strings.Contains(initErr.Error(), part) {
+			t.Fatalf("init error %q does not name %s", initErr, part)
+		}
 	}
 }
 
@@ -185,6 +421,80 @@ func TestL2StrictEmptyCustomTranslatorDropsPeers(t *testing.T) {
 	policy.AddressTranslator = l2EmptyTranslator{}
 	policy.TranslationOnMiss = as.TranslationMissStrict
 	assertL2StrictMissDropsPeers(t, policy, fmt.Sprintf("%T", l2EmptyTranslator{}))
+}
+
+// A node started mid-test is an active Node within two tend intervals of the
+// peers-generation bump that announces it, and then masters partitions. The
+// test gives it a listener and a port-map entry before it joins.
+func TestL2NewNodeActiveWithinTwoTendIntervals(t *testing.T) {
+	host, nodes := l2Topology(t)
+	controlDir := os.Getenv("DISCOVERY_CONTROL_DIR")
+	if controlDir == "" {
+		t.Skip("N-11 needs DISCOVERY_CONTROL_DIR, the topology has no node control")
+	}
+	first := nodes[0]
+	names := l2NodeNames(nodes)
+	translator := &l2SwappableTranslator{}
+	translator.set(t, l2PortMapByEndpoint(host, nodes))
+	policy := l2Policy()
+	policy.AddressTranslator = translator
+	client := newL2Client(t, policy, as.NewHost(host, first.port))
+	waitL2Cluster(t, client, names)
+
+	generation := l2PeersGeneration(t, host, first)
+	added := startL2Node(t, controlDir, host, nodes)
+	upstreamPort := l2UpstreamPort(t, first.proxy)
+	port := addL2Listener(t, added.container, net.JoinHostPort(added.container, strconv.Itoa(upstreamPort)))
+	advertised := net.JoinHostPort(added.address, strconv.Itoa(upstreamPort))
+	portMap := l2PortMapByEndpoint(host, nodes)
+	portMap[advertised] = net.JoinHostPort(host, strconv.Itoa(port))
+	translator.set(t, portMap)
+
+	if mapped := l2PeersGeneration(t, host, first); mapped != generation {
+		t.Fatalf("peers-generation bumped from %d to %d before %s had a listener and a mapping", generation, mapped, added.container)
+	}
+	var bump, active time.Time
+	var node *as.Node
+	if !waitL2(l2ReseedPoll, func() bool {
+		now := time.Now()
+		if bump.IsZero() && l2PeersGeneration(t, host, first) != generation {
+			bump = now
+		}
+		if active.IsZero() {
+			for _, candidate := range client.GetNodes() {
+				if candidate.IsActive() && !slices.Contains(names, candidate.GetName()) {
+					active, node = now, candidate
+				}
+			}
+		}
+		return !bump.IsZero() && !active.IsZero()
+	}) {
+		t.Fatalf("no peers-generation bump or no active node for %s, nodes %v", added.container, client.GetNodeNames())
+	}
+
+	info, err := l2RequestInfo(host, port, "node", "service-clear-std")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info["node"] != node.GetName() {
+		t.Fatalf("listener %d serves node %s, client added %s", port, info["node"], node.GetName())
+	}
+	if !strings.Contains(info["service-clear-std"], advertised) {
+		t.Fatalf("%s advertises %q, want %s", node.GetName(), info["service-clear-std"], advertised)
+	}
+	if node.GetHost().Port != port {
+		t.Fatalf("node %s host %v, want listener port %d", node.GetName(), node.GetHost(), port)
+	}
+	if elapsed, budget := active.Sub(bump), 2*policy.TendInterval; elapsed > budget {
+		t.Fatalf("node %s active %s after the peers-generation bump, budget %s", node.GetName(), elapsed, budget)
+	}
+	if !waitL2(l2Poll, func() bool {
+		owners, _ := l2PartitionOwners(client)
+		return slices.Contains(owners, node.GetName())
+	}) {
+		owners, _ := l2PartitionOwners(client)
+		t.Fatalf("node %s masters no partition, owners %v", node.GetName(), owners)
+	}
 }
 
 // In tend mode the provider runs only on its refresh interval, so the client
@@ -307,6 +617,110 @@ func TestL2NodeRemovedFromEndpointDegradesAndReturns(t *testing.T) {
 	for _, key := range append(victimKeys, otherKeys...) {
 		assertL2KeyWrites(t, client, policy, key, 2)
 	}
+}
+
+// A node that stops replying without closing its sockets costs each command
+// at most its timeouts, and no command thread stays blocked.
+func TestL2SilentDropTimesOutWithinBound(t *testing.T) {
+	runL2SilentDrop(t, func(*as.ClientPolicy) {}, l2DropMaxRetries, func(load *l2Load, write *as.WritePolicy, held time.Time, bound time.Duration) {
+		if !waitL2(l2Poll, func() bool { return len(load.failures(types.TIMEOUT)) >= l2DropThreads }) {
+			t.Fatalf("%d timeouts after the node stopped replying, want %d, %s", len(load.failures(types.TIMEOUT)), l2DropThreads, load)
+		}
+		if !load.stopWithin(bound) {
+			t.Fatalf("command threads still running %s after stop", bound)
+		}
+		failures := load.failures()
+		if other := slices.DeleteFunc(slices.Clone(failures), func(failure l2Failure) bool { return failure.err.Matches(types.TIMEOUT) }); len(other) > 0 {
+			t.Fatalf("command failed with %s, want TIMEOUT in every error chain: %v", other[0].codes(), other[0].err)
+		}
+		first := slices.MinFunc(failures, func(a, b l2Failure) int { return a.end().Compare(b.end()) })
+		if wait := first.end().Sub(held); wait > bound {
+			t.Fatalf("first timeout %s after the node stopped replying, bound %s", wait, bound)
+		}
+		slowest := slices.MaxFunc(failures, func(a, b l2Failure) int { return cmp.Compare(a.elapsed, b.elapsed) })
+		if slowest.elapsed > bound {
+			t.Fatalf("command took %s to time out, bound %s", slowest.elapsed, bound)
+		}
+	})
+}
+
+// With a low MaxErrorRate the timeouts trip the node's error-rate breaker, and
+// commands it rejects fail without waiting for the socket.
+// Go's breaker rejects only the attempt that finds the rate exceeded and
+// retries it, so the writes run with no retry for the rejection to be the
+// command's result. Java also expects later commands to fail fast, which Go's
+// breaker does not do.
+func TestL2SilentDropTripsErrorRateBreaker(t *testing.T) {
+	lowerErrorRate := func(policy *as.ClientPolicy) {
+		policy.MaxErrorRate = l2BreakerMaxErrorRate
+		policy.ErrorRateWindow = l2BreakerWindow
+	}
+	runL2SilentDrop(t, lowerErrorRate, 0, func(load *l2Load, write *as.WritePolicy, held time.Time, bound time.Duration) {
+		if !waitL2(l2Poll, func() bool { return len(load.failures(types.MAX_ERROR_RATE)) > 0 }) {
+			t.Fatalf("no MAX_ERROR_RATE after the node stopped replying, want the breaker to trip, %s", load)
+		}
+		if !load.stopWithin(bound) {
+			t.Fatalf("command threads still running %s after stop", bound)
+		}
+		rejected := load.failures(types.MAX_ERROR_RATE)
+		trip := slices.MinFunc(rejected, func(a, b l2Failure) int { return a.end().Compare(b.end()) }).end()
+		if wait, tripBound := trip.Sub(held), time.Duration(l2BreakerWindow+1)*l2TendInterval+bound; wait > tripBound {
+			t.Fatalf("breaker tripped %s after the node stopped replying, bound %s", wait, tripBound)
+		}
+		slowest := slices.MaxFunc(rejected, func(a, b l2Failure) int { return cmp.Compare(a.elapsed, b.elapsed) })
+		if slowest.elapsed >= write.SocketTimeout {
+			t.Fatalf("rejected command took %s, want under the %s socket timeout", slowest.elapsed, write.SocketTimeout)
+		}
+	})
+}
+
+// runL2SilentDrop writes keys the last node masters on several threads, holds
+// that node's traffic with no reply and no close, and runs check with the
+// time the hold began and the bound a command may take to fail. It then
+// releases the node and waits for the full cluster to serve again.
+func runL2SilentDrop(t *testing.T, configure func(*as.ClientPolicy), maxRetries int, check func(load *l2Load, write *as.WritePolicy, held time.Time, bound time.Duration)) {
+	t.Helper()
+	host, nodes := l2Topology(t)
+	victim := nodes[len(nodes)-1]
+	policy := l2PortMapPolicy(t, l2PortMapByEndpoint(host, nodes))
+	configure(policy)
+	client := newL2Client(t, policy, as.NewHost(host, nodes[0].port))
+
+	want := l2NodeNames(nodes)
+	waitL2Cluster(t, client, want)
+
+	masters := as.PartitionMasters(client, *namespace)
+	var keys []*as.Key
+	for i := 0; len(keys) < l2DropKeyCount; i++ {
+		key := l2Key(t, "f4-", i)
+		if master := masters[key.PartitionId()]; master != nil && master.GetName() == victim.name {
+			keys = append(keys, key)
+		}
+	}
+
+	write := as.NewWritePolicy(0, 0)
+	write.SocketTimeout = l2DropSocketTimeout
+	write.TotalTimeout = l2DropTotalTimeout
+	write.MaxRetries = maxRetries
+	bound := write.TotalTimeout + write.SocketTimeout
+
+	load := startL2Load(l2DropThreads, func(thread, i int) as.Error {
+		return client.Put(write, keys[(thread+i*l2DropThreads)%len(keys)], as.BinMap{"v": i})
+	})
+	defer load.stopWithin(bound)
+	if !waitL2(l2Poll, func() bool { return load.successes.Load() >= l2DropThreads }) {
+		t.Fatalf("writes to %s did not succeed before the hold: %v", victim.name, load.failures())
+	}
+
+	held := time.Now()
+	release := holdL2Listener(t, victim.proxy)
+	check(load, write, held, bound)
+
+	release()
+	if !waitL2(l2Poll, func() bool { return l2Writes(client, write, keys[0]) }) {
+		t.Fatalf("writes to %s did not recover after the hold", victim.name)
+	}
+	waitL2Cluster(t, client, want)
 }
 
 // The handshake checks the certificate against the node's tls-name, not the
@@ -695,21 +1109,279 @@ func enableL2Listener(t *testing.T, proxy string) {
 }
 
 func setL2Listener(proxy string, enabled bool) error {
+	return l2Toxiproxy(http.MethodPost, "/proxies/"+proxy, fmt.Sprintf(`{"enabled":%t}`, enabled), http.StatusOK)
+}
+
+// holdL2Listener stops the node's replies without closing its connections, and
+// returns the release, which also runs when the test ends.
+func holdL2Listener(t *testing.T, proxy string) (release func()) {
+	t.Helper()
+	toxic := fmt.Sprintf(`{"name":%q,"type":"timeout","stream":"upstream","toxicity":1.0,"attributes":{"timeout":0}}`, l2HoldToxic)
+	if err := l2Toxiproxy(http.MethodPost, "/proxies/"+proxy+"/toxics", toxic, http.StatusOK); err != nil {
+		t.Fatal(err)
+	}
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			if err := l2Toxiproxy(http.MethodDelete, "/proxies/"+proxy+"/toxics/"+l2HoldToxic, "", http.StatusNoContent); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	t.Cleanup(release)
+	return release
+}
+
+// addL2Listener creates a Toxiproxy listener named proxy above every listener
+// in use, removes it when the test ends and returns its port.
+func addL2Listener(t *testing.T, proxy, upstream string) int {
+	t.Helper()
+	port := 0
+	for _, listener := range l2ToxiproxyProxies(t) {
+		if _, listenPort, err := net.SplitHostPort(listener.Listen); err == nil {
+			if used, err := strconv.Atoi(listenPort); err == nil {
+				port = max(port, used)
+			}
+		}
+	}
+	port++
+	listener := fmt.Sprintf(`{"name":%q,"listen":"0.0.0.0:%d","upstream":%q,"enabled":true}`, proxy, port, upstream)
+	if err := l2Toxiproxy(http.MethodPost, "/proxies", listener, http.StatusCreated); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := l2Toxiproxy(http.MethodDelete, "/proxies/"+proxy, "", http.StatusNoContent); err != nil {
+			t.Error(err)
+		}
+	})
+	return port
+}
+
+// l2UpstreamPort returns the node port a Toxiproxy listener forwards to.
+func l2UpstreamPort(t *testing.T, proxy string) int {
+	t.Helper()
+	listener, ok := l2ToxiproxyProxies(t)[proxy]
+	if !ok {
+		t.Fatalf("toxiproxy has no listener %s", proxy)
+	}
+	_, upstreamPort, err := net.SplitHostPort(listener.Upstream)
+	if err != nil {
+		t.Fatalf("listener %s upstream %q: %v", proxy, listener.Upstream, err)
+	}
+	port, err := strconv.Atoi(upstreamPort)
+	if err != nil {
+		t.Fatalf("listener %s upstream %q: %v", proxy, listener.Upstream, err)
+	}
+	return port
+}
+
+type l2ToxiproxyListener struct {
+	Listen   string `json:"listen"`
+	Upstream string `json:"upstream"`
+}
+
+func l2ToxiproxyProxies(t *testing.T) map[string]l2ToxiproxyListener {
+	t.Helper()
+	reply, err := l2ToxiproxyReply(http.MethodGet, "/proxies", "", http.StatusOK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var proxies map[string]l2ToxiproxyListener
+	if err := json.Unmarshal(reply, &proxies); err != nil {
+		t.Fatalf("toxiproxy proxies %s: %v", reply, err)
+	}
+	return proxies
+}
+
+func l2Toxiproxy(method, path, body string, want int) error {
+	_, err := l2ToxiproxyReply(method, path, body, want)
+	return err
+}
+
+func l2ToxiproxyReply(method, path, body string, want int) ([]byte, error) {
 	toxiproxy := strings.TrimRight(os.Getenv("TOXIPROXY_URL"), "/")
 	if toxiproxy == "" {
-		return errors.New("TOXIPROXY_URL is not set")
+		return nil, errors.New("TOXIPROXY_URL is not set")
 	}
-	httpClient := http.Client{Timeout: 10 * time.Second}
-	response, err := httpClient.Post(toxiproxy+"/proxies/"+proxy, "application/json", strings.NewReader(fmt.Sprintf(`{"enabled":%t}`, enabled)))
+	request, err := http.NewRequest(method, toxiproxy+path, strings.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("toxiproxy %s enabled=%t: %w", proxy, enabled, err)
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	httpClient := http.Client{Timeout: 10 * time.Second}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("toxiproxy %s %s: %w", method, path, err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("toxiproxy %s enabled=%t: status %d %s", proxy, enabled, response.StatusCode, body)
+	reply, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("toxiproxy %s %s: %w", method, path, err)
 	}
-	return nil
+	if response.StatusCode != want {
+		return nil, fmt.Errorf("toxiproxy %s %s: status %d %s", method, path, response.StatusCode, reply)
+	}
+	return reply, nil
+}
+
+// l2SwappableTranslator is a port-map translator the test can replace while the client runs.
+type l2SwappableTranslator struct {
+	current atomic.Pointer[as.AddressTranslator]
+}
+
+func (translator *l2SwappableTranslator) Translate(advertised as.Endpoint) (as.Host, bool) {
+	return (*translator.current.Load()).Translate(advertised)
+}
+
+func (translator *l2SwappableTranslator) set(t *testing.T, portMap map[string]string) {
+	t.Helper()
+	portMapTranslator, err := as.NewPortMapAddressTranslator(portMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	translator.current.Store(&portMapTranslator)
+}
+
+type l2StartedNode struct {
+	container string
+	address   string
+}
+
+// startL2Node asks the host to start a node and stops it when the test ends,
+// waiting until the cluster is back to nodes.
+func startL2Node(t *testing.T, controlDir, host string, nodes []l2Node) l2StartedNode {
+	t.Helper()
+	ack := l2Control(t, controlDir, "start")
+	started := l2StartedNode{container: ack["container"], address: ack["address"]}
+	if started.container == "" || started.address == "" {
+		t.Fatalf("start acknowledgement %v has no container or address", ack)
+	}
+	t.Cleanup(func() {
+		l2Control(t, controlDir, "stop "+started.container)
+		waitL2ClusterStable(t, host, nodes)
+	})
+	return started
+}
+
+// l2Control writes command to controlDir as <id>.request and returns the host's
+// <id>.ack, one key=value per line.
+func l2Control(t *testing.T, controlDir, command string) map[string]string {
+	t.Helper()
+	id := strconv.FormatInt(time.Now().UnixNano(), 36)
+	pending := filepath.Join(controlDir, id+".tmp")
+	if err := os.WriteFile(pending, []byte(command+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(pending, filepath.Join(controlDir, id+".request")); err != nil {
+		t.Fatal(err)
+	}
+	ackPath := filepath.Join(controlDir, id+".ack")
+	var reply []byte
+	if !waitL2(l2Poll, func() bool {
+		var err error
+		reply, err = os.ReadFile(ackPath)
+		return err == nil
+	}) {
+		t.Fatalf("no acknowledgement for %q in %s", command, controlDir)
+	}
+	if err := os.Remove(ackPath); err != nil {
+		t.Error(err)
+	}
+	ack := make(map[string]string)
+	for _, line := range strings.Split(string(reply), "\n") {
+		if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok && key != "" {
+			ack[key] = value
+		}
+	}
+	if failure, ok := ack["error"]; ok {
+		t.Fatalf("%q failed: %s", command, failure)
+	}
+	return ack
+}
+
+// waitL2ClusterStable waits until every node reports the same stable cluster of len(nodes).
+func waitL2ClusterStable(t *testing.T, host string, nodes []l2Node) {
+	t.Helper()
+	command := fmt.Sprintf("cluster-stable:size=%d;ignore-migrations=false", len(nodes))
+	var keys []string
+	if !waitL2(l2Poll, func() bool {
+		keys = keys[:0]
+		for _, node := range nodes {
+			info, err := l2RequestInfo(host, node.port, command)
+			if err != nil {
+				keys = append(keys, err.Error())
+				continue
+			}
+			keys = append(keys, info[command])
+		}
+		return len(slices.Compact(slices.Clone(keys))) == 1 && !strings.HasPrefix(keys[0], "ERROR")
+	}) {
+		t.Fatalf("cluster not stable at size %d: %v", len(nodes), keys)
+	}
+}
+
+func l2PeersGeneration(t *testing.T, host string, node l2Node) int64 {
+	t.Helper()
+	info, err := l2RequestInfo(host, node.port, "peers-generation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation, err := strconv.ParseInt(info["peers-generation"], 10, 64)
+	if err != nil {
+		t.Fatalf("node %s peers-generation %q: %v", node.name, info["peers-generation"], err)
+	}
+	return generation
+}
+
+// l2NamespaceStats returns the client command counters of the test namespace on node.
+func l2NamespaceStats(t *testing.T, host string, node l2Node) map[string]int64 {
+	t.Helper()
+	command := "namespace/" + *namespace
+	info, err := l2RequestInfo(host, node.port, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanted := []string{"client_write_success", "client_read_success", "client_proxy_complete", "client_proxy_error", "client_proxy_timeout"}
+	stats := make(map[string]int64, len(wanted))
+	for _, stat := range strings.Split(info[command], ";") {
+		if name, value, ok := strings.Cut(stat, "="); ok && slices.Contains(wanted, name) {
+			count, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				t.Fatalf("node %s %s=%q: %v", node.name, name, value, err)
+			}
+			stats[name] = count
+		}
+	}
+	for _, name := range wanted {
+		if _, ok := stats[name]; !ok {
+			t.Fatalf("node %s has no namespace statistic %s", node.name, name)
+		}
+	}
+	return stats
+}
+
+// assertL2RoutedTo checks the client sends writes and reads of key to owner.
+func assertL2RoutedTo(t *testing.T, cluster *as.Cluster, write, read *as.BasePolicy, key *as.Key, owner *as.Node) {
+	t.Helper()
+	writePartition, err := as.PartitionForWrite(cluster, write, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeNode, err := writePartition.GetNodeWrite(cluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readPartition, err := as.PartitionForRead(cluster, read, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readNode, err := readPartition.GetNodeRead(cluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeNode != owner || readNode != owner {
+		t.Fatalf("key %v writes to %v and reads from %v, want its master %v", key, writeNode, readNode, owner)
+	}
 }
 
 func assertL2PortMapJoins(t *testing.T, portMapOf func(host string, nodes []l2Node) map[string]string) {
