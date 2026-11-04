@@ -2,9 +2,11 @@ name: Discovery integration
 
 # Own workflow so the L2 runtime is not added to every build.yml matrix cell.
 #
-# CE default profile only. EE and the other profiles need the fork gate and
-# skipped-layer report before they can run here: fork pull requests do not
-# receive FEATURES_CONF.
+# CE (community, no feature key) runs on every pull request. EE (enterprise
+# with TLS, rows such as N-6) runs on same-repo pull requests, on push and on
+# workflow_dispatch. Fork pull requests do not receive FEATURES_CONF, so the
+# gate job reports EE as a skipped layer instead. Default profile only, the
+# other profiles are PLAN §7.2.
 
 permissions:
   id-token: write
@@ -18,6 +20,36 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The only place the enterprise gate is decided, so a skip and its report cannot drift apart.
+  gate:
+    name: Skipped layers
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    outputs:
+      enterprise: ${{ steps.gate.outputs.enterprise }}
+    steps:
+      - name: Decide the enterprise gate
+        id: gate
+        env:
+          ENTERPRISE: >-
+            ${{
+              github.event_name == 'push'
+              || github.event_name == 'workflow_dispatch'
+              || github.event.pull_request.head.repo.full_name == github.repository
+            }}
+        run: |
+          set -euo pipefail
+          layers='[]'
+          if [[ "${ENTERPRISE}" != true ]]; then
+            layers=$(jq -cn '[{layer: "L2 EE", tests: "L2 discovery tests against an enterprise cluster with TLS", reason: "fork pull requests get no FEATURES_CONF"}]')
+          fi
+          echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
+          echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
+
+      - name: Report skipped layers
+        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@f66304f36d1cded608e4d6c199622266e2db1dc3 # main
+        with:
+          layers: ${{ steps.gate.outputs.layers }}
+
   l2-ce:
     name: L2 discovery (ce)
     uses: ./.github/workflows/discovery-l2.yaml
@@ -25,5 +57,18 @@ jobs:
       subset: ce
       server-container-repo: database-docker-virtual/aerospike-server
       server-tag: latest
+      profile: default
+    secrets: inherit
+
+  l2-ee:
+    name: L2 discovery (ee)
+    needs: gate
+    if: needs.gate.outputs.enterprise == 'true'
+    uses: ./.github/workflows/discovery-l2.yaml
+    with:
+      subset: ee
+      server-container-repo: database-docker-dev-local/aerospike-server-enterprise
+      server-tag: 8.2.0.0
+      tls-listen-port-base: "43331"
       profile: default
     secrets: inherit
