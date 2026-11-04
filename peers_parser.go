@@ -58,11 +58,9 @@ func parsePeers(cluster *Cluster, node *Node) (*peerListParser, Error) {
 	}
 
 	p := peerListParser{
-		buf:            []byte(peersStr),
-		translator:     cluster.addressTranslator,
-		translatorName: cluster.translatorName,
-		onMiss:         cluster.translationOnMiss,
-		sourceList:     sourceList,
+		buf:        []byte(peersStr),
+		cluster:    cluster,
+		sourceList: sourceList,
 	}
 	if err := p.Parse(); err != nil {
 		return nil, err
@@ -105,13 +103,8 @@ type peerListParser struct {
 	gen     *int64
 	peers   []*peer
 
-	// translator, when set, translates each advertised address into a
-	// client-reachable one. onMiss decides what a miss does and sourceList
-	// names the advertised list being parsed.
-	translator     AddressTranslator
-	translatorName string
-	onMiss         TranslationMissMode
-	sourceList     SourceList
+	cluster    *Cluster
+	sourceList SourceList
 
 	// nodeName and tlsName identify the peer whose hosts are being parsed.
 	nodeName string
@@ -252,19 +245,14 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 		}
 	}
 
-	if p.translator != nil {
-		advertised := Endpoint{NodeName: p.nodeName, TLSName: p.tlsName, Host: addr, Port: port, SourceList: p.sourceList}
-		if translated, found := p.translator.Translate(advertised); found {
-			addr = translated.Name
-			port = translated.Port
-			// Debug level keeps the per-peer, per-tend translation off the
-			// normal log path; raise to Debug to trace a failed `Add node`
-			// back to the advertised address.
-			logger.Logger.Debug("Translated peer `%s` -> `%s:%d`", host, addr, port)
-		} else if p.onMiss == TranslationMissStrict {
-			logger.Logger.Warn("Address translator %s has no mapping for node %s advertised address %s:%d in the %s list. Add a mapping for that endpoint or node, or set TranslationOnMiss to pass_through", p.translatorName, p.nodeName, addr, port, p.sourceList.String())
+	if p.cluster != nil && p.cluster.addressTranslator != nil {
+		translated, err := p.cluster.translate(p.nodeName, p.tlsName, addr, port)
+		if err != nil {
+			logger.Logger.Warn("%s", err)
 			return nil, nil
 		}
+		addr = translated.Name
+		port = translated.Port
 	}
 
 	return NewHost(addr, port), nil

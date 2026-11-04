@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 // SourceList identifies which server-advertised address list an endpoint came from.
@@ -62,7 +64,7 @@ type Endpoint struct {
 // client connects to. It changes only the transport address; TLS still
 // authenticates against the node's own TLS name.
 // Translate runs on the tend goroutine once per advertised address and must
-// be in-memory only: no locking, no I/O. Returning ok false is a miss;
+// be in-memory only: no locking, no I/O. Returning ok false is a miss
 // ClientPolicy.TranslationOnMiss decides what happens next.
 // A translator may additionally implement ClusterViewChangeObserver.
 type AddressTranslator interface {
@@ -89,4 +91,22 @@ func translatorDisplayName(translator AddressTranslator) string {
 		return translatorNamePassThrough
 	}
 	return fmt.Sprintf("%T", translator)
+}
+
+func translate(translator AddressTranslator, onMiss TranslationMissMode, advertised Endpoint) (Host, Error) {
+	host, ok := translator.Translate(advertised)
+	if !ok {
+		if onMiss == TranslationMissStrict {
+			return Host{}, newTranslationMiss(translator, advertised)
+		}
+		return Host{Name: advertised.Host, TLSName: advertised.TLSName, Port: advertised.Port}, nil
+	}
+	host.TLSName = advertised.TLSName
+	return host, nil
+}
+
+func newTranslationMiss(translator AddressTranslator, advertised Endpoint) Error {
+	return newError(types.TRANSLATION_MISS, fmt.Sprintf(
+		"Address translator %s has no mapping for node %s advertised address %s:%d in the %s list. Add a mapping for that endpoint or node, or set translation.on_miss to pass_through",
+		translatorDisplayName(translator), advertised.NodeName, advertised.Host, advertised.Port, advertised.SourceList))
 }
