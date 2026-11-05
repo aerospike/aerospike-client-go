@@ -77,7 +77,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		if _, err := cmd.parseKey(fieldCount, &bval, nil); err != nil {
+		if _, err := cmd.parseKey(fieldCount, &bval); err != nil {
 			return false, err
 		}
 

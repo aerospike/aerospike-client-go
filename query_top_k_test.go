@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -486,40 +487,69 @@ func TestParseKeyLastUpdateTime(t *testing.T) {
 		}
 		return wire
 	}
-	parse := func(fields map[FieldType][]byte, lastUpdateTime *int64) Error {
+	parse := func(cmd *baseMultiCommand, fields map[FieldType][]byte) (*Key, Error) {
 		wire := recordFields(fields)
-		cmd := &baseMultiCommand{bc: bufferedConn{conn: &Connection{dataBuffer: wire}, tail: len(wire)}}
-		_, err := cmd.parseKey(len(fields), nil, lastUpdateTime)
-		return err
+		cmd.bc = bufferedConn{conn: &Connection{dataBuffer: wire}, tail: len(wire)}
+		return cmd.parseKey(len(fields), nil)
 	}
-	digest := make([]byte, 20)
+	digest := bytes.Repeat([]byte{0xAB}, 20)
 
 	t.Run("reads the field as a big-endian count", func(t *testing.T) {
-		var lastUpdateTime int64
+		cmd := &baseMultiCommand{topKMerger: &topKMerger{}}
 		lut := binary.BigEndian.AppendUint64(nil, 0x0102030405060708)
-		if err := parse(map[FieldType][]byte{DIGEST_RIPE: digest, LAST_UPDATE_TIME: lut}, &lastUpdateTime); err != nil {
+		if _, err := parse(cmd, map[FieldType][]byte{DIGEST_RIPE: digest, LAST_UPDATE_TIME: lut}); err != nil {
 			t.Fatal(err)
 		}
-		if lastUpdateTime != 0x0102030405060708 {
-			t.Errorf("last-update time = %#x, want 0x0102030405060708", lastUpdateTime)
+		if cmd.lastUpdateTime != 0x0102030405060708 {
+			t.Errorf("last-update time = %#x, want 0x0102030405060708", cmd.lastUpdateTime)
 		}
 	})
 
 	t.Run("leaves it 0 when the server sends none", func(t *testing.T) {
-		var lastUpdateTime int64
-		if err := parse(map[FieldType][]byte{DIGEST_RIPE: digest}, &lastUpdateTime); err != nil {
+		cmd := &baseMultiCommand{topKMerger: &topKMerger{}}
+		if _, err := parse(cmd, map[FieldType][]byte{DIGEST_RIPE: digest}); err != nil {
 			t.Fatal(err)
 		}
-		if lastUpdateTime != 0 {
-			t.Errorf("last-update time = %d, want 0", lastUpdateTime)
+		if cmd.lastUpdateTime != 0 {
+			t.Errorf("last-update time = %d, want 0", cmd.lastUpdateTime)
 		}
 	})
 
 	t.Run("refuses a field that is not 8 bytes", func(t *testing.T) {
-		var lastUpdateTime int64
-		err := parse(map[FieldType][]byte{LAST_UPDATE_TIME: {1, 2, 3, 4}}, &lastUpdateTime)
+		cmd := &baseMultiCommand{topKMerger: &topKMerger{}}
+		_, err := parse(cmd, map[FieldType][]byte{LAST_UPDATE_TIME: {1, 2, 3, 4}})
 		if err == nil || !err.Matches(types.PARSE_ERROR) {
 			t.Errorf("err = %v, want PARSE_ERROR", err)
+		}
+	})
+
+	t.Run("ignores the field when the query is not Top-K", func(t *testing.T) {
+		for _, lut := range [][]byte{{1, 2, 3, 4}, binary.BigEndian.AppendUint64(nil, 0x0102030405060708)} {
+			cmd := &baseMultiCommand{}
+			key, err := parse(cmd, map[FieldType][]byte{DIGEST_RIPE: digest, LAST_UPDATE_TIME: lut})
+			if err != nil {
+				t.Fatalf("%d-byte field: %v", len(lut), err)
+			}
+			if cmd.lastUpdateTime != 0 {
+				t.Errorf("%d-byte field: last-update time = %#x, want 0", len(lut), cmd.lastUpdateTime)
+			}
+			if !bytes.Equal(key.Digest(), digest) {
+				t.Errorf("%d-byte field: digest = %x, want %x", len(lut), key.Digest(), digest)
+			}
+		}
+	})
+
+	t.Run("clears the previous record's value", func(t *testing.T) {
+		cmd := &baseMultiCommand{topKMerger: &topKMerger{}}
+		lut := binary.BigEndian.AppendUint64(nil, 42)
+		if _, err := parse(cmd, map[FieldType][]byte{DIGEST_RIPE: digest, LAST_UPDATE_TIME: lut}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := parse(cmd, map[FieldType][]byte{DIGEST_RIPE: digest}); err != nil {
+			t.Fatal(err)
+		}
+		if cmd.lastUpdateTime != 0 {
+			t.Errorf("last-update time = %d, want 0 for a record without the field", cmd.lastUpdateTime)
 		}
 	})
 }
