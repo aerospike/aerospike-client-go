@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"testing"
@@ -44,6 +45,34 @@ func packed(value Value) []byte {
 	return buffer.Bytes()
 }
 
+// binOp is one bin of a record as the server returns it.
+type binOp struct {
+	name         string
+	particleType int
+	particle     []byte
+}
+
+// recordOps lays out bins as the server sends them in a record: a 4-byte
+// size, the operation, particle type, version and name length bytes, the
+// name, then the particle.
+func recordOps(bins ...binOp) []byte {
+	var wire []byte
+	for _, bin := range bins {
+		wire = binary.BigEndian.AppendUint32(wire, uint32(4+len(bin.name)+len(bin.particle)))
+		wire = append(wire, _READ.op, byte(bin.particleType), 0, byte(len(bin.name)))
+		wire = append(wire, bin.name...)
+		wire = append(wire, bin.particle...)
+	}
+	return wire
+}
+
+// expectParseError asserts err is a PARSE_ERROR mentioning messagePart.
+func expectParseError(err Error, messagePart string) {
+	gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
+	gm.ExpectWithOffset(1, err.Matches(types.PARSE_ERROR)).To(gm.BeTrue(), err.Error())
+	gm.ExpectWithOffset(1, err.Error()).To(gm.ContainSubstring(messagePart))
+}
+
 // expectParameterError asserts err is a PARAMETER_ERROR mentioning messagePart.
 func expectParameterError(err Error, messagePart string) {
 	gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
@@ -68,8 +97,8 @@ var _ = gg.Describe("Vector encoding", func() {
 				[]byte{0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x3f}},
 			{"int32 extremes", mustVector(NewVectorInt32([]int32{math.MinInt32, math.MaxInt32, -1})),
 				[]byte{0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff, 0xff}},
-			{"float16 bit patterns", mustVector(NewVectorFloat16Bits([]uint16{0x3c00, 0x8000, 0x7c00})),
-				[]byte{0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x80, 0x00, 0x7c}},
+			{"float16 bit patterns", mustVector(NewVectorFloat16Bits([]uint16{0x3c00, 0x8000, 0x7bff})),
+				[]byte{0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x80, 0xff, 0x7b}},
 		}
 
 		for _, testCase := range testCases {
@@ -79,6 +108,97 @@ var _ = gg.Describe("Vector encoding", func() {
 				gm.Expect(NewVectorValue(testCase.vector).GetType()).To(gm.Equal(ParticleType.VECTOR))
 			})
 		}
+	})
+
+	// The server refuses a NaN or an infinity, so the constructors refuse it
+	// first and name the element. Decoding stored bytes doesn't check.
+	gg.Context("non-finite elements", func() {
+		nonFinite := []struct {
+			name  string
+			build func() (*Vector, Error)
+			value string
+		}{
+			{"a float32 NaN", func() (*Vector, Error) { return NewVectorFloat32([]float32{1, 2, float32(math.NaN()), 4}) }, "NaN"},
+			{"a float32 +Inf", func() (*Vector, Error) { return NewVectorFloat32([]float32{1, 2, float32(math.Inf(1)), 4}) }, "+Inf"},
+			{"a float32 -Inf", func() (*Vector, Error) { return NewVectorFloat32([]float32{1, 2, float32(math.Inf(-1)), 4}) }, "-Inf"},
+			{"a float64 NaN", func() (*Vector, Error) { return NewVectorFloat64([]float64{1, 2, math.NaN(), 4}) }, "NaN"},
+			{"a float64 +Inf", func() (*Vector, Error) { return NewVectorFloat64([]float64{1, 2, math.Inf(1), 4}) }, "+Inf"},
+			{"a float64 -Inf", func() (*Vector, Error) { return NewVectorFloat64([]float64{1, 2, math.Inf(-1), 4}) }, "-Inf"},
+			{"a float16 +Inf", func() (*Vector, Error) { return NewVectorFloat16Bits([]uint16{0x3c00, 0x4000, 0x7c00, 0x4400}) }, "0x7c00"},
+			{"a float16 -Inf", func() (*Vector, Error) { return NewVectorFloat16Bits([]uint16{0x3c00, 0x4000, 0xfc00, 0x4400}) }, "0xfc00"},
+			{"a float16 NaN", func() (*Vector, Error) { return NewVectorFloat16Bits([]uint16{0x3c00, 0x4000, 0x7e00, 0x4400}) }, "0x7e00"},
+		}
+
+		for _, element := range nonFinite {
+			gg.It("refuses "+element.name+" and names the element", func() {
+				vector, err := element.build()
+				gm.Expect(vector).To(gm.BeNil())
+				expectParameterError(err, "vector element 2 is not finite: "+element.value)
+			})
+		}
+
+		gg.It("accepts the largest, smallest and subnormal finite values", func() {
+			float32s := []float32{math.MaxFloat32, -math.MaxFloat32, math.SmallestNonzeroFloat32, 0}
+			stored, err := mustVector(NewVectorFloat32(float32s)).Float32()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(stored).To(gm.Equal(float32s))
+
+			float64s := []float64{math.MaxFloat64, -math.MaxFloat64, math.SmallestNonzeroFloat64, 0}
+			storedFloat64s, err := mustVector(NewVectorFloat64(float64s)).Float64()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(storedFloat64s).To(gm.Equal(float64s))
+
+			// 0x7bff and 0xfbff are the largest finite float16 values; 0x0001 is the smallest subnormal.
+			float16s := []uint16{0x7bff, 0xfbff, 0x0001, 0x8000}
+			storedBits, err := mustVector(NewVectorFloat16Bits(float16s)).Float16Bits()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(storedBits).To(gm.Equal(float16s))
+		})
+
+		gg.It("keeps a built vector unchanged when the caller later writes a NaN into its slice", func() {
+			float32s := []float32{1, 2, 3}
+			float32Vector := mustVector(NewVectorFloat32(float32s))
+			float32s[1] = float32(math.NaN())
+
+			float64s := []float64{1, 2, 3}
+			float64Vector := mustVector(NewVectorFloat64(float64s))
+			float64s[1] = math.Inf(1)
+
+			float16s := []uint16{0x3c00, 0x4000, 0x4200}
+			float16Vector := mustVector(NewVectorFloat16Bits(float16s))
+			float16s[1] = 0x7e00
+
+			gm.Expect(float32Vector.Float32()).To(gm.Equal([]float32{1, 2, 3}))
+			gm.Expect(float64Vector.Float64()).To(gm.Equal([]float64{1, 2, 3}))
+			gm.Expect(float16Vector.Float16Bits()).To(gm.Equal([]uint16{0x3c00, 0x4000, 0x4200}))
+
+			// The vector still packs as built, so nothing the caller changed reaches the server.
+			for _, vector := range []*Vector{float32Vector, float64Vector, float16Vector} {
+				_, err := NewVectorValue(vector).pack(newBuffer(64))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+		})
+
+		gg.It("leaves the caller's slice untouched when it refuses an element", func() {
+			float32s := []float32{1, float32(math.Inf(1)), 3}
+			vector, err := NewVectorFloat32(float32s)
+			gm.Expect(vector).To(gm.BeNil())
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(float32s[0]).To(gm.Equal(float32(1)))
+			gm.Expect(math.IsInf(float64(float32s[1]), 1)).To(gm.BeTrue())
+			gm.Expect(float32s[2]).To(gm.Equal(float32(3)))
+		})
+
+		gg.It("still decodes stored bytes that hold a NaN", func() {
+			wire := []byte{0x01, 0x03, 0x01, 0x00, 0x00, 0x00}
+			wire = binary.LittleEndian.AppendUint32(wire, math.Float32bits(float32(math.NaN())))
+
+			vector, err := NewVectorFromBytes(wire)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			elements, err := vector.Float32()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(math.IsNaN(float64(elements[0]))).To(gm.BeTrue())
+		})
 	})
 
 	// Each element type holds 1 to as many elements as fit in 256 KiB.
@@ -133,7 +253,7 @@ var _ = gg.Describe("Vector encoding", func() {
 			gg.It("rejects bytes "+malformed.name, func() {
 				vector, err := NewVectorFromBytes(malformed.input)
 				gm.Expect(vector).To(gm.BeNil())
-				expectParameterError(err, malformed.messagePart)
+				expectParseError(err, malformed.messagePart)
 			})
 		}
 	})
@@ -169,12 +289,49 @@ var _ = gg.Describe("Vector encoding", func() {
 		invalid := []byte{0xde, 0xad, 0xbe}
 		decoded, err := bytesToParticle(ParticleType.VECTOR, invalid, 0, len(invalid))
 		gm.Expect(decoded).To(gm.BeNil())
-		expectParameterError(err, "vector: value size 3 smaller than 6-byte header")
+		expectParseError(err, "vector: value size 3 smaller than 6-byte header")
 
 		packedList := append([]byte{0x91, 0xa0 | byte(len(invalid)+1), ParticleType.VECTOR}, invalid...)
 		decoded, err = newUnpacker(packedList, 0, len(packedList)).unpackObjects()
 		gm.Expect(decoded).To(gm.BeNil())
-		expectParameterError(err, "vector: value size 3 smaller than 6-byte header")
+		expectParseError(err, "vector: value size 3 smaller than 6-byte header")
+	})
+
+	// Only data stored before servers validated vectors can hold such bytes.
+	// They are read the way the client reads any value it can't decode.
+	gg.Context("stored type-16 bytes that are not a vector", func() {
+		invalid := []byte{0xde, 0xad, 0xbe}
+		const message = "vector: value size 3 smaller than 6-byte header"
+
+		gg.It("fail a query, scan or batch read with a parse error, as a bin and inside a list", func() {
+			decoded, err := bytesToParticle(ParticleType.VECTOR, invalid, 0, len(invalid))
+			gm.Expect(decoded).To(gm.BeNil())
+			expectParseError(err, message)
+
+			decoded, err = bytesToParticleRaw(ParticleType.VECTOR, invalid, 0, len(invalid), true)
+			gm.Expect(decoded).To(gm.BeNil())
+			expectParseError(err, message)
+
+			packedList := append([]byte{0x91, 0xa0 | byte(len(invalid)+1), ParticleType.VECTOR}, invalid...)
+			decoded, err = newUnpacker(packedList, 0, len(packedList)).unpackObjects()
+			gm.Expect(decoded).To(gm.BeNil())
+			expectParseError(err, message)
+		})
+
+		gg.It("read as no bin in a single-record read, as a type the client doesn't know does", func() {
+			wire := recordOps(
+				binOp{"vec", ParticleType.VECTOR, invalid},
+				binOp{"unknown", 99, []byte{1, 2, 3}},
+				binOp{"n", ParticleType.INTEGER, binary.BigEndian.AppendUint64(nil, 7)},
+			)
+			parser := &recordParser{opCount: 3, cmd: &baseCommand{bufferEx: bufferEx{dataBuffer: wire}}}
+
+			record, err := parser.parseRecord(nil, false)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins).To(gm.HaveKeyWithValue("vec", gm.BeNil()))
+			gm.Expect(record.Bins).To(gm.HaveKeyWithValue("unknown", gm.BeNil()))
+			gm.Expect(record.Bins).To(gm.HaveKeyWithValue("n", 7))
+		})
 	})
 
 	gg.It("refuses to pack a raw value inside a list", func() {

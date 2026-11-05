@@ -1115,6 +1115,24 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(queryIDs(wholeRecord)).To(gm.Equal(want))
 		})
 
+		// Operations and BinNames are mutually exclusive: with both set, the
+		// query sends only the operations.
+		gg.It("ranks by the operations and ignores BinNames when both are set", func() {
+			statement := topK(as.OrderDesc, 3)
+			statement.BinNames = []string{"id"}
+			statement.Operations = []*as.Operation{as.GetBinOp("score")}
+
+			recordset, err := client.Query(nil, statement)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			var scores []any
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				gm.Expect(result.Record.Bins).ToNot(gm.HaveKey("id"))
+				scores = append(scores, result.Record.Bins["score"])
+			}
+			gm.Expect(scores).To(gm.Equal([]any{90, 90, 70}))
+		})
+
 		gg.It("ranks only the records a filter expression keeps", func() {
 			policy := as.NewQueryPolicy()
 			policy.FilterExpression = as.ExpLess(as.ExpIntBin("id"), as.ExpIntVal(3))
@@ -1385,6 +1403,36 @@ var _ = gg.Describe("Query Top-K", func() {
 			return queryIDs(statement)
 		}
 
+		gg.It("ranks a list or map value last for an integer key, in either direction", func() {
+			putValues(5, []any{1, 2}, 9, map[any]any{"a": 1})
+
+			ascending := rank(as.BinDataTypeInteger, as.OrderAsc, 4)
+			gm.Expect(ascending[:2]).To(gm.Equal([]int{0, 2}))
+			gm.Expect(ascending[2:]).To(gm.ConsistOf(1, 3))
+
+			descending := rank(as.BinDataTypeInteger, as.OrderDesc, 4)
+			gm.Expect(descending[:2]).To(gm.Equal([]int{2, 0}))
+			gm.Expect(descending[2:]).To(gm.ConsistOf(1, 3))
+		})
+
+		gg.It("ranks a vector or HyperLogLog value last for a bytes key, in either direction", func() {
+			putValues([]byte{0x02}, mustVector(as.NewVectorFloat32([]float32{1, 2})), []byte{0x01})
+			hllKey, err := as.NewKey(ns, set, 3)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			keys = append(keys, hllKey)
+			gm.Expect(client.PutBins(nil, hllKey, as.NewBin("id", 3))).To(gm.Succeed())
+			_, err = client.Operate(nil, hllKey, as.HLLInitOp(as.DefaultHLLPolicy(), "v", 4, -1))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ascending := rank(as.BinDataTypeBytes, as.OrderAsc, 4)
+			gm.Expect(ascending[:2]).To(gm.Equal([]int{2, 0}))
+			gm.Expect(ascending[2:]).To(gm.ConsistOf(1, 3))
+
+			descending := rank(as.BinDataTypeBytes, as.OrderDesc, 4)
+			gm.Expect(descending[:2]).To(gm.Equal([]int{0, 2}))
+			gm.Expect(descending[2:]).To(gm.ConsistOf(1, 3))
+		})
+
 		gg.It("ranks doubles with NaN above every number and an integer value last", func() {
 			putValues(1.5, -2.0, math.NaN(), 3.25, 7)
 
@@ -1641,6 +1689,33 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
 
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{1, 0}))
+		})
+
+		gg.It("ranks by the last SetOrderBy and the ThenOrderBy after it", func() {
+			statement := as.NewStatement(ns, set, "score", "ts", "id")
+			gm.Expect(statement.SetOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
+			gm.Expect(statement.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
+			gm.Expect(statement.SetTopK(len(records))).To(gm.Succeed())
+
+			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{1, 0, 3, 2, 4, 6, 5}))
+		})
+
+		gg.It("ranks by SetOrderBy alone after a refused ThenOrderBy", func() {
+			statement := as.NewStatement(ns, set, "score", "ts", "id")
+			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).ToNot(gm.Succeed())
+			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+			gm.Expect(statement.SetTopK(len(records))).To(gm.Succeed())
+
+			// Without ts, the ties on score 90 and the records with no score come in digest order.
+			ids := queryIDs(statement)
+			gm.Expect(ids[:3]).To(gm.ConsistOf(0, 1, 3))
+			gm.Expect(ids[3:5]).To(gm.Equal([]int{2, 4}))
+			gm.Expect(ids[5:]).To(gm.ConsistOf(5, 6))
+			for _, tie := range [][2]int{{0, 1}, {1, 2}, {5, 6}} {
+				gm.Expect(bytes.Compare(keyByID[ids[tie[0]]].Digest(), keyByID[ids[tie[1]]].Digest())).To(gm.Equal(-1))
+			}
 		})
 
 		gg.It("ranks by the new order-by bin alone and uses the last limit after both are set again", func() {

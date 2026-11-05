@@ -578,6 +578,53 @@ func TestTopKWireFields(t *testing.T) {
 		}
 	})
 
+	// SetOrderBy sets the first key and clears the second; ThenOrderBy sets
+	// the second key and is refused when no first key is set.
+	price := []byte{1, 1, 0, 5, 'p', 'r', 'i', 'c', 'e'}
+	ts := []byte{1, 0, 0, 2, 't', 's'}
+	orderByField := func(t *testing.T, statement *Statement) []byte {
+		t.Helper()
+		if err := statement.SetTopK(10); err != nil {
+			t.Fatal(err)
+		}
+		return queryFields(t, statement, true)[ORDER_BY]
+	}
+
+	t.Run("a second SetOrderBy sends only its own key", func(t *testing.T) {
+		statement := NewStatement("test", "topk")
+		statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+		statement.ThenOrderBy("ts", BinDataTypeInteger, OrderAsc)
+		statement.SetOrderBy("price", BinDataTypeInteger, OrderDesc)
+
+		if got := orderByField(t, statement); !reflect.DeepEqual(got, price) {
+			t.Errorf("ORDER_BY = %v, want %v", got, price)
+		}
+	})
+
+	t.Run("a ThenOrderBy after a second SetOrderBy sends both keys in order", func(t *testing.T) {
+		statement := NewStatement("test", "topk")
+		statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+		statement.ThenOrderBy("ts", BinDataTypeInteger, OrderAsc)
+		statement.SetOrderBy("price", BinDataTypeInteger, OrderDesc)
+		statement.ThenOrderBy("ts", BinDataTypeInteger, OrderAsc)
+
+		if got, want := orderByField(t, statement), append(append([]byte{}, price...), ts...); !reflect.DeepEqual(got, want) {
+			t.Errorf("ORDER_BY = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("a refused ThenOrderBy leaves no key behind", func(t *testing.T) {
+		statement := NewStatement("test", "topk")
+		if err := statement.ThenOrderBy("ts", BinDataTypeInteger, OrderAsc); err == nil {
+			t.Fatal("ThenOrderBy before SetOrderBy succeeded")
+		}
+		statement.SetOrderBy("price", BinDataTypeInteger, OrderDesc)
+
+		if got := orderByField(t, statement); !reflect.DeepEqual(got, price) {
+			t.Errorf("ORDER_BY = %v, want %v", got, price)
+		}
+	})
+
 	t.Run("an order-by without k sends no limit", func(t *testing.T) {
 		statement := NewStatement("test", "topk")
 		statement.SetOrderBy("score", BinDataTypeInteger, OrderAsc)

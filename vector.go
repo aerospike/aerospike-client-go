@@ -95,7 +95,8 @@ const (
 //
 // Vector values require a server that supports native vectors, see
 // ExpVectorDistance for similarity scoring. NewValue and NewBin wrap a
-// *Vector in a VectorValue to send it.
+// *Vector in a VectorValue to send it. A nil *Vector is a null value, so
+// writing it removes the bin, as any nil value does.
 //
 // A vector can't be an element of a list or a map. The server rejects such a
 // write, and the client refuses a vector used as a map key.
@@ -105,7 +106,7 @@ type Vector struct {
 }
 
 func newVector(elementType VectorElementType, dimensions int) (*Vector, Error) {
-	if err := checkVectorDimensions(elementType, dimensions); err != nil {
+	if err := checkVectorDimensions(elementType, dimensions, types.PARAMETER_ERROR); err != nil {
 		return nil, err
 	}
 	wire := make([]byte, vectorHeaderSize+(dimensions*elementType.size()))
@@ -116,13 +117,14 @@ func newVector(elementType VectorElementType, dimensions int) (*Vector, Error) {
 }
 
 // checkVectorDimensions refuses a dimension count the server would reject:
-// none, or more than the element type allows.
-func checkVectorDimensions(elementType VectorElementType, dimensions int) Error {
+// none, or more than the element type allows. resultCode is the code to
+// report.
+func checkVectorDimensions(elementType VectorElementType, dimensions int, resultCode types.ResultCode) Error {
 	if dimensions < 1 {
-		return newError(types.PARAMETER_ERROR, "vector: must have at least 1 dimension")
+		return newError(resultCode, "vector: must have at least 1 dimension")
 	}
 	if maxDimensions := elementType.maxDimensions(); dimensions > maxDimensions {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: %d dimensions exceed max %d for element type %d", dimensions, maxDimensions, byte(elementType)))
+		return newError(resultCode, fmt.Sprintf("vector: %d dimensions exceed max %d for element type %d", dimensions, maxDimensions, byte(elementType)))
 	}
 	return nil
 }
@@ -130,7 +132,8 @@ func checkVectorDimensions(elementType VectorElementType, dimensions int) Error 
 // NewVectorFloat32 creates a vector of 32 bit float elements.
 // The input slice is copied.
 //
-// It returns a PARAMETER_ERROR if elements is empty or holds more than 65,536 elements.
+// It returns a PARAMETER_ERROR if elements is empty, holds more than 65,536
+// elements, or holds a NaN or an infinity.
 func NewVectorFloat32(elements []float32) (*Vector, Error) {
 	vector, err := newVector(VectorElementFloat32, len(elements))
 	if err != nil {
@@ -138,7 +141,11 @@ func NewVectorFloat32(elements []float32) (*Vector, Error) {
 	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range elements {
-		binary.LittleEndian.PutUint32(payload[index*4:], math.Float32bits(element))
+		bits := math.Float32bits(element)
+		if bits&float32ExponentMask == float32ExponentMask {
+			return nil, nonFiniteElementError(index, element)
+		}
+		binary.LittleEndian.PutUint32(payload[index*4:], bits)
 	}
 	return vector, nil
 }
@@ -146,7 +153,8 @@ func NewVectorFloat32(elements []float32) (*Vector, Error) {
 // NewVectorFloat64 creates a vector of 64 bit float elements.
 // The input slice is copied.
 //
-// It returns a PARAMETER_ERROR if elements is empty or holds more than 32,768 elements.
+// It returns a PARAMETER_ERROR if elements is empty, holds more than 32,768
+// elements, or holds a NaN or an infinity.
 func NewVectorFloat64(elements []float64) (*Vector, Error) {
 	vector, err := newVector(VectorElementFloat64, len(elements))
 	if err != nil {
@@ -154,7 +162,11 @@ func NewVectorFloat64(elements []float64) (*Vector, Error) {
 	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range elements {
-		binary.LittleEndian.PutUint64(payload[index*8:], math.Float64bits(element))
+		bits := math.Float64bits(element)
+		if bits&float64ExponentMask == float64ExponentMask {
+			return nil, nonFiniteElementError(index, element)
+		}
+		binary.LittleEndian.PutUint64(payload[index*8:], bits)
 	}
 	return vector, nil
 }
@@ -179,7 +191,8 @@ func NewVectorInt32(elements []int32) (*Vector, Error) {
 // from their raw 16 bit patterns. No conversion is performed.
 // The input slice is copied.
 //
-// It returns a PARAMETER_ERROR if bits is empty or holds more than 131,072 elements.
+// It returns a PARAMETER_ERROR if bits is empty, holds more than 131,072
+// elements, or holds a NaN or an infinity.
 func NewVectorFloat16Bits(bits []uint16) (*Vector, Error) {
 	vector, err := newVector(VectorElementFloat16, len(bits))
 	if err != nil {
@@ -187,15 +200,30 @@ func NewVectorFloat16Bits(bits []uint16) (*Vector, Error) {
 	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range bits {
+		if element&float16ExponentMask == float16ExponentMask {
+			return nil, nonFiniteElementError(index, fmt.Sprintf("%#04x", element))
+		}
 		binary.LittleEndian.PutUint16(payload[index*2:], element)
 	}
 	return vector, nil
 }
 
+// An element whose exponent bits are all set is an infinity or a NaN.
+const (
+	float16ExponentMask = 0x7C00
+	float32ExponentMask = 0x7F800000
+	float64ExponentMask = 0x7FF0000000000000
+)
+
+// nonFiniteElementError refuses an element the server would reject.
+func nonFiniteElementError(index int, element any) Error {
+	return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector element %d is not finite: %v", index, element))
+}
+
 // NewVectorFromBytes decodes a complete serialized vector (header included),
 // as returned by Vector.Bytes. The input is copied.
 //
-// It returns a PARAMETER_ERROR if the bytes are not a complete version-1 vector
+// It returns a PARSE_ERROR if the bytes are not a complete version-1 vector
 // of a known type and allowed size.
 func NewVectorFromBytes(serialized []byte) (*Vector, Error) {
 	if err := validateVectorWire(serialized); err != nil {
@@ -208,22 +236,22 @@ func NewVectorFromBytes(serialized []byte) (*Vector, Error) {
 
 func validateVectorWire(serialized []byte) Error {
 	if len(serialized) < vectorHeaderSize {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: value size %d smaller than %d-byte header", len(serialized), vectorHeaderSize))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("vector: value size %d smaller than %d-byte header", len(serialized), vectorHeaderSize))
 	}
 	if serialized[0] != vectorFormatVersion {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: unsupported format version %d (expected %d)", serialized[0], vectorFormatVersion))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("vector: unsupported format version %d (expected %d)", serialized[0], vectorFormatVersion))
 	}
 	elementType := VectorElementType(serialized[1])
 	elementSize := elementType.size()
 	if elementSize == 0 {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: invalid element type %d", serialized[1]))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("vector: invalid element type %d", serialized[1]))
 	}
 	dimensions := int64(binary.LittleEndian.Uint32(serialized[2:]))
-	if err := checkVectorDimensions(elementType, int(dimensions)); err != nil {
+	if err := checkVectorDimensions(elementType, int(dimensions), types.PARSE_ERROR); err != nil {
 		return err
 	}
 	if expectedSize := int64(vectorHeaderSize) + dimensions*int64(elementSize); int64(len(serialized)) != expectedSize {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: value size %d does not match %d (%d dimensions of %d bytes, little-endian)", len(serialized), expectedSize, dimensions, elementSize))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("vector: value size %d does not match %d (%d dimensions of %d bytes, little-endian)", len(serialized), expectedSize, dimensions, elementSize))
 	}
 	return nil
 }
@@ -326,7 +354,7 @@ func (vector *Vector) Float16Bits() ([]uint16, Error) {
 // checkDimensions refuses to send a vector the constructors would not build,
 // such as a zero Vector{}.
 func (vector *Vector) checkDimensions() Error {
-	return checkVectorDimensions(vector.ElementType(), vector.Dimensions())
+	return checkVectorDimensions(vector.ElementType(), vector.Dimensions(), types.PARAMETER_ERROR)
 }
 
 // luaVectorValue is the value client-side Lua sees for a vector in a stream
