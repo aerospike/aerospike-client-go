@@ -22,6 +22,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 // The client re-ranks the records each node returns, so it must order them
@@ -31,8 +33,6 @@ var (
 	ascInteger  = orderBySpec{binName: "score", orderType: BinDataTypeInteger, direction: OrderAsc}
 	descInteger = orderBySpec{binName: "score", orderType: BinDataTypeInteger, direction: OrderDesc}
 	ascDouble   = orderBySpec{binName: "score", orderType: BinDataTypeDouble, direction: OrderAsc}
-	ascString   = orderBySpec{binName: "name", orderType: BinDataTypeString, direction: OrderAsc}
-	foldString  = orderBySpec{binName: "name", orderType: BinDataTypeString, direction: OrderAsc, flags: OrderByFlagCaseInsensitive}
 	ascBytes    = orderBySpec{binName: "blob", orderType: BinDataTypeBytes, direction: OrderAsc}
 	nilValue    = orderByValue{isNil: true}
 )
@@ -53,16 +53,6 @@ func TestCompareValues(t *testing.T) {
 		{"a number below NaN", ascDouble, orderByValue{float: math.Inf(-1)}, orderByValue{float: math.NaN()}, -1},
 		{"NaN equal to NaN", ascDouble, orderByValue{float: math.NaN()}, orderByValue{float: math.NaN()}, 0},
 		{"-0.0 equal to 0.0", ascDouble, orderByValue{float: math.Copysign(0, -1)}, orderByValue{float: 0}, 0},
-
-		{"strings by bytes", ascString, orderByValue{str: "apple"}, orderByValue{str: "banana"}, -1},
-		{"an upper-case letter before a lower-case one by default", ascString, orderByValue{str: "b"}, orderByValue{str: "B"}, 1},
-		{"a shorter string first on a common prefix", ascString, orderByValue{str: "ab"}, orderByValue{str: "abc"}, -1},
-		{"the empty string first", ascString, orderByValue{str: ""}, orderByValue{str: "a"}, -1},
-		{"ASCII letters folded when case is ignored", foldString, orderByValue{str: "b"}, orderByValue{str: "B"}, 0},
-		{"folded letters compared by their lower case", foldString, orderByValue{str: "apple"}, orderByValue{str: "Banana"}, -1},
-		{"a shorter folded string first on a common prefix", foldString, orderByValue{str: "AB"}, orderByValue{str: "abc"}, -1},
-		{"the Kelvin sign not folded to k", foldString, orderByValue{str: "K"}, orderByValue{str: "k"}, 1},
-		{"accented letters not folded", foldString, orderByValue{str: "é"}, orderByValue{str: "É"}, 1},
 
 		{"bytes by value", ascBytes, orderByValue{blob: []byte{0x00, 0xff}}, orderByValue{blob: []byte{0xff}}, -1},
 		{"shorter bytes first on a common prefix", ascBytes, orderByValue{blob: []byte{1, 2}}, orderByValue{blob: []byte{1, 2, 0}}, -1},
@@ -122,13 +112,13 @@ func TestOrderByValueOf(t *testing.T) {
 		{"int", BinDataTypeInteger, orderByValue{integer: 7}},
 		{"int64", BinDataTypeInteger, orderByValue{integer: 8}},
 		{"float", BinDataTypeDouble, orderByValue{float: 1.5}},
-		{"string", BinDataTypeString, orderByValue{str: "s"}},
 		{"bytes", BinDataTypeBytes, orderByValue{blob: []byte{1}}},
 		{"missing", BinDataTypeInteger, nilValue},
 		{"int", BinDataTypeDouble, nilValue},
 		{"float", BinDataTypeInteger, nilValue},
 		{"bool", BinDataTypeInteger, nilValue},
-		{"geo", BinDataTypeString, nilValue},
+		{"string", BinDataTypeBytes, nilValue},
+		{"geo", BinDataTypeBytes, nilValue},
 		{"hll", BinDataTypeBytes, nilValue},
 		{"list", BinDataTypeInteger, nilValue},
 	}
@@ -170,48 +160,48 @@ func TestTopKMergerRanking(t *testing.T) {
 			name: "the second key decides a tie on the first",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderAsc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderAsc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{1, BinMap{"score": 5, "name": "b"}}, {2, BinMap{"score": 5, "name": "a"}}},
+			}{{1, BinMap{"score": 5, "tag": []byte("b")}}, {2, BinMap{"score": 5, "tag": []byte("a")}}},
 			want: []byte{2, 1},
 		},
 		{
 			name: "the second key decides when both first values are missing",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderAsc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderAsc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{1, BinMap{"name": "b"}}, {2, BinMap{"name": "a"}}},
+			}{{1, BinMap{"tag": []byte("b")}}, {2, BinMap{"tag": []byte("a")}}},
 			want: []byte{2, 1},
 		},
 		{
 			name: "a first value ranks ahead of a missing one, whatever the second",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderAsc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderAsc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{1, BinMap{"name": "a"}}, {2, BinMap{"score": 1, "name": "z"}}},
+			}{{1, BinMap{"tag": []byte("a")}}, {2, BinMap{"score": 1, "tag": []byte("z")}}},
 			want: []byte{2, 1},
 		},
 		{
 			name: "the smaller digest goes first on a tie on every key",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderAsc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderAsc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{2, BinMap{"score": 5, "name": "a"}}, {1, BinMap{"score": 5, "name": "a"}}},
+			}{{2, BinMap{"score": 5, "tag": []byte("a")}}, {1, BinMap{"score": 5, "tag": []byte("a")}}},
 			want: []byte{1, 2},
 		},
 		{
@@ -240,48 +230,36 @@ func TestTopKMergerRanking(t *testing.T) {
 			name: "the second key puts the larger value first when descending",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderDesc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderDesc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{1, BinMap{"score": 5, "name": "a"}}, {2, BinMap{"score": 5, "name": "b"}}},
+			}{{1, BinMap{"score": 5, "tag": []byte("a")}}, {2, BinMap{"score": 5, "tag": []byte("b")}}},
 			want: []byte{2, 1},
 		},
 		{
 			name: "a missing second value ranks last on a tie when ascending",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderAsc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderAsc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{1, BinMap{"score": 5}}, {2, BinMap{"score": 5, "name": "z"}}},
+			}{{1, BinMap{"score": 5}}, {2, BinMap{"score": 5, "tag": []byte("z")}}},
 			want: []byte{2, 1},
 		},
 		{
 			name: "a missing second value ranks last on a tie when descending",
 			orderBy: func(statement *Statement) {
 				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderBy("name", BinDataTypeString, OrderDesc)
+				statement.ThenOrderBy("tag", BinDataTypeBytes, OrderDesc)
 			},
 			records: []struct {
 				digestByte byte
 				bins       BinMap
-			}{{1, BinMap{"score": 5}}, {2, BinMap{"score": 5, "name": "a"}}},
-			want: []byte{2, 1},
-		},
-		{
-			name: "the second key ignores case when asked",
-			orderBy: func(statement *Statement) {
-				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-				statement.ThenOrderByWithFlags("name", BinDataTypeString, OrderAsc, OrderByFlagCaseInsensitive)
-			},
-			records: []struct {
-				digestByte byte
-				bins       BinMap
-			}{{1, BinMap{"score": 5, "name": "Banana"}}, {2, BinMap{"score": 5, "name": "apple"}}},
+			}{{1, BinMap{"score": 5}}, {2, BinMap{"score": 5, "tag": []byte("a")}}},
 			want: []byte{2, 1},
 		},
 	}
@@ -302,7 +280,7 @@ func TestTopKMergerRanking(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				merger.add(&Result{Record: &Record{Key: key, Bins: record.bins}})
+				merger.add(&Result{Record: &Record{Key: key, Bins: record.bins}}, 0)
 			}
 
 			var got []byte
@@ -355,7 +333,7 @@ func TestTopKMerger(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				merger.add(&Result{Record: &Record{Key: key, Bins: BinMap{"score": record[0]}}})
+				merger.add(&Result{Record: &Record{Key: key, Bins: BinMap{"score": record[0]}}}, 0)
 			}
 
 			var got [][2]int
@@ -391,7 +369,7 @@ func TestTopKMerger(t *testing.T) {
 
 		sequential := newTopKMerger(statement)
 		for _, result := range results {
-			sequential.add(result)
+			sequential.add(result, 0)
 		}
 
 		concurrent := newTopKMerger(statement)
@@ -401,7 +379,7 @@ func TestTopKMerger(t *testing.T) {
 			go func(start int) {
 				defer wg.Done()
 				for index := start; index < count; index += goroutines {
-					concurrent.add(results[index])
+					concurrent.add(results[index], 0)
 				}
 			}(start)
 		}
@@ -414,45 +392,55 @@ func TestTopKMerger(t *testing.T) {
 	})
 }
 
-func TestTopKMergerDuplicates(t *testing.T) {
-	// A record can reach the client twice, for example while its partition
-	// migrates. The merger keeps one copy: the most recent version, judged by
-	// generation. Each record is {score, digest first byte, generation}; the
-	// merger keeps the k highest scores.
+func TestTopKMergerLastUpdateTime(t *testing.T) {
+	// Each record is {score, digest first byte, last-update time}; the merger
+	// keeps the k highest scores and one copy of each record.
 	testCases := []struct {
 		name    string
 		k       int
-		records [][3]int
-		want    [][3]int
+		records [][3]int64
+		want    [][2]int64
 	}{
 		{
-			name:    "keeps a newer copy even when it ranks worse",
+			name:    "keeps a later copy even when it ranks worse",
 			k:       3,
-			records: [][3]int{{9, 1, 1}, {8, 2, 1}, {7, 3, 1}, {5, 1, 2}},
-			want:    [][3]int{{8, 2, 1}, {7, 3, 1}, {5, 1, 2}},
+			records: [][3]int64{{9, 1, 100}, {8, 2, 100}, {7, 3, 100}, {5, 1, 200}},
+			want:    [][2]int64{{8, 2}, {7, 3}, {5, 1}},
 		},
 		{
-			name:    "ignores an older copy even when it ranks better",
+			name:    "ignores an earlier copy that still ranks better",
 			k:       3,
-			records: [][3]int{{4, 1, 3}, {10, 1, 2}},
-			want:    [][3]int{{4, 1, 3}},
+			records: [][3]int64{{4, 1, 300}, {10, 1, 200}},
+			want:    [][2]int64{{4, 1}},
 		},
 		{
-			name:    "keeps the first copy when the generations are equal",
+			name:    "keeps the better-ranked copy when the times are equal",
 			k:       3,
-			records: [][3]int{{6, 1, 1}, {8, 1, 1}},
-			want:    [][3]int{{6, 1, 1}},
+			records: [][3]int64{{6, 1, 100}, {8, 1, 100}},
+			want:    [][2]int64{{8, 1}},
 		},
 		{
-			name: "replaces a record deep in the heap and drops a newer copy that can't make the top k",
+			name:    "keeps the better-ranked copy whichever arrives first",
+			k:       3,
+			records: [][3]int64{{8, 1, 100}, {6, 1, 100}},
+			want:    [][2]int64{{8, 1}},
+		},
+		{
+			name:    "keeps the better-ranked copy when the server sends no time",
+			k:       3,
+			records: [][3]int64{{6, 1, 0}, {8, 1, 0}},
+			want:    [][2]int64{{8, 1}},
+		},
+		{
+			name: "replaces a record deep in the heap and drops a later copy that can't make the top k",
 			k:    2,
-			records: [][3]int{
-				{9, 1, 1}, {8, 2, 1}, // full, best offered first so the heap reorders: 9, 8
-				{12, 1, 2}, // a newer, better copy of the best record: replaces it
-				{1, 2, 2},  // a newer copy that ranks last: replaces the stale copy
-				{7, 3, 1},  // a new record: evicts the worst
+			records: [][3]int64{
+				{9, 1, 100}, {8, 2, 100},
+				{12, 1, 200}, // a later, better copy of the best record: replaces it
+				{1, 2, 200},  // a later copy that ranks last: replaces the earlier one
+				{7, 3, 100},  // a new record: evicts the worst
 			},
-			want: [][3]int{{12, 1, 2}, {7, 3, 1}},
+			want: [][2]int64{{12, 1}, {7, 3}},
 		},
 	}
 
@@ -472,18 +460,68 @@ func TestTopKMergerDuplicates(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				merger.add(&Result{Record: &Record{Key: key, Bins: BinMap{"score": record[0]}, Generation: uint32(record[2])}})
+				merger.add(&Result{Record: &Record{Key: key, Bins: BinMap{"score": int(record[0])}}}, record[2])
 			}
 
-			var got [][3]int
+			var got [][2]int64
 			for _, result := range merger.results() {
-				got = append(got, [3]int{result.Record.Bins["score"].(int), int(result.Record.Key.Digest()[0]), int(result.Record.Generation)})
+				got = append(got, [2]int64{int64(result.Record.Bins["score"].(int)), int64(result.Record.Key.Digest()[0])})
 			}
 			if !reflect.DeepEqual(got, testCase.want) {
 				t.Errorf("results %v, want %v", got, testCase.want)
 			}
 		})
 	}
+}
+
+func TestParseKeyLastUpdateTime(t *testing.T) {
+	// recordFields lays out a record's fields as the server sends them:
+	// a 4-byte big-endian size (type byte included), the type, then the data.
+	recordFields := func(fields map[FieldType][]byte) []byte {
+		var wire []byte
+		for fieldType, data := range fields {
+			wire = binary.BigEndian.AppendUint32(wire, uint32(len(data)+1))
+			wire = append(wire, byte(fieldType))
+			wire = append(wire, data...)
+		}
+		return wire
+	}
+	parse := func(fields map[FieldType][]byte, lastUpdateTime *int64) Error {
+		wire := recordFields(fields)
+		cmd := &baseMultiCommand{bc: bufferedConn{conn: &Connection{dataBuffer: wire}, tail: len(wire)}}
+		_, err := cmd.parseKey(len(fields), nil, lastUpdateTime)
+		return err
+	}
+	digest := make([]byte, 20)
+
+	t.Run("reads the field as a big-endian count", func(t *testing.T) {
+		var lastUpdateTime int64
+		lut := binary.BigEndian.AppendUint64(nil, 0x0102030405060708)
+		if err := parse(map[FieldType][]byte{DIGEST_RIPE: digest, LAST_UPDATE_TIME: lut}, &lastUpdateTime); err != nil {
+			t.Fatal(err)
+		}
+		if lastUpdateTime != 0x0102030405060708 {
+			t.Errorf("last-update time = %#x, want 0x0102030405060708", lastUpdateTime)
+		}
+	})
+
+	t.Run("leaves it 0 when the server sends none", func(t *testing.T) {
+		var lastUpdateTime int64
+		if err := parse(map[FieldType][]byte{DIGEST_RIPE: digest}, &lastUpdateTime); err != nil {
+			t.Fatal(err)
+		}
+		if lastUpdateTime != 0 {
+			t.Errorf("last-update time = %d, want 0", lastUpdateTime)
+		}
+	})
+
+	t.Run("refuses a field that is not 8 bytes", func(t *testing.T) {
+		var lastUpdateTime int64
+		err := parse(map[FieldType][]byte{LAST_UPDATE_TIME: {1, 2, 3, 4}}, &lastUpdateTime)
+		if err == nil || !err.Matches(types.PARSE_ERROR) {
+			t.Errorf("err = %v, want PARSE_ERROR", err)
+		}
+	})
 }
 
 // queryFields builds the query command for statement and returns its fields
@@ -524,14 +562,14 @@ func TestTopKWireFields(t *testing.T) {
 		}
 	})
 
-	t.Run("two order-by keys, the second ignoring case", func(t *testing.T) {
+	t.Run("two order-by keys", func(t *testing.T) {
 		statement := NewStatement("test", "topk")
 		statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-		statement.ThenOrderByWithFlags("name", BinDataTypeString, OrderAsc, OrderByFlagCaseInsensitive)
+		statement.ThenOrderBy("tag", BinDataTypeBytes, OrderAsc)
 		statement.SetTopK(1000)
 
 		fields := queryFields(t, statement, true)
-		want := []byte{1, 1, 0, 5, 's', 'c', 'o', 'r', 'e', 3, 0, 1, 4, 'n', 'a', 'm', 'e'}
+		want := []byte{1, 1, 0, 5, 's', 'c', 'o', 'r', 'e', 4, 0, 0, 3, 't', 'a', 'g'}
 		if got := fields[ORDER_BY]; !reflect.DeepEqual(got, want) {
 			t.Errorf("ORDER_BY = %v, want %v", got, want)
 		}

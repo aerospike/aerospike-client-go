@@ -2563,8 +2563,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-// writeOrderBySpec writes one Top-K order-by spec: type, direction, flags,
-// name length and name.
 // readsAllBins reports whether an operation reads every bin. The server
 // rejects RESPOND_ALL_OPS with such an operation.
 func readsAllBins(operations []*Operation) bool {
@@ -2576,10 +2574,12 @@ func readsAllBins(operations []*Operation) bool {
 	return false
 }
 
+// writeOrderBySpec writes one Top-K order-by spec: type, direction, flags,
+// name length and name.
 func (cmd *baseCommand) writeOrderBySpec(spec orderBySpec) {
 	cmd.WriteByte(byte(spec.orderType))
 	cmd.WriteByte(byte(spec.direction))
-	cmd.WriteByte(byte(spec.flags))
+	cmd.WriteByte(0) // flags: none apply to the supported order-by types
 	cmd.WriteByte(byte(len(spec.binName)))
 	cmd.WriteString(spec.binName)
 }

@@ -262,7 +262,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 	return nil
 }
 
-func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error) {
+func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64, lastUpdateTime *int64) (*Key, Error) {
 	var digest [20]byte
 	var namespace, setName string
 	var userKey Value
@@ -296,6 +296,13 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 			if bval != nil {
 				v := Buffer.LittleBytesToInt64(cmd.dataBuffer, 1)
 				*bval = v
+			}
+		case LAST_UPDATE_TIME:
+			if lastUpdateTime != nil {
+				if size != 8 {
+					return nil, newError(types.PARSE_ERROR, fmt.Sprintf("Last-update time field has invalid size: %d", size)).setNode(cmd.node)
+				}
+				*lastUpdateTime = Buffer.BytesToInt64(cmd.dataBuffer, 1)
 			}
 		}
 	}
@@ -464,8 +471,8 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		var bval int64
-		key, err := cmd.parseKey(fieldCount, &bval)
+		var bval, lastUpdateTime int64
+		key, err := cmd.parseKey(fieldCount, &bval, &lastUpdateTime)
 		if err != nil {
 			err = newNodeError(cmd.node, err)
 			return false, err
@@ -538,7 +545,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// set no resume point: a retried partition is scanned again and
 			// the merger drops the duplicates.
 			if cmd.topKMerger != nil {
-				cmd.topKMerger.add(&Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: &bval})
+				cmd.topKMerger.add(&Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: &bval}, lastUpdateTime)
 				continue
 			}
 

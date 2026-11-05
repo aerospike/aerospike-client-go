@@ -84,9 +84,6 @@ const (
 	// BinDataTypeDouble compares the bin as a float. NaN ranks above every
 	// number, and -0.0 equals 0.0.
 	BinDataTypeDouble BinDataType = 2
-	// BinDataTypeString compares the bin as a string, byte by byte. On a
-	// common prefix, the shorter string comes first.
-	BinDataTypeString BinDataType = 3
 	// BinDataTypeBytes compares the bin as a blob, byte by byte. On a common
 	// prefix, the shorter blob comes first.
 	BinDataTypeBytes BinDataType = 4
@@ -102,22 +99,10 @@ const (
 	OrderDesc OrderDirection = 1
 )
 
-// OrderByFlags is a bitmask that controls how Top-K order-by values are compared.
-type OrderByFlags byte
-
-const (
-	// OrderByFlagNone compares values as they are.
-	OrderByFlagNone OrderByFlags = 0
-	// OrderByFlagCaseInsensitive ignores the case of the ASCII letters A–Z;
-	// other characters compare as they are. Valid only with BinDataTypeString.
-	OrderByFlagCaseInsensitive OrderByFlags = 1 << 0
-)
-
 type orderBySpec struct {
 	binName   string
 	orderType BinDataType
 	direction OrderDirection
-	flags     OrderByFlags
 }
 
 // wireSize returns the spec's size in bytes in the ORDER_BY field.
@@ -184,13 +169,7 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 // Every node in the cluster must support Top-K; otherwise the query returns a
 // PARAMETER_ERROR before anything is sent.
 func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
-	return stmt.SetOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
-}
-
-// SetOrderByWithFlags is SetOrderBy with comparison flags for this bin, such
-// as OrderByFlagCaseInsensitive for a BinDataTypeString bin.
-func (stmt *Statement) SetOrderByWithFlags(binName string, orderType BinDataType, direction OrderDirection, flags OrderByFlags) Error {
-	stmt.orderBy = orderBySpec{binName, orderType, direction, flags}
+	stmt.orderBy = orderBySpec{binName, orderType, direction}
 	stmt.orderBySet = true
 	stmt.thenOrderBy = orderBySpec{}
 	stmt.hasThenOrderBy = false
@@ -204,19 +183,13 @@ func (stmt *Statement) SetOrderByWithFlags(binName string, orderType BinDataType
 // Calling SetOrderBy again removes it. The bin must be returned by the query,
 // as for SetOrderBy.
 func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
-	return stmt.ThenOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
-}
-
-// ThenOrderByWithFlags is ThenOrderBy with comparison flags for this bin,
-// such as OrderByFlagCaseInsensitive for a BinDataTypeString bin.
-func (stmt *Statement) ThenOrderByWithFlags(binName string, orderType BinDataType, direction OrderDirection, flags OrderByFlags) Error {
 	if !stmt.orderBySet {
 		return newError(types.PARAMETER_ERROR, "ThenOrderBy requires SetOrderBy to be called first")
 	}
 	if stmt.hasThenOrderBy {
 		return newError(types.PARAMETER_ERROR, "order-by names more than 2 bins")
 	}
-	stmt.thenOrderBy = orderBySpec{binName, orderType, direction, flags}
+	stmt.thenOrderBy = orderBySpec{binName, orderType, direction}
 	stmt.hasThenOrderBy = true
 	return nil
 }
@@ -235,6 +208,11 @@ func (stmt *Statement) ThenOrderByWithFlags(binName string, orderType BinDataTyp
 // Top-K is single-shot and always runs as a long query. QueryPartitions
 // returns a PARAMETER_ERROR for a PartitionFilter that carries resume points
 // from an earlier query; use a fresh one.
+//
+// Each node limits the memory its Top-K queries hold. When a node is at that
+// limit, a new Top-K query fails with FAIL_FORBIDDEN. Retry it later. A
+// running Top-K query can also fail with FAIL_FORBIDDEN when a node runs
+// short of that memory.
 func (stmt *Statement) SetTopK(k int) Error {
 	if !stmt.hasOrderBy() {
 		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
@@ -270,11 +248,11 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 		return nil
 	}
 
-	if err := stmt.validateOrderBy(stmt.orderBy, "Top-K order-by"); err != nil {
+	if err := stmt.validateOrderBy(stmt.orderBy); err != nil {
 		return err
 	}
 	if stmt.hasThenOrderBy {
-		if err := stmt.validateOrderBy(stmt.thenOrderBy, "Top-K then-order-by"); err != nil {
+		if err := stmt.validateOrderBy(stmt.thenOrderBy); err != nil {
 			return err
 		}
 		if stmt.thenOrderBy.binName == stmt.orderBy.binName {
@@ -301,31 +279,24 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 // is sent when any node in the cluster lacks Top-K support.
 func (stmt *Statement) validateTopKCluster(cluster *Cluster) Error {
 	if stmt.hasOrderBy() && !cluster.supportsQueryOrderBy.Get() {
-		return newError(types.PARAMETER_ERROR, "Top-K is not supported by all nodes in the cluster")
+		return newError(types.PARAMETER_ERROR, "orderBy/topK is not supported by all nodes in the cluster")
 	}
 	return nil
 }
 
-// validateOrderBy checks one order-by bin of a Top-K statement. label names
-// the bin in an error that only the client reports.
-func (stmt *Statement) validateOrderBy(spec orderBySpec, label string) Error {
+// validateOrderBy checks one order-by bin of a Top-K statement.
+func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
 	if len(spec.binName) == 0 || len(spec.binName) > 15 {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin name length %d invalid - must be 1 to 15", len(spec.binName)))
 	}
 	if strings.IndexByte(spec.binName, 0) >= 0 {
 		return newError(types.PARAMETER_ERROR, "order-by bin name is not a valid bin name")
 	}
-	if spec.orderType < BinDataTypeInteger || spec.orderType > BinDataTypeBytes {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by type %d invalid - must be 1 (integer), 2 (double), 3 (string) or 4 (bytes)", spec.orderType))
+	if spec.orderType != BinDataTypeInteger && spec.orderType != BinDataTypeDouble && spec.orderType != BinDataTypeBytes {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by type %d invalid - must be 1 (integer), 2 (double) or 4 (bytes)", spec.orderType))
 	}
 	if spec.direction != OrderAsc && spec.direction != OrderDesc {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by direction %d invalid - must be 0 (ascending) or 1 (descending)", spec.direction))
-	}
-	if spec.flags&^OrderByFlagCaseInsensitive != 0 {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by flags 0x%x invalid - only 0x1 (case-insensitive) is defined", spec.flags))
-	}
-	if spec.flags != OrderByFlagNone && spec.orderType != BinDataTypeString {
-		return newError(types.PARAMETER_ERROR, "order-by case-insensitive flag applies only to string ordering")
 	}
 	if !stmt.hasProjectedBin(spec.binName) {
 		if len(stmt.Operations) > 0 {
@@ -334,7 +305,7 @@ func (stmt *Statement) validateOrderBy(spec orderBySpec, label string) Error {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin '%s' is not in the query's bin list - add it to the bins selected", spec.binName))
 	}
 	if stmt.operationsReturning(spec.binName) > 1 {
-		return newError(types.PARAMETER_ERROR, label+" bin must be produced by exactly one projection operation")
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("orderBy bin '%s' is produced by more than one operation", spec.binName))
 	}
 	return nil
 }

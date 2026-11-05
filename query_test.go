@@ -861,17 +861,13 @@ var _ = gg.Describe("Query Top-K", func() {
 			}, "order-by bin name is not a valid bin name"},
 			{"an unknown order-by type", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.SetOrderBy("score", as.BinDataType(9), as.OrderAsc)
-			}, "order-by type 9 invalid - must be 1 (integer), 2 (double), 3 (string) or 4 (bytes)"},
+			}, "order-by type 9 invalid - must be 1 (integer), 2 (double) or 4 (bytes)"},
+			{"the string order type, which isn't supported", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderBy("score", as.BinDataType(3), as.OrderAsc)
+			}, "order-by type 3 invalid - must be 1 (integer), 2 (double) or 4 (bytes)"},
 			{"an unknown order-by direction", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDirection(5))
 			}, "order-by direction 5 invalid - must be 0 (ascending) or 1 (descending)"},
-			{"unknown order-by flags", func(s *as.Statement, _ *as.QueryPolicy) {
-				s.SetOrderByWithFlags("score", as.BinDataTypeString, as.OrderAsc, as.OrderByFlags(4))
-			}, "order-by flags 0x4 invalid - only 0x1 (case-insensitive) is defined"},
-			{"case folding on a non-string bin", func(s *as.Statement, _ *as.QueryPolicy) {
-				s.SetOrderByWithFlags("score", as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
-				s.SetTopK(10)
-			}, "order-by case-insensitive flag applies only to string ordering"},
 			{"an order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.BinNames = []string{"id"}
 			}, "order-by bin 'score' is not in the query's bin list - add it to the bins selected"},
@@ -881,9 +877,6 @@ var _ = gg.Describe("Query Top-K", func() {
 			{"a repeated order-by bin", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)
 			}, "order-by names bin 'score' more than once"},
-			{"case folding on a second non-string bin", func(s *as.Statement, _ *as.QueryPolicy) {
-				s.ThenOrderByWithFlags("id", as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
-			}, "order-by case-insensitive flag applies only to string ordering"},
 			{"a second order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
 			}, "order-by bin 'ts' is not in the query's bin list - add it to the bins selected"},
@@ -904,7 +897,7 @@ var _ = gg.Describe("Query Top-K", func() {
 					as.ExpReadOp("score", as.ExpIntBin("price"), as.ExpReadFlagDefault),
 					as.ExpReadOp("score", as.ExpIntBin("rating"), as.ExpReadFlagDefault),
 				}
-			}, "Top-K order-by bin must be produced by exactly one projection operation"},
+			}, "orderBy bin 'score' is produced by more than one operation"},
 			{"a second order-by bin two operations return", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
 				s.Operations = []*as.Operation{
@@ -912,7 +905,7 @@ var _ = gg.Describe("Query Top-K", func() {
 					as.ExpReadOp("ts", as.ExpIntBin("created"), as.ExpReadFlagDefault),
 					as.ExpReadOp("ts", as.ExpIntBin("updated"), as.ExpReadFlagDefault),
 				}
-			}, "Top-K then-order-by bin must be produced by exactly one projection operation"},
+			}, "orderBy bin 'ts' is produced by more than one operation"},
 		}
 
 		for _, testCase := range invalid {
@@ -1007,7 +1000,7 @@ var _ = gg.Describe("Query Top-K", func() {
 		// is returned, so nothing is sent.
 		expectRefused := func(recordset *as.Recordset, err as.Error) {
 			gm.ExpectWithOffset(1, recordset).To(gm.BeNil())
-			expectParameterError(err, "Top-K is not supported by all nodes in the cluster")
+			expectParameterError(err, "orderBy/topK is not supported by all nodes in the cluster")
 		}
 
 		gg.It("refuses Top-K through Query, QueryPartitions and QueryNode before anything is sent", func() {
@@ -1033,7 +1026,7 @@ var _ = gg.Describe("Query Top-K", func() {
 				}
 			}
 			gm.Expect(records).To(gm.BeZero())
-			expectParameterError(queryErr, "Top-K is not supported by all nodes in the cluster")
+			expectParameterError(queryErr, "orderBy/topK is not supported by all nodes in the cluster")
 		})
 
 		gg.It("still runs a query without Top-K settings", func() {
@@ -1366,9 +1359,8 @@ var _ = gg.Describe("Query Top-K", func() {
 	})
 
 	// Each order-by type compares values the way the server does: a value of
-	// another type ranks last, doubles put NaN above every number, blobs and
-	// strings compare byte by byte with the shorter first on a common prefix,
-	// and strings can ignore ASCII letter case.
+	// another type ranks last, doubles put NaN above every number, and blobs
+	// compare byte by byte with the shorter first on a common prefix.
 	gg.Context("how each order-by type compares values", func() {
 		gg.BeforeEach(func() {
 			if !client.GetNodes()[0].SupportsQueryOrderBy() {
@@ -1386,9 +1378,9 @@ var _ = gg.Describe("Query Top-K", func() {
 			}
 		}
 
-		rank := func(orderType as.BinDataType, direction as.OrderDirection, flags as.OrderByFlags, k int) []int {
+		rank := func(orderType as.BinDataType, direction as.OrderDirection, k int) []int {
 			statement := as.NewStatement(ns, set, "v", "id")
-			gm.Expect(statement.SetOrderByWithFlags("v", orderType, direction, flags)).To(gm.Succeed())
+			gm.Expect(statement.SetOrderBy("v", orderType, direction)).To(gm.Succeed())
 			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
 			return queryIDs(statement)
 		}
@@ -1396,41 +1388,22 @@ var _ = gg.Describe("Query Top-K", func() {
 		gg.It("ranks doubles with NaN above every number and an integer value last", func() {
 			putValues(1.5, -2.0, math.NaN(), 3.25, 7)
 
-			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{2, 3, 0}))
-			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{1, 0, 3, 2, 4}))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, 3)).To(gm.Equal([]int{2, 3, 0}))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, 5)).To(gm.Equal([]int{1, 0, 3, 2, 4}))
 		})
 
 		gg.It("ranks blobs byte by byte with the shorter first on a common prefix", func() {
 			putValues([]byte{0x01, 0x00}, []byte{0x02}, []byte{0x01}, []byte{0x00, 0xff})
 
-			gm.Expect(rank(as.BinDataTypeBytes, as.OrderAsc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{3, 2, 0, 1}))
-			gm.Expect(rank(as.BinDataTypeBytes, as.OrderDesc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{1, 0, 2, 3}))
-		})
-
-		gg.It("compares strings by bytes by default and ignores ASCII case when asked", func() {
-			putValues("Banana", "apple", "Cherry")
-
-			gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{0, 2, 1}))
-			gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{1, 0, 2}))
-			gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{1, 2, 0}))
-			gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{2, 0, 1}))
-		})
-
-		gg.It("folds only ASCII letters when ignoring case, so accented letters keep byte order", func() {
-			// In byte order É < Ê < é. Folding É to é would rank them together, before Ê.
-			putValues("é", "Ê", "É")
-
-			for _, flags := range []as.OrderByFlags{as.OrderByFlagNone, as.OrderByFlagCaseInsensitive} {
-				gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, flags, 3)).To(gm.Equal([]int{2, 1, 0}))
-				gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, flags, 3)).To(gm.Equal([]int{0, 1, 2}))
-			}
+			gm.Expect(rank(as.BinDataTypeBytes, as.OrderAsc, 4)).To(gm.Equal([]int{3, 2, 0, 1}))
+			gm.Expect(rank(as.BinDataTypeBytes, as.OrderDesc, 4)).To(gm.Equal([]int{1, 0, 2, 3}))
 		})
 
 		gg.It("ranks the largest and smallest integers at the ends and a string value last", func() {
 			putValues(math.MaxInt64, -1, math.MinInt64, 0, "7")
 
-			gm.Expect(rank(as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{2, 1, 3, 0, 4}))
-			gm.Expect(rank(as.BinDataTypeInteger, as.OrderDesc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{0, 3, 1, 2, 4}))
+			gm.Expect(rank(as.BinDataTypeInteger, as.OrderAsc, 5)).To(gm.Equal([]int{2, 1, 3, 0, 4}))
+			gm.Expect(rank(as.BinDataTypeInteger, as.OrderDesc, 5)).To(gm.Equal([]int{0, 3, 1, 2, 4}))
 		})
 
 		gg.It("treats -0.0 as equal to 0.0, so the digest decides their order in either direction", func() {
@@ -1440,16 +1413,16 @@ var _ = gg.Describe("Query Top-K", func() {
 			if bytes.Compare(keys[1].Digest(), keys[0].Digest()) < 0 {
 				byDigest = []int{1, 0}
 			}
-			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, as.OrderByFlagNone, 2)).To(gm.Equal(byDigest))
-			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, as.OrderByFlagNone, 2)).To(gm.Equal(byDigest))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, 2)).To(gm.Equal(byDigest))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, 2)).To(gm.Equal(byDigest))
 		})
 
-		gg.It("ranks by an integer key, then by a string key that ignores case", func() {
+		gg.It("ranks by an integer key, then by a bytes key", func() {
 			for id, bins := range []as.BinMap{
-				{"score": 5, "name": "Banana"},
-				{"score": 5, "name": "apple"},
-				{"score": 9, "name": "cherry"},
-				{"score": 1, "name": "aardvark"},
+				{"score": 5, "tag": []byte("b")},
+				{"score": 5, "tag": []byte("a")},
+				{"score": 9, "tag": []byte("c")},
+				{"score": 1, "tag": []byte("a")},
 			} {
 				key, err := as.NewKey(ns, set, id)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1458,12 +1431,11 @@ var _ = gg.Describe("Query Top-K", func() {
 				keys = append(keys, key)
 			}
 
-			statement := as.NewStatement(ns, set, "score", "name", "id")
+			statement := as.NewStatement(ns, set, "score", "tag", "id")
 			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.ThenOrderByWithFlags("name", as.BinDataTypeString, as.OrderAsc, as.OrderByFlagCaseInsensitive)).To(gm.Succeed())
+			gm.Expect(statement.ThenOrderBy("tag", as.BinDataTypeBytes, as.OrderAsc)).To(gm.Succeed())
 			gm.Expect(statement.SetTopK(4)).To(gm.Succeed())
 
-			// By bytes "Banana" sorts before "apple"; ignoring case, "apple" comes first.
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{2, 1, 0, 3}))
 		})
 	})
@@ -1539,7 +1511,6 @@ var _ = gg.Describe("Query Top-K", func() {
 			aerospikeErr := &as.AerospikeError{}
 			gm.ExpectWithOffset(1, errors.As(queryErr, &aerospikeErr)).To(gm.BeTrue())
 			gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
-			gm.ExpectWithOffset(1, aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeParamTopKInvalid))
 			gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverMessage))
 		}
 
@@ -1557,9 +1528,9 @@ var _ = gg.Describe("Query Top-K", func() {
 		limit := func(k int) invalidation {
 			return func(statement *as.Statement, _ *as.QueryPolicy) { statement.SetTopK(k) }
 		}
-		orderBy := func(binName string, orderType as.BinDataType, direction as.OrderDirection, flags as.OrderByFlags) invalidation {
+		orderBy := func(binName string, orderType as.BinDataType, direction as.OrderDirection) invalidation {
 			return func(statement *as.Statement, _ *as.QueryPolicy) {
-				statement.SetOrderByWithFlags(binName, orderType, direction, flags)
+				statement.SetOrderBy(binName, orderType, direction)
 			}
 		}
 		thenOrderBy := func(binName string) invalidation {
@@ -1583,7 +1554,6 @@ var _ = gg.Describe("Query Top-K", func() {
 		const (
 			integer = as.BinDataTypeInteger
 			desc    = as.OrderDesc
-			none    = as.OrderByFlagNone
 		)
 
 		rejected := []struct {
@@ -1601,15 +1571,13 @@ var _ = gg.Describe("Query Top-K", func() {
 
 			// The order-by spec.
 			{"a repeated order-by bin", thenOrderBy("score"), "order-by names bin 'score' more than once"},
-			{"an unknown order-by type", orderBy("score", as.BinDataType(9), desc, none), "order-by type 9 invalid"},
-			{"an unknown direction", orderBy("score", integer, as.OrderDirection(5), none), "order-by direction 5 invalid"},
-			{"unknown flags", orderBy("score", as.BinDataTypeString, desc, as.OrderByFlags(2)), "order-by flags 0x2 invalid"},
-			{"case folding on a non-string bin", orderBy("score", integer, desc, as.OrderByFlagCaseInsensitive), "case-insensitive flag applies only to string ordering"},
+			{"an unknown order-by type", orderBy("score", as.BinDataType(9), desc), "order-by type 9 invalid"},
+			{"an unknown direction", orderBy("score", integer, as.OrderDirection(5)), "order-by direction 5 invalid"},
 
 			// The order-by bin name.
-			{"an empty order-by bin name", orderBy("", integer, desc, none), "order-by bin name length 0 invalid"},
-			{"an order-by bin name over 15 bytes", orderBy("a_bin_name_16_by", integer, desc, none), "order-by bin name length 16 invalid"},
-			{"a null byte in the order-by bin name", orderBy("sc\x00re", integer, desc, none), "order-by bin name is not a valid bin name"},
+			{"an empty order-by bin name", orderBy("", integer, desc), "order-by bin name length 0 invalid"},
+			{"an order-by bin name over 15 bytes", orderBy("a_bin_name_16_by", integer, desc), "order-by bin name length 16 invalid"},
+			{"a null byte in the order-by bin name", orderBy("sc\x00re", integer, desc), "order-by bin name is not a valid bin name"},
 
 			// An order-by bin the query does not return. The client sends
 			// BinNames as read operations, so the server names those for both.
