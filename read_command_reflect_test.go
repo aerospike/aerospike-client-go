@@ -17,7 +17,10 @@
 package aerospike
 
 import (
+	"encoding/binary"
 	"reflect"
+
+	ParticleType "github.com/aerospike/aerospike-client-go/v8/types/particle_type"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -96,4 +99,27 @@ var _ = gg.Describe("Read Command Reflect setValue", func() {
 			})
 		})
 	}
+})
+
+var _ = gg.Describe("Read Command Reflect parseObject", func() {
+	// Only data stored before servers validated vectors can hold such bytes.
+	// A reflection read leaves the field unset, as it does for any value the
+	// client can't decode.
+	gg.It("leaves a vector field unset for stored type-16 bytes that are not a vector", func() {
+		type withVector struct {
+			Embedding *Vector `as:"vec"`
+			Count     int     `as:"n"`
+		}
+		target := &withVector{}
+		object := reflect.ValueOf(target)
+		command := &baseReadCommand{object: &object}
+		command.dataBuffer = recordOps(
+			binOp{"vec", ParticleType.VECTOR, []byte{0xde, 0xad, 0xbe}},
+			binOp{"n", ParticleType.INTEGER, binary.BigEndian.AppendUint64(nil, 7)},
+		)
+
+		gm.Expect(parseObject(command, 2, 0, 0, 0)).To(gm.Succeed())
+		gm.Expect(target.Embedding).To(gm.BeNil())
+		gm.Expect(target.Count).To(gm.Equal(7))
+	})
 })
