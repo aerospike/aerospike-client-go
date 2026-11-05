@@ -1264,6 +1264,26 @@ end
 			gm.Expect(exists).To(gm.BeFalse())
 		}
 
+		gg.It("removes an existing vector bin for a nil *Vector and keeps it for one that was never built", func() {
+			stored := mustVector(as.NewVectorFloat32([]float32{1, 2}))
+			gm.Expect(put(as.NewBin(binName, stored), as.NewBin("other", 1))).To(gm.Succeed())
+
+			expectNoDimensionsRefused(put(as.NewBin(binName, &as.Vector{})))
+			expectNoDimensionsRefused(put(as.NewBin(binName, as.Vector{})))
+			err := put(as.NewBin(binName, as.NewVectorValue(nil)))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("vector: value must not be nil"))
+			gm.Expect(getVector(binName).Equal(stored)).To(gm.BeTrue())
+
+			var missing *as.Vector
+			gm.Expect(put(as.NewBin(binName, missing))).To(gm.Succeed())
+			record, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins).ToNot(gm.HaveKey(binName))
+			gm.Expect(record.Bins).To(gm.HaveKeyWithValue("other", 1))
+		})
+
 		gg.It("refuses a Vector that was never built before sending it", func() {
 			expectNoDimensionsRefused(client.PutBins(withErrorDetails(), key, as.NewBin(binName, &as.Vector{})))
 
@@ -1293,8 +1313,9 @@ end
 		})
 
 		gg.It("rejects NaN and infinite elements", func() {
-			expectWriteRejected(as.NewVectorValue(mustVector(as.NewVectorFloat32([]float32{1, float32(math.NaN())}))), "vector: elements must be finite")
-			expectWriteRejected(as.NewVectorValue(mustVector(as.NewVectorFloat64([]float64{math.Inf(1)}))), "vector: elements must be finite")
+			// float32 [1, NaN] and float64 [+Inf], little-endian.
+			expectWriteRejected(rawVector([]byte{0x01, 0x03, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0xc0, 0x7f}), "vector: elements must be finite")
+			expectWriteRejected(rawVector([]byte{0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x7f}), "vector: elements must be finite")
 		})
 
 		gg.It("rejects append, prepend and increment and leaves the whole record unchanged", func() {
