@@ -32,6 +32,7 @@ const (
 	PID_ARRAY            FieldType = 11
 	DIGEST_ARRAY         FieldType = 12
 	MAX_RECORDS          FieldType = 13
+	LAST_UPDATE_TIME     FieldType = 14
 	BVAL_ARRAY           FieldType = 15
 	INDEX_NAME           FieldType = 21
 	INDEX_RANGE          FieldType = 22

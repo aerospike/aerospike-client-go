@@ -104,7 +104,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			return false, newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Query aggregate command expects exactly only one bin. Received: %d", opCount))
 		}
 
-		if _, err := cmd.parseKey(fieldCount, &bval); err != nil {
+		if _, err := cmd.parseKey(fieldCount, &bval, nil); err != nil {
 			return false, newNodeError(cmd.node, err)
 		}
 

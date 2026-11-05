@@ -19,7 +19,6 @@ import (
 	"container/heap"
 	"math"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -39,11 +38,12 @@ type topKMerger struct {
 
 // topKEntry is one kept record with its order-by values.
 type topKEntry struct {
-	result      *Result
-	firstValue  orderByValue // value of the orderBy bin
-	secondValue orderByValue // tie-break value: the thenOrderBy bin, when set
-	digest      [20]byte
-	index       int // position in the heap
+	result         *Result
+	firstValue     orderByValue // value of the orderBy bin
+	secondValue    orderByValue // tie-break value: the thenOrderBy bin, when set
+	digest         [20]byte
+	lastUpdateTime int64 // as the server sent it, or 0 when it sent none
+	index          int   // position in the heap
 }
 
 // orderByValue is a record's sort key: the value of its order-by bin that
@@ -54,7 +54,6 @@ type orderByValue struct {
 	isNil   bool
 	integer int64
 	float   float64
-	str     string
 	blob    []byte
 }
 
@@ -73,13 +72,11 @@ func newTopKMerger(statement *Statement) *topKMerger {
 // Merging
 //-------------------------------------------------------
 
-// add offers a record. If the same record is offered twice (for example
-// during migrations), the most recent version is kept: the copy with the
-// higher generation, or the first copy when the generations are equal.
-// Generation stands in for the record's last-update time, which query records
-// don't carry yet.
-func (merger *topKMerger) add(result *Result) {
-	candidate := topKEntry{result: result, firstValue: orderByValueOf(result.Record, merger.orderBy)}
+// add offers a record with its last-update time. If the same record is
+// offered twice (for example during migrations), the copy that replaces
+// decides which one is kept.
+func (merger *topKMerger) add(result *Result, lastUpdateTime int64) {
+	candidate := topKEntry{result: result, firstValue: orderByValueOf(result.Record, merger.orderBy), lastUpdateTime: lastUpdateTime}
 	if merger.hasThenOrderBy {
 		candidate.secondValue = orderByValueOf(result.Record, merger.thenOrderBy)
 	}
@@ -89,8 +86,7 @@ func (merger *topKMerger) add(result *Result) {
 	defer merger.mu.Unlock()
 
 	if kept, found := merger.byDigest[candidate.digest]; found {
-		// A newer copy replaces the kept one even when it ranks worse.
-		if result.Record.Generation <= kept.result.Record.Generation {
+		if !merger.replaces(&candidate, kept) {
 			return
 		}
 		heap.Remove(merger, kept.index)
@@ -152,10 +148,6 @@ func orderByValueOf(record *Record, spec orderBySpec) orderByValue {
 		if orderType == BinDataTypeDouble {
 			return orderByValue{float: value}
 		}
-	case string:
-		if orderType == BinDataTypeString {
-			return orderByValue{str: value}
-		}
 	case []byte:
 		if orderType == BinDataTypeBytes {
 			return orderByValue{blob: value}
@@ -167,6 +159,17 @@ func orderByValueOf(record *Record, spec orderBySpec) orderByValue {
 //-------------------------------------------------------
 // Ranking
 //-------------------------------------------------------
+
+// replaces reports whether candidate, another copy of kept's record, takes
+// its place. The later last-update time wins, even when it ranks worse.
+// Equal times, including none sent by the server, keep the better-ranked
+// copy, so the result doesn't depend on which node answers first.
+func (merger *topKMerger) replaces(candidate, kept *topKEntry) bool {
+	if candidate.lastUpdateTime != kept.lastUpdateTime {
+		return candidate.lastUpdateTime > kept.lastUpdateTime
+	}
+	return merger.ranksAhead(candidate, kept)
+}
 
 // ranksAhead reports whether entry ranks before other.
 //
@@ -216,11 +219,6 @@ func compareValues(spec *orderBySpec, left, right *orderByValue) int {
 		return compareNumbers(left.integer, right.integer)
 	case BinDataTypeDouble:
 		return compareFloats(left.float, right.float)
-	case BinDataTypeString:
-		if spec.flags&OrderByFlagCaseInsensitive != 0 {
-			return compareIgnoringASCIICase(left.str, right.str)
-		}
-		return strings.Compare(left.str, right.str)
 	default:
 		return bytes.Compare(left.blob, right.blob)
 	}
@@ -248,26 +246,6 @@ func compareFloats(left, right float64) int {
 		return -1
 	}
 	return compareNumbers(left, right)
-}
-
-// compareIgnoringASCIICase compares strings byte by byte with A-Z folded to
-// a-z; other bytes compare as they are. On a common prefix the shorter string
-// comes first.
-func compareIgnoringASCIICase(left, right string) int {
-	for position := 0; position < len(left) && position < len(right); position++ {
-		leftByte, rightByte := toLowerASCII(left[position]), toLowerASCII(right[position])
-		if leftByte != rightByte {
-			return compareNumbers(int64(leftByte), int64(rightByte))
-		}
-	}
-	return compareNumbers(int64(len(left)), int64(len(right)))
-}
-
-func toLowerASCII(character byte) byte {
-	if character >= 'A' && character <= 'Z' {
-		return character + ('a' - 'A')
-	}
-	return character
 }
 
 //-------------------------------------------------------
