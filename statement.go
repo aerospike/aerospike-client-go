@@ -99,6 +99,9 @@ const (
 	OrderDesc OrderDirection = 1
 )
 
+// maxTopK is the largest k a Top-K query accepts.
+const maxTopK = 1000
+
 type orderBySpec struct {
 	binName   string
 	orderType BinDataType
@@ -260,8 +263,8 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 		}
 	}
 
-	if stmt.topK < 1 || stmt.topK > 1000 {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("top-k limit %d out of range - must be 1 to 1000", stmt.topK))
+	if stmt.topK < 1 || stmt.topK > maxTopK {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("top-k limit %d out of range - must be 1 to %d", stmt.topK, maxTopK))
 	}
 	if stmt.functionName != "" {
 		return newError(types.PARAMETER_ERROR, "top-k/order-by only valid on foreground (basic) queries")
@@ -286,8 +289,8 @@ func (stmt *Statement) validateTopKCluster(cluster *Cluster) Error {
 
 // validateOrderBy checks one order-by bin of a Top-K statement.
 func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
-	if len(spec.binName) == 0 || len(spec.binName) > 15 {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin name length %d invalid - must be 1 to 15", len(spec.binName)))
+	if len(spec.binName) == 0 || len(spec.binName) > maxBinNameLength {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin name length %d invalid - must be 1 to %d", len(spec.binName), maxBinNameLength))
 	}
 	if strings.IndexByte(spec.binName, 0) >= 0 {
 		return newError(types.PARAMETER_ERROR, "order-by bin name is not a valid bin name")
