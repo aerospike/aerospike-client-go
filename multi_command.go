@@ -42,6 +42,10 @@ type baseMultiCommand struct {
 	// topKMerger collects the records of a Top-K query instead of the recordset.
 	topKMerger *topKMerger
 
+	// lastUpdateTime is the current Top-K record's last-update time, or 0 when
+	// the server sent none. Reset at the start of each parseKey.
+	lastUpdateTime int64
+
 	terminationErrorType types.ResultCode
 
 	resObjType     reflect.Type
@@ -262,11 +266,13 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 	return nil
 }
 
-func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64, lastUpdateTime *int64) (*Key, Error) {
+func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error) {
 	var digest [20]byte
 	var namespace, setName string
 	var userKey Value
 	var err Error
+
+	cmd.lastUpdateTime = 0
 
 	for i := 0; i < fieldCount; i++ {
 		if err = cmd.readBytes(4); err != nil {
@@ -298,11 +304,11 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64, lastUpdateTim
 				*bval = v
 			}
 		case LAST_UPDATE_TIME:
-			if lastUpdateTime != nil {
+			if cmd.topKMerger != nil {
 				if size != 8 {
 					return nil, newError(types.PARSE_ERROR, fmt.Sprintf("Last-update time field has invalid size: %d", size)).setNode(cmd.node)
 				}
-				*lastUpdateTime = Buffer.BytesToInt64(cmd.dataBuffer, 1)
+				cmd.lastUpdateTime = Buffer.BytesToInt64(cmd.dataBuffer, 1)
 			}
 		}
 	}
@@ -471,8 +477,8 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		var bval, lastUpdateTime int64
-		key, err := cmd.parseKey(fieldCount, &bval, &lastUpdateTime)
+		var bval int64
+		key, err := cmd.parseKey(fieldCount, &bval)
 		if err != nil {
 			err = newNodeError(cmd.node, err)
 			return false, err
@@ -545,7 +551,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// set no resume point: a retried partition is scanned again and
 			// the merger drops the duplicates.
 			if cmd.topKMerger != nil {
-				cmd.topKMerger.add(&Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: &bval}, lastUpdateTime)
+				cmd.topKMerger.add(&Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: &bval}, cmd.lastUpdateTime)
 				continue
 			}
 
