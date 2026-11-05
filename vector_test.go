@@ -17,6 +17,7 @@ package aerospike_test
 import (
 	"errors"
 	"math"
+	"strings"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
@@ -393,7 +394,7 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(record.Bins["euclidean"]).To(gm.Equal(50.0))
 			gm.Expect(record.Bins["dot"]).To(gm.Equal(40.0))
-			// The server computes in float32.
+			// The server computes in float32 at the default precision.
 			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", 40/math.Sqrt(1624), 1e-6))
 		})
 
@@ -441,7 +442,7 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
 		})
 
-		gg.It("treats a distance that is not finite as one it cannot compute", func() {
+		gg.It("returns an overflowing squared Euclidean distance as +Inf and an overflowing dot product as unknown", func() {
 			huge := mustVector(as.NewVectorFloat64([]float64{1e300, -1e300, 1e300}))
 			opposite := mustVector(as.NewVectorFloat64([]float64{-1e300, 1e300, -1e300}))
 			gm.Expect(put(as.NewBin(binName, huge))).To(gm.Succeed())
@@ -452,16 +453,23 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", -1.0, 1e-6))
 
-			for _, metric := range []as.VectorDistanceMetric{as.VectorEuclideanSquared, as.VectorDotProduct} {
-				distance := as.ExpVectorDistance(metric, opposite, as.ExpVectorBin(binName))
-				record, err := client.Operate(nil, key, as.ExpReadOp("d", distance, as.ExpReadFlagEvalNoFail))
+			// A squared Euclidean distance that overflows is +Inf, with either flag.
+			euclidean := as.ExpVectorDistance(as.VectorEuclideanSquared, opposite, as.ExpVectorBin(binName))
+			for _, flags := range []as.ExpReadFlags{as.ExpReadFlagDefault, as.ExpReadFlagEvalNoFail} {
+				record, err := client.Operate(nil, key, as.ExpReadOp("d", euclidean, flags))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-				gm.Expect(record.Bins["d"]).To(gm.BeNil())
-
-				_, err = client.Operate(nil, key, as.ExpReadOp("d", distance, as.ExpReadFlagDefault))
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+				gm.Expect(record.Bins["d"]).To(gm.Equal(math.Inf(1)))
 			}
+
+			// A float64 dot product that overflows stays unknown.
+			dot := as.ExpVectorDistance(as.VectorDotProduct, opposite, as.ExpVectorBin(binName))
+			record, err = client.Operate(nil, key, as.ExpReadOp("d", dot, as.ExpReadFlagEvalNoFail))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["d"]).To(gm.BeNil())
+
+			_, err = client.Operate(nil, key, as.ExpReadOp("d", dot, as.ExpReadFlagDefault))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
 		})
 
 		gg.It("returns a finite cosine similarity for very large values", func() {
@@ -532,6 +540,278 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(expectVector(record.Bins["read"]).Equal(stored)).To(gm.BeTrue())
 			gm.Expect(getVector("copy").Equal(stored)).To(gm.BeTrue())
+		})
+
+		// The exact distances between these vectors don't fit in a 32-bit
+		// float, so each precision gives a different answer. The setting
+		// applies to the whole cluster, so these specs run alone.
+		gg.Context("at the server's distance precision", gg.Serial, func() {
+			const exactDot = 1<<24 + 3
+			const exactEuclidean = (1<<24 - 1) * (1<<24 - 1)
+			exactCosine := exactDot / (2 * math.Sqrt(1<<48+3))
+
+			type vectorPair struct {
+				elementType   string
+				stored, query *as.Vector
+			}
+			float32Pair := vectorPair{"float32",
+				mustVector(as.NewVectorFloat32([]float32{1 << 24, 1, 1, 1})), mustVector(as.NewVectorFloat32([]float32{1, 1, 1, 1}))}
+			int32Pair := vectorPair{"int32",
+				mustVector(as.NewVectorInt32([]int32{1 << 24, 1, 1, 1})), mustVector(as.NewVectorInt32([]int32{1, 1, 1, 1}))}
+			float64Pair := vectorPair{"float64",
+				mustVector(as.NewVectorFloat64([]float64{1 << 24, 1, 1, 1})), mustVector(as.NewVectorFloat64([]float64{1, 1, 1, 1}))}
+
+			distancePrecision := func() string {
+				for _, setting := range strings.Split(info(client, "get-config:context=service"), ";") {
+					if value, found := strings.CutPrefix(setting, "vector-distance-precision="); found {
+						return value
+					}
+				}
+				gg.Fail("the server reports no vector-distance-precision")
+				return ""
+			}
+
+			setDistancePrecision := func(precision string) {
+				command := "set-config:context=service;vector-distance-precision=" + precision
+				for _, node := range client.GetNodes() {
+					result, err := node.RequestInfo(as.NewInfoPolicy(), command)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(result[command]).To(gm.Equal("ok"), node.GetName())
+				}
+			}
+
+			// distances stores pair's vector and returns its dot product,
+			// squared Euclidean distance and cosine similarity to pair's query.
+			distances := func(pair vectorPair) (dot, euclidean, cosine float64) {
+				gm.ExpectWithOffset(1, put(as.NewBin(binName, pair.stored))).To(gm.Succeed())
+				distanceToQuery := func(metric as.VectorDistanceMetric) *as.Expression {
+					return as.ExpVectorDistance(metric, pair.query, as.ExpVectorBin(binName))
+				}
+				record, err := client.Operate(nil, key,
+					as.ExpReadOp("dot", distanceToQuery(as.VectorDotProduct), as.ExpReadFlagDefault),
+					as.ExpReadOp("euclidean", distanceToQuery(as.VectorEuclideanSquared), as.ExpReadFlagDefault),
+					as.ExpReadOp("cosine", distanceToQuery(as.VectorCosineSimilarity), as.ExpReadFlagDefault),
+				)
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				for _, metric := range []string{"dot", "euclidean", "cosine"} {
+					gm.ExpectWithOffset(1, record.Bins[metric]).To(gm.BeAssignableToTypeOf(0.0), metric)
+				}
+				return record.Bins["dot"].(float64), record.Bins["euclidean"].(float64), record.Bins["cosine"].(float64)
+			}
+
+			gg.BeforeEach(func() {
+				gg.DeferCleanup(setDistancePrecision, distancePrecision())
+			})
+
+			gg.It("computes float32 and int32 distances in double when set to double", func() {
+				setDistancePrecision("double")
+
+				for _, pair := range []vectorPair{float32Pair, int32Pair} {
+					dot, euclidean, cosine := distances(pair)
+					gm.Expect(dot).To(gm.Equal(float64(exactDot)), pair.elementType)
+					gm.Expect(euclidean).To(gm.Equal(float64(exactEuclidean)), pair.elementType)
+					gm.Expect(cosine).To(gm.BeNumerically("~", exactCosine, 1e-12), pair.elementType)
+				}
+			})
+
+			// The float results depend on the order the server adds the
+			// terms in, so the specs check only that they were rounded.
+			gg.It("rounds float32 and int32 distances to a 32-bit float when set to float", func() {
+				setDistancePrecision("float")
+
+				for _, pair := range []vectorPair{float32Pair, int32Pair} {
+					dot, euclidean, cosine := distances(pair)
+					for _, distance := range []struct {
+						metric       string
+						value, exact float64
+					}{{"dot", dot, exactDot}, {"euclidean", euclidean, exactEuclidean}, {"cosine", cosine, exactCosine}} {
+						gm.Expect(float64(float32(distance.value))).To(gm.Equal(distance.value), pair.elementType+" "+distance.metric)
+						gm.Expect(distance.value).ToNot(gm.Equal(distance.exact), pair.elementType+" "+distance.metric)
+					}
+				}
+			})
+
+			gg.It("computes float64 distances in double whatever the setting", func() {
+				for _, precision := range []string{"float", "double"} {
+					setDistancePrecision(precision)
+
+					dot, euclidean, cosine := distances(float64Pair)
+					gm.Expect(dot).To(gm.Equal(float64(exactDot)), precision)
+					gm.Expect(euclidean).To(gm.Equal(float64(exactEuclidean)), precision)
+					gm.Expect(cosine).To(gm.BeNumerically("~", exactCosine, 1e-12), precision)
+				}
+			})
+
+			gg.It("uses the setting in a Top-K query and in a filter", func() {
+				if !client.GetNodes()[0].SupportsQueryOrderBy() {
+					gg.Skip("Top-K requires a server with Top-K support")
+				}
+				gm.Expect(put(as.NewBin(binName, float32Pair.stored))).To(gm.Succeed())
+				dotProduct := as.ExpVectorDistance(as.VectorDotProduct, float32Pair.query, as.ExpVectorBin(binName))
+
+				topDot := func() any {
+					statement := as.NewStatement(ns, set)
+					statement.Operations = []*as.Operation{as.ExpReadOp("dot", dotProduct, as.ExpReadFlagDefault)}
+					gm.Expect(statement.SetOrderBy("dot", as.BinDataTypeDouble, as.OrderDesc)).To(gm.Succeed())
+					gm.Expect(statement.SetTopK(1)).To(gm.Succeed())
+					recordset, err := client.Query(nil, statement)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					var dots []any
+					for result := range recordset.Results() {
+						gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+						dots = append(dots, result.Record.Bins["dot"])
+					}
+					gm.Expect(dots).To(gm.HaveLen(1))
+					return dots[0]
+				}
+				getWithExactDot := func() as.Error {
+					policy := as.NewPolicy()
+					policy.FilterExpression = as.ExpEq(dotProduct, as.ExpFloatVal(exactDot))
+					_, err := client.Get(policy, key)
+					return err
+				}
+
+				setDistancePrecision("double")
+				gm.Expect(topDot()).To(gm.Equal(float64(exactDot)))
+				gm.Expect(getWithExactDot()).To(gm.Succeed())
+
+				setDistancePrecision("float")
+				gm.Expect(topDot()).ToNot(gm.Equal(float64(exactDot)))
+				err := getWithExactDot()
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
+			})
+		})
+
+		// A squared Euclidean distance too large for a double is +Inf. A
+		// float32 dot product that overflows is computed again in double. A
+		// float64 dot product that overflows can't be computed.
+		gg.Context("when a distance overflows", func() {
+			maxFloat32 := float32(math.MaxFloat32)
+
+			readDistance := func(distance *as.Expression, flags as.ExpReadFlags) (any, as.Error) {
+				record, err := client.Operate(nil, key, as.ExpReadOp("d", distance, flags))
+				if err != nil {
+					return nil, err
+				}
+				return record.Bins["d"], nil
+			}
+
+			gg.It("returns +Inf for a squared Euclidean distance that overflows", func() {
+				for _, pair := range []struct {
+					elementType   string
+					stored, query *as.Vector
+				}{
+					{"float32", mustVector(as.NewVectorFloat32([]float32{maxFloat32, 0})), mustVector(as.NewVectorFloat32([]float32{-maxFloat32, 0}))},
+					{"float64", mustVector(as.NewVectorFloat64([]float64{1e300, 0})), mustVector(as.NewVectorFloat64([]float64{-1e300, 0}))},
+				} {
+					gm.Expect(put(as.NewBin(binName, pair.stored))).To(gm.Succeed())
+					distance := as.ExpVectorDistance(as.VectorEuclideanSquared, pair.query, as.ExpVectorBin(binName))
+
+					for _, flags := range []as.ExpReadFlags{as.ExpReadFlagDefault, as.ExpReadFlagEvalNoFail} {
+						value, err := readDistance(distance, flags)
+						gm.Expect(err).ToNot(gm.HaveOccurred(), pair.elementType)
+						gm.Expect(value).To(gm.Equal(math.Inf(1)), pair.elementType)
+					}
+				}
+			})
+
+			gg.It("computes an overflowing float32 dot product in double", func() {
+				gm.Expect(put(as.NewBin(binName, mustVector(as.NewVectorFloat32([]float32{maxFloat32, maxFloat32}))))).To(gm.Succeed())
+				inDouble := 2 * float64(maxFloat32) * float64(maxFloat32)
+
+				for _, query := range []struct {
+					elements []float32
+					want     float64
+				}{
+					{[]float32{maxFloat32, maxFloat32}, inDouble},
+					{[]float32{-maxFloat32, -maxFloat32}, -inDouble},
+				} {
+					distance := as.ExpVectorDistance(as.VectorDotProduct, mustVector(as.NewVectorFloat32(query.elements)), as.ExpVectorBin(binName))
+					value, err := readDistance(distance, as.ExpReadFlagDefault)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(value).To(gm.Equal(query.want))
+				}
+			})
+
+			gg.It("can't compute an overflowing float64 dot product", func() {
+				gm.Expect(put(as.NewBin(binName, mustVector(as.NewVectorFloat64([]float64{1e300, 1e300}))))).To(gm.Succeed())
+
+				for _, query := range [][]float64{{1e300, 1e300}, {-1e300, -1e300}} {
+					distance := as.ExpVectorDistance(as.VectorDotProduct, mustVector(as.NewVectorFloat64(query)), as.ExpVectorBin(binName))
+
+					value, err := readDistance(distance, as.ExpReadFlagEvalNoFail)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(value).To(gm.BeNil())
+
+					_, err = readDistance(distance, as.ExpReadFlagDefault)
+					gm.Expect(err).To(gm.HaveOccurred())
+					gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+
+					policy := as.NewPolicy()
+					policy.FilterExpression = as.ExpLess(distance, as.ExpFloatVal(0))
+					_, err = client.Get(policy, key)
+					gm.Expect(err).To(gm.HaveOccurred())
+					gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
+				}
+			})
+
+			gg.It("ranks a +Inf distance as the largest value in a Top-K query", func() {
+				if !client.GetNodes()[0].SupportsQueryOrderBy() {
+					gg.Skip("Top-K requires a server with Top-K support")
+				}
+
+				// Squared Euclidean distances to the query: id 0 is +Inf, id 1
+				// is 1, id 2 is 9, and id 3 has no vector.
+				query := mustVector(as.NewVectorFloat64([]float64{-1e300, 0}))
+				storedVectors := []*as.Vector{
+					mustVector(as.NewVectorFloat64([]float64{1e300, 0})),
+					mustVector(as.NewVectorFloat64([]float64{-1e300, 1})),
+					mustVector(as.NewVectorFloat64([]float64{-1e300, 3})),
+					nil,
+				}
+				recordKeys := make([]*as.Key, len(storedVectors))
+				for id, stored := range storedVectors {
+					var err as.Error
+					recordKeys[id], err = as.NewKey(ns, set, id)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					bins := []*as.Bin{as.NewBin("id", id)}
+					if stored != nil {
+						bins = append(bins, as.NewBin(binName, stored))
+					}
+					gm.Expect(client.PutBins(nil, recordKeys[id], bins...)).To(gm.Succeed())
+				}
+				defer func() {
+					for _, recordKey := range recordKeys {
+						client.Delete(nil, recordKey)
+					}
+				}()
+
+				rankedIDs := func(direction as.OrderDirection, flags as.ExpReadFlags) []int {
+					statement := as.NewStatement(ns, set)
+					statement.Operations = []*as.Operation{
+						as.GetBinOp("id"),
+						as.ExpReadOp("d", as.ExpVectorDistance(as.VectorEuclideanSquared, query, as.ExpVectorBin(binName)), flags),
+					}
+					gm.Expect(statement.SetOrderBy("d", as.BinDataTypeDouble, direction)).To(gm.Succeed())
+					gm.Expect(statement.SetTopK(10)).To(gm.Succeed())
+					recordset, err := client.Query(nil, statement)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					var ids []int
+					for result := range recordset.Results() {
+						gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+						ids = append(ids, result.Record.Bins["id"].(int))
+					}
+					return ids
+				}
+
+				// A record whose distance can't be computed is left out, or
+				// ranks last in either direction with ExpReadFlagEvalNoFail.
+				gm.Expect(rankedIDs(as.OrderAsc, as.ExpReadFlagDefault)).To(gm.Equal([]int{1, 2, 0}))
+				gm.Expect(rankedIDs(as.OrderDesc, as.ExpReadFlagDefault)).To(gm.Equal([]int{0, 2, 1}))
+				gm.Expect(rankedIDs(as.OrderAsc, as.ExpReadFlagEvalNoFail)).To(gm.Equal([]int{1, 2, 0, 3}))
+				gm.Expect(rankedIDs(as.OrderDesc, as.ExpReadFlagEvalNoFail)).To(gm.Equal([]int{0, 2, 1, 3}))
+			})
 		})
 	})
 
