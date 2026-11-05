@@ -3,10 +3,11 @@ name: Discovery integration
 # Own workflow so the L2 runtime is not added to every build.yml matrix cell.
 #
 # CE (community, no feature key) runs on every pull request. EE (enterprise
-# with TLS, rows such as N-6) runs on same-repo pull requests, on push and on
-# workflow_dispatch. Fork pull requests do not receive FEATURES_CONF, so the
-# gate job reports EE as a skipped layer instead. Default profile only, the
-# other profiles are PLAN §7.2.
+# with TLS, rows such as N-6 and N-17) runs on same-repo pull requests, on
+# push and on workflow_dispatch. Fork pull requests do not receive
+# FEATURES_CONF, so the gate job reports EE as a skipped layer instead.
+#
+# TLS certificate matching is PLAN §7.3, not this matrix.
 
 permissions:
   id-token: write
@@ -40,7 +41,7 @@ jobs:
           set -euo pipefail
           layers='[]'
           if [[ "${ENTERPRISE}" != true ]]; then
-            layers=$(jq -cn '[{layer: "L2 EE", tests: "L2 discovery tests against an enterprise cluster with TLS", reason: "fork pull requests get no FEATURES_CONF"}]')
+            layers=$(jq -cn '[{layer: "L2 EE", tests: "ee and ee cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"}]')
           fi
           echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
@@ -50,25 +51,45 @@ jobs:
         with:
           layers: ${{ steps.gate.outputs.layers }}
 
+  # A job if is evaluated before the matrix, so the fork gate cannot live on a
+  # matrix cell. Community and enterprise stay two jobs.
   l2-ce:
-    name: L2 discovery (ce)
+    name: L2 discovery (ce${{ matrix.profile != 'default' && format(', {0}', matrix.profile) || '' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - default
+          - reachable
+          - pass-through-names
+          - pass-through-ports
+          - port-map-range
+          - low-mtu
+          - port-range
+          - idle-reset
     uses: ./.github/workflows/discovery-l2.yaml
     with:
       subset: ce
       server-container-repo: database-docker-virtual/aerospike-server
       server-tag: latest
-      profile: default
+      profile: ${{ matrix.profile }}
     secrets: inherit
 
   l2-ee:
-    name: L2 discovery (ee)
+    name: L2 discovery (ee${{ matrix.profile != 'default' && format(', {0}', matrix.profile) || '' }})
     needs: gate
     if: needs.gate.outputs.enterprise == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - default
+          - cn-only
     uses: ./.github/workflows/discovery-l2.yaml
     with:
       subset: ee
       server-container-repo: database-docker-dev-local/aerospike-server-enterprise
       server-tag: 8.2.0.0
       tls-listen-port-base: "43331"
-      profile: default
+      profile: ${{ matrix.profile }}
     secrets: inherit
