@@ -42,14 +42,15 @@ import (
 )
 
 const (
-	l2TendInterval = 250 * time.Millisecond
-	l2Wait         = 30 * time.Second
-	l2Poll         = 100 * time.Millisecond
-	l2DialTimeout  = 2 * time.Second
-	l2Set          = "l2"
-	l2KeyCount     = 300
-	l2MissKeyCount = 200
-	l2MissRetries  = 3
+	l2TendInterval     = 250 * time.Millisecond
+	l2Wait             = 30 * time.Second
+	l2Poll             = 100 * time.Millisecond
+	l2DialTimeout      = 2 * time.Second
+	l2Set              = "l2"
+	l2KeyCount         = 300
+	l2MissKeyCount     = 200
+	l2MissRetries      = 3
+	l2CollisionRetries = 3
 	// Longer than the test, so no periodic refresh can run during it.
 	l2ReseedRefreshInterval = 10 * time.Minute
 	l2ReseedPoll            = 5 * time.Millisecond
@@ -65,7 +66,10 @@ const (
 	l2BreakerWindow         = 4
 )
 
-var l2PeerPattern = regexp.MustCompile(`\[([0-9A-Fa-f]+),([^,\[\]]*),\[`)
+var (
+	l2PeerPattern     = regexp.MustCompile(`\[([0-9A-Fa-f]+),([^,\[\]]*),\[`)
+	l2PeerFullPattern = regexp.MustCompile(`\[([0-9A-Fa-f]+),([^,\[\]]*),\[((?:[^\[\]]|\[[^\]]*\])*)\]\]`)
+)
 
 type l2Node struct {
 	proxy      string
@@ -122,17 +126,34 @@ func (capture *l2LogCapture) Printf(format string, v ...any) {
 	capture.forward.Printf(format, v...)
 }
 
-// misses returns the strict translation miss warnings for node.
-func (capture *l2LogCapture) misses(node string) []string {
+// containing returns captured lines that include every part.
+func (capture *l2LogCapture) containing(parts ...string) []string {
 	capture.mu.Lock()
 	defer capture.mu.Unlock()
-	var misses []string
+	var matched []string
 	for _, line := range capture.lines {
-		if strings.Contains(line, "has no mapping for node "+node+" ") {
-			misses = append(misses, line)
+		ok := true
+		for _, part := range parts {
+			if !strings.Contains(line, part) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			matched = append(matched, line)
 		}
 	}
-	return misses
+	return matched
+}
+
+// misses returns the strict translation miss warnings for node.
+func (capture *l2LogCapture) misses(node string) []string {
+	return capture.containing("has no mapping for node " + node + " ")
+}
+
+// collisions returns translation-collision warnings that name node.
+func (capture *l2LogCapture) collisions(node string) []string {
+	return capture.containing("to the same address", node)
 }
 
 // l2Failure is one command that failed under l2Load.
@@ -453,25 +474,8 @@ func TestL2NewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 	if mapped := l2PeersGeneration(t, host, first); mapped != generation {
 		t.Fatalf("peers-generation bumped from %d to %d before %s had a listener and a mapping", generation, mapped, added.container)
 	}
-	var bump, active time.Time
-	var node *as.Node
-	if !waitL2(l2ReseedPoll, func() bool {
-		now := time.Now()
-		if bump.IsZero() && l2PeersGeneration(t, host, first) != generation {
-			bump = now
-		}
-		if active.IsZero() {
-			for _, candidate := range client.GetNodes() {
-				if candidate.IsActive() && !slices.Contains(names, candidate.GetName()) {
-					active, node = now, candidate
-				}
-			}
-		}
-		return !bump.IsZero() && !active.IsZero()
-	}) {
-		t.Fatalf("no peers-generation bump or no active node for %s, nodes %v", added.container, client.GetNodeNames())
-	}
-
+	joined := waitL2Joined(t, client, host, first, generation, names)
+	node := joined.node
 	info, err := l2RequestInfo(host, port, "node", "service-clear-std")
 	if err != nil {
 		t.Fatal(err)
@@ -485,7 +489,7 @@ func TestL2NewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 	if node.GetHost().Port != port {
 		t.Fatalf("node %s host %v, want listener port %d", node.GetName(), node.GetHost(), port)
 	}
-	if elapsed, budget := active.Sub(bump), 2*policy.TendInterval; elapsed > budget {
+	if elapsed, budget := joined.active.Sub(joined.bump), 2*policy.TendInterval; elapsed > budget {
 		t.Fatalf("node %s active %s after the peers-generation bump, budget %s", node.GetName(), elapsed, budget)
 	}
 	if !waitL2(l2Poll, func() bool {
@@ -781,11 +785,15 @@ func skipUnlessL2(t *testing.T) {
 		t.Skip("set DISCOVERY_ENDPOINT_HOSTNAME to run L2 topology tests")
 	}
 	if subset := os.Getenv("DISCOVERY_SUBSET"); subset != "" && subset != "ce" && subset != "ee" {
-		t.Skip("L2 default-profile smoke, DISCOVERY_SUBSET is " + subset)
+		t.Skip("L2 tests need DISCOVERY_SUBSET=ce or ee, got " + subset)
 	}
-	// cn-only is the N-17 profile, not the default smoke.
+}
+
+func skipUnlessL2Default(t *testing.T) {
+	t.Helper()
+	skipUnlessL2(t)
 	if shape := os.Getenv("DISCOVERY_TLS_CERT_SHAPE"); shape != "" && shape != "san-only" {
-		t.Skip("L2 default-profile smoke, DISCOVERY_TLS_CERT_SHAPE is " + shape)
+		t.Skip("L2 default-profile tests, DISCOVERY_TLS_CERT_SHAPE is " + shape)
 	}
 	for _, name := range []string{
 		"DISCOVERY_REACHABLE_NODE",
@@ -794,14 +802,33 @@ func skipUnlessL2(t *testing.T) {
 		"DISCOVERY_CLIENT_NETWORK_MTU",
 		"DISCOVERY_PROXY_PORT_RANGE",
 		"DISCOVERY_IDLE_RESET",
+		"DISCOVERY_UNRESOLVED_HOSTNAME",
 	} {
 		if os.Getenv(name) != "" {
-			t.Skip("L2 default-profile smoke, " + name + " is set")
+			t.Skip("L2 default-profile tests, " + name + " is set")
 		}
 	}
 }
 
 func l2Topology(t *testing.T) (string, []l2Node) {
+	t.Helper()
+	skipUnlessL2Default(t)
+	return l2Discover(t)
+}
+
+// l2Profile discovers the live topology when every required DISCOVERY_* variable is set.
+func l2Profile(t *testing.T, reason string, required ...string) (string, []l2Node) {
+	t.Helper()
+	skipUnlessL2(t)
+	for _, name := range required {
+		if os.Getenv(name) == "" {
+			t.Skip(reason)
+		}
+	}
+	return l2Discover(t)
+}
+
+func l2Discover(t *testing.T) (string, []l2Node) {
 	t.Helper()
 	skipUnlessL2(t)
 	l2Once.Do(func() {
@@ -868,9 +895,12 @@ func discoverL2Nodes(host string) ([]l2Node, error) {
 		if len(advertised) == 0 {
 			return nil, fmt.Errorf("node %s advertises no clear address", name)
 		}
-		for _, endpoint := range advertised {
-			if l2Reachable(endpoint) {
-				return nil, fmt.Errorf("node %s advertised address %s is reachable from the client", name, endpoint)
+		reachable := os.Getenv("DISCOVERY_REACHABLE_NODE")
+		if proxy != reachable {
+			for _, endpoint := range advertised {
+				if l2Reachable(endpoint) {
+					return nil, fmt.Errorf("node %s advertised address %s is reachable from the client", name, endpoint)
+				}
 			}
 		}
 		node := l2Node{proxy: proxy, port: port, name: name, advertised: advertised}
@@ -1132,9 +1162,8 @@ func holdL2Listener(t *testing.T, proxy string) (release func()) {
 	return release
 }
 
-// addL2Listener creates a Toxiproxy listener named proxy above every listener
-// in use, removes it when the test ends and returns its port.
-func addL2Listener(t *testing.T, proxy, upstream string) int {
+// nextL2ListenerPort returns the first free port above every Toxiproxy listener.
+func nextL2ListenerPort(t *testing.T) int {
 	t.Helper()
 	port := 0
 	for _, listener := range l2ToxiproxyProxies(t) {
@@ -1144,7 +1173,18 @@ func addL2Listener(t *testing.T, proxy, upstream string) int {
 			}
 		}
 	}
-	port++
+	return port + 1
+}
+
+// addL2Listener creates a Toxiproxy listener named proxy above every listener
+// in use, removes it when the test ends and returns its port.
+func addL2Listener(t *testing.T, proxy, upstream string) int {
+	t.Helper()
+	return addL2ListenerOn(t, proxy, nextL2ListenerPort(t), upstream)
+}
+
+func addL2ListenerOn(t *testing.T, proxy string, port int, upstream string) int {
+	t.Helper()
 	listener := fmt.Sprintf(`{"name":%q,"listen":"0.0.0.0:%d","upstream":%q,"enabled":true}`, proxy, port, upstream)
 	if err := l2Toxiproxy(http.MethodPost, "/proxies", listener, http.StatusCreated); err != nil {
 		t.Fatal(err)
@@ -1155,6 +1195,19 @@ func addL2Listener(t *testing.T, proxy, upstream string) int {
 		}
 	})
 	return port
+}
+
+func addL2Toxic(t *testing.T, proxy, name, kind, stream string, toxicity float64, attributes string) {
+	t.Helper()
+	body := fmt.Sprintf(`{"name":%q,"type":%q,"stream":%q,"toxicity":%g,"attributes":%s}`, name, kind, stream, toxicity, attributes)
+	if err := l2Toxiproxy(http.MethodPost, "/proxies/"+proxy+"/toxics", body, http.StatusOK); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := l2Toxiproxy(http.MethodDelete, "/proxies/"+proxy+"/toxics/"+name, "", http.StatusNoContent); err != nil {
+			t.Error(err)
+		}
+	})
 }
 
 // l2UpstreamPort returns the node port a Toxiproxy listener forwards to.
@@ -1251,16 +1304,40 @@ type l2StartedNode struct {
 // waiting until the cluster is back to nodes.
 func startL2Node(t *testing.T, controlDir, host string, nodes []l2Node) l2StartedNode {
 	t.Helper()
-	ack := l2Control(t, controlDir, "start")
-	started := l2StartedNode{container: ack["container"], address: ack["address"]}
-	if started.container == "" || started.address == "" {
-		t.Fatalf("start acknowledgement %v has no container or address", ack)
-	}
+	return startL2NodeArgs(t, controlDir, host, nodes, "start")
+}
+
+func startL2NodeArgs(t *testing.T, controlDir, host string, nodes []l2Node, command string) l2StartedNode {
+	t.Helper()
+	started := startL2Extra(t, controlDir, command)
 	t.Cleanup(func() {
 		l2Control(t, controlDir, "stop "+started.container)
 		waitL2ClusterStable(t, host, nodes)
 	})
 	return started
+}
+
+// startL2Extra asks the host to start a node. The caller stops it.
+func startL2Extra(t *testing.T, controlDir, command string) l2StartedNode {
+	t.Helper()
+	ack := l2Control(t, controlDir, command)
+	started := l2StartedNode{container: ack["container"], address: ack["address"]}
+	if started.container == "" || started.address == "" {
+		t.Fatalf("start acknowledgement %v has no container or address", ack)
+	}
+	return started
+}
+
+func stopL2Extras(t *testing.T, controlDir, host string, nodes []l2Node, extras []l2StartedNode) {
+	t.Helper()
+	t.Cleanup(func() {
+		for i := len(extras) - 1; i >= 0; i-- {
+			l2Control(t, controlDir, "stop "+extras[i].container)
+		}
+		if len(extras) > 0 {
+			waitL2ClusterStable(t, host, nodes)
+		}
+	})
 }
 
 // l2Control writes command to controlDir as <id>.request and returns the host's
@@ -1302,7 +1379,12 @@ func l2Control(t *testing.T, controlDir, command string) map[string]string {
 // waitL2ClusterStable waits until every node reports the same stable cluster of len(nodes).
 func waitL2ClusterStable(t *testing.T, host string, nodes []l2Node) {
 	t.Helper()
-	command := fmt.Sprintf("cluster-stable:size=%d;ignore-migrations=false", len(nodes))
+	waitL2ClusterSize(t, host, nodes, len(nodes))
+}
+
+func waitL2ClusterSize(t *testing.T, host string, nodes []l2Node, size int) {
+	t.Helper()
+	command := fmt.Sprintf("cluster-stable:size=%d;ignore-migrations=false", size)
 	var keys []string
 	if !waitL2(l2Poll, func() bool {
 		keys = keys[:0]
@@ -1316,7 +1398,7 @@ func waitL2ClusterStable(t *testing.T, host string, nodes []l2Node) {
 		}
 		return len(slices.Compact(slices.Clone(keys))) == 1 && !strings.HasPrefix(keys[0], "ERROR")
 	}) {
-		t.Fatalf("cluster not stable at size %d: %v", len(nodes), keys)
+		t.Fatalf("cluster not stable at size %d: %v", size, keys)
 	}
 }
 
@@ -1595,4 +1677,284 @@ func l2Reachable(endpoint string) bool {
 	}
 	_ = conn.Close()
 	return true
+}
+
+func l2ControlDir(t *testing.T, reason string) string {
+	t.Helper()
+	dir := os.Getenv("DISCOVERY_CONTROL_DIR")
+	if dir == "" {
+		t.Skip(reason)
+	}
+	return dir
+}
+
+type l2Peer struct {
+	name      string
+	tlsName   string
+	endpoints []string
+}
+
+func l2ParsePeers(reply string) []l2Peer {
+	first := strings.IndexByte(reply, ',')
+	if first < 0 {
+		return nil
+	}
+	secondRel := strings.IndexByte(reply[first+1:], ',')
+	if secondRel < 0 {
+		return nil
+	}
+	second := first + 1 + secondRel
+	defaultPort := 0
+	if portString := reply[first+1 : second]; portString != "" {
+		if port, err := strconv.Atoi(portString); err == nil {
+			defaultPort = port
+		}
+	}
+	var peers []l2Peer
+	for _, match := range l2PeerFullPattern.FindAllStringSubmatch(reply[second+1:], -1) {
+		var endpoints []string
+		for _, address := range strings.Split(match[3], ",") {
+			if address == "" {
+				continue
+			}
+			hasPort := strings.Contains(address, "]:") || (!strings.HasPrefix(address, "[") && strings.Contains(address, ":"))
+			if !hasPort && defaultPort > 0 {
+				address = net.JoinHostPort(address, strconv.Itoa(defaultPort))
+			}
+			endpoints = append(endpoints, address)
+		}
+		peers = append(peers, l2Peer{name: match[1], tlsName: match[2], endpoints: endpoints})
+	}
+	return peers
+}
+
+func l2PeerNames(t *testing.T, host string, observer l2Node, command, endpoint string) []string {
+	t.Helper()
+	info, err := l2RequestInfo(host, observer.port, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, peer := range l2ParsePeers(info[command]) {
+		if slices.Contains(peer.endpoints, endpoint) {
+			names = append(names, peer.name)
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
+func l2PeerName(t *testing.T, host string, observer l2Node, command, endpoint string) string {
+	t.Helper()
+	names := l2PeerNames(t, host, observer, command, endpoint)
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
+}
+
+func l2Alternates(t *testing.T, host string, node l2Node) []string {
+	t.Helper()
+	info, err := l2RequestInfo(host, node.port, "service-clear-alt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	advertised, err := l2Advertised(info["service-clear-alt"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return advertised
+}
+
+func l2Alternate(t *testing.T, host string, node l2Node) string {
+	t.Helper()
+	list := l2Alternates(t, host, node)
+	if len(list) != 1 {
+		t.Fatalf("node %s alternate list %v, want 1", node.name, list)
+	}
+	return list[0]
+}
+
+func l2HostPort(t *testing.T, endpoint string) (string, int) {
+	t.Helper()
+	host, portString, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		t.Fatalf("endpoint %q: %v", endpoint, err)
+	}
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		t.Fatalf("endpoint %q: %v", endpoint, err)
+	}
+	return host, port
+}
+
+func assertL2Address(t *testing.T, advertised string, host *as.Host) {
+	t.Helper()
+	name, port := l2HostPort(t, advertised)
+	addresses, err := net.LookupHost(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if host.Name != name && !slices.Contains(addresses, host.Name) {
+		t.Fatalf("node host %s is not %s %v", host.Name, name, addresses)
+	}
+	if host.Port != port {
+		t.Fatalf("node port %d, want %d", host.Port, port)
+	}
+}
+
+type l2Joined struct {
+	node   *as.Node
+	bump   time.Time
+	active time.Time
+}
+
+func waitL2Joined(t *testing.T, client *as.Client, host string, observer l2Node, generation int64, names []string) l2Joined {
+	t.Helper()
+	var bump, active time.Time
+	var node *as.Node
+	if !waitL2(l2ReseedPoll, func() bool {
+		now := time.Now()
+		if bump.IsZero() && l2PeersGeneration(t, host, observer) != generation {
+			bump = now
+		}
+		if active.IsZero() {
+			for _, candidate := range client.GetNodes() {
+				if candidate.IsActive() && !slices.Contains(names, candidate.GetName()) {
+					active, node = now, candidate
+				}
+			}
+		}
+		return !bump.IsZero() && !active.IsZero()
+	}) {
+		t.Fatalf("no peers-generation bump or no active node after generation %d, nodes %v", generation, client.GetNodeNames())
+	}
+	return l2Joined{node: node, bump: bump, active: active}
+}
+
+func l2ListenerPorts(t *testing.T) map[int]struct{} {
+	t.Helper()
+	ports := make(map[int]struct{})
+	for _, listener := range l2ToxiproxyProxies(t) {
+		_, listenPort, err := net.SplitHostPort(listener.Listen)
+		if err != nil {
+			continue
+		}
+		if port, err := strconv.Atoi(listenPort); err == nil {
+			ports[port] = struct{}{}
+		}
+	}
+	return ports
+}
+
+func l2NodeOf(t *testing.T, nodes []l2Node, name string) l2Node {
+	t.Helper()
+	for _, node := range nodes {
+		if node.name == name {
+			return node
+		}
+	}
+	t.Fatalf("unknown node %s", name)
+	return l2Node{}
+}
+
+func assertL2Collision(t *testing.T, message, nodeA, nodeB, address, translator string) {
+	t.Helper()
+	for _, part := range []string{nodeA, nodeB, address, translator} {
+		if !strings.Contains(message, part) {
+			t.Fatalf("%q not in collision warning: %s", part, message)
+		}
+	}
+}
+
+func assertL2ServedByOwners(t *testing.T, client *as.Client, host string, nodes []l2Node, prefix string) {
+	t.Helper()
+	masters := as.PartitionMasters(client, *namespace)
+	before := make(map[string]map[string]int64, len(nodes))
+	for _, node := range nodes {
+		before[node.name] = l2NamespaceStats(t, host, node)
+	}
+	write := as.NewWritePolicy(0, 0)
+	write.ReplicaPolicy = as.MASTER
+	read := as.NewPolicy()
+	read.ReplicaPolicy = as.MASTER
+	served := make(map[string]int64, len(nodes))
+	cluster := client.Cluster()
+	for i := range l2KeyCount {
+		key := l2Key(t, prefix, i)
+		owner := masters[key.PartitionId()]
+		assertL2RoutedTo(t, cluster, &write.BasePolicy, read, key, owner)
+		if err := client.Put(write, key, as.BinMap{"v": i}); err != nil {
+			t.Fatalf("put %v: %v", key, err)
+		}
+		record, err := client.Get(read, key)
+		if err != nil {
+			t.Fatalf("get %v: %v", key, err)
+		}
+		if record.Bins["v"] != i {
+			t.Fatalf("key %v holds %v, want %d", key, record.Bins["v"], i)
+		}
+		served[owner.GetName()]++
+	}
+	for _, node := range nodes {
+		after := l2NamespaceStats(t, host, node)
+		delta := func(stat string) int64 { return after[stat] - before[node.name][stat] }
+		want := served[node.name]
+		if want == 0 {
+			t.Fatalf("node %s served no keys", node.name)
+		}
+		if writes := delta("client_write_success"); writes != want {
+			t.Fatalf("node %s counted %d writes, want %d", node.name, writes, want)
+		}
+		if reads := delta("client_read_success"); reads != want {
+			t.Fatalf("node %s counted %d reads, want %d", node.name, reads, want)
+		}
+		if proxied := delta("client_proxy_complete") + delta("client_proxy_error") + delta("client_proxy_timeout"); proxied != 0 {
+			t.Fatalf("node %s proxied %d commands, want none", node.name, proxied)
+		}
+	}
+}
+
+func l2StatInt(value any) int64 {
+	switch n := value.(type) {
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	case int64:
+		return n
+	case json.Number:
+		i, _ := n.Int64()
+		return i
+	default:
+		return 0
+	}
+}
+
+type l2ConnStats struct {
+	closed int64
+	errors int64
+}
+
+func l2ConnectionStats(t *testing.T, client *as.Client) map[string]l2ConnStats {
+	t.Helper()
+	raw, err := client.Stats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stats := make(map[string]l2ConnStats)
+	for name, value := range raw {
+		node, ok := value.(map[string]any)
+		if !ok || name == "cluster-aggregated-stats" {
+			continue
+		}
+		if _, ok := node["closed-connections"]; !ok {
+			continue
+		}
+		stats[name] = l2ConnStats{
+			closed: l2StatInt(node["closed-connections"]),
+			errors: l2StatInt(node["transaction-error-count"]),
+		}
+	}
+	return stats
 }

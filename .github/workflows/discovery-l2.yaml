@@ -21,7 +21,10 @@ on:
         required: false
         default: ""
       profile:
-        description: A discovery-l2-topology profile. Smoke uses default.
+        description: >-
+          A discovery-l2-topology profile: default, reachable, pass-through-names,
+          pass-through-ports, port-map-range, cn-only, low-mtu, port-range or
+          idle-reset
         type: string
         required: false
         default: default
