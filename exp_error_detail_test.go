@@ -447,14 +447,16 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		gm.Expect(rec.Bins["result"]).To(gm.Equal(11))
 	})
 
-	gg.It("exp read invalid flags stages no details", func() {
-		// A write-only policy flag on a read op is rejected structurally
-		// before any expression is built: rc 4 with NO error details staged.
+	gg.It("exp read invalid flags is a parameter error that names the flags", func() {
+		// A write-only flag on a read op is rejected before any expression is
+		// built, with a message naming the flags and no subcode or trace.
 		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR,
 			as.ExpReadOp("result", as.ExpNumAdd(as.ExpIntBin(binInt), as.ExpIntVal(1)),
 				as.ExpReadFlags(as.ExpWriteFlagCreateOnly)))
 
-		assertNoDetails(ae, types.PARAMETER_ERROR)
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
+		gm.Expect(ae.ExpTrace).To(gm.BeNil())
+		assertMessageContains(ae, "expression op flags 0x1 invalid for a read")
 	})
 
 	gg.It("exp read eval fault div by zero surfaces an eval trace", func() {
