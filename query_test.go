@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
@@ -1730,6 +1731,64 @@ var _ = gg.Describe("Query Top-K", func() {
 			// ts no longer breaks the ties on score 90, so they come in digest order.
 			gm.Expect(bytes.Compare(keyByID[ids[0]].Digest(), keyByID[ids[1]].Digest())).To(gm.Equal(-1))
 			gm.Expect(bytes.Compare(keyByID[ids[1]].Digest(), keyByID[ids[2]].Digest())).To(gm.Equal(-1))
+		})
+	})
+
+	gg.Context("last-update time sent with each record", func() {
+		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K requires a server with Top-K support")
+			}
+			putScores(50, 90, 70, 10, 30)
+		})
+
+		lastUpdateTimes := func(statement *as.Statement) map[[20]byte]int64 {
+			times, err := client.LastUpdateTimesForTest(statement)
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			gm.ExpectWithOffset(1, times).To(gm.HaveLen(len(keys)))
+			return times
+		}
+
+		expectNoLastUpdateTime := func(times map[[20]byte]int64) {
+			for digest, lastUpdateTime := range times {
+				gm.ExpectWithOffset(1, lastUpdateTime).To(gm.BeZero(), "record %x", digest)
+			}
+		}
+
+		gg.It("is sent on every Top-K record and moves forward when the record is rewritten", func() {
+			statement := rankByScore()
+			gm.Expect(statement.SetTopK(len(keys))).To(gm.Succeed())
+
+			before := lastUpdateTimes(statement)
+			for digest, lastUpdateTime := range before {
+				gm.Expect(lastUpdateTime).To(gm.BeNumerically(">", 0), "record %x", digest)
+			}
+
+			time.Sleep(5 * time.Millisecond)
+			rewritten := [20]byte(keys[0].Digest())
+			gm.Expect(client.PutBins(nil, keys[0], as.NewBin("score", 55))).To(gm.Succeed())
+
+			for digest, lastUpdateTime := range lastUpdateTimes(statement) {
+				if digest == rewritten {
+					gm.Expect(lastUpdateTime).To(gm.BeNumerically(">", before[digest]))
+				} else {
+					gm.Expect(lastUpdateTime).To(gm.Equal(before[digest]), "record %x", digest)
+				}
+			}
+		})
+
+		gg.It("is not sent on secondary-index query records", func() {
+			indexName := set + "score"
+			createIndex(nil, ns, set, indexName, "score", as.NUMERIC)
+			defer client.DropIndex(nil, ns, set, indexName)
+
+			statement := as.NewStatement(ns, set, "score", "id")
+			gm.Expect(statement.SetFilter(as.NewRangeFilter("score", 0, 100))).To(gm.Succeed())
+			expectNoLastUpdateTime(lastUpdateTimes(statement))
+		})
+
+		gg.It("is not sent on scan records", func() {
+			expectNoLastUpdateTime(lastUpdateTimes(as.NewStatement(ns, set)))
 		})
 	})
 })
