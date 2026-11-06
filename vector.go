@@ -393,8 +393,9 @@ type VectorValue struct {
 
 var _ Value = VectorValue{}
 
-// NewVectorValue wraps a vector to send it. NewValue does the same for a
-// *Vector.
+// NewVectorValue wraps a vector to send it. A nil vector is refused with a
+// PARAMETER_ERROR when sent. NewValue, by contrast, turns a nil *Vector into a
+// null value, which removes the bin on write.
 func NewVectorValue(vector *Vector) VectorValue {
 	return VectorValue{vector: vector}
 }
