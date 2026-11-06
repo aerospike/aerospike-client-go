@@ -16,9 +16,10 @@ package aerospike
 
 import (
 	"bytes"
+	"cmp"
 	"container/heap"
 	"math"
-	"sort"
+	"slices"
 	"sync"
 )
 
@@ -115,8 +116,14 @@ func (merger *topKMerger) results() []*Result {
 	copy(entries, merger.heap)
 	merger.mu.Unlock()
 
-	sort.Slice(entries, func(left, right int) bool {
-		return merger.ranksAhead(entries[left], entries[right])
+	slices.SortFunc(entries, func(left, right *topKEntry) int {
+		switch {
+		case merger.ranksAhead(left, right):
+			return -1
+		case merger.ranksAhead(right, left):
+			return 1
+		}
+		return 0
 	})
 
 	results := make([]*Result, len(entries))
@@ -216,22 +223,12 @@ func rankOrder(spec *orderBySpec, value, other *orderByValue) int {
 func compareValues(spec *orderBySpec, left, right *orderByValue) int {
 	switch spec.orderType {
 	case BinDataTypeInteger:
-		return compareNumbers(left.integer, right.integer)
+		return cmp.Compare(left.integer, right.integer)
 	case BinDataTypeDouble:
 		return compareFloats(left.float, right.float)
 	default:
 		return bytes.Compare(left.blob, right.blob)
 	}
-}
-
-func compareNumbers[T int64 | float64](left, right T) int {
-	switch {
-	case left < right:
-		return -1
-	case left > right:
-		return 1
-	}
-	return 0
 }
 
 // compareFloats ranks NaN above every number, and -0.0 equal to 0.0.
@@ -245,7 +242,7 @@ func compareFloats(left, right float64) int {
 	case rightIsNaN:
 		return -1
 	}
-	return compareNumbers(left, right)
+	return cmp.Compare(left, right)
 }
 
 //-------------------------------------------------------

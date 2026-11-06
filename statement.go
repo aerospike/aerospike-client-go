@@ -17,6 +17,7 @@ package aerospike
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -329,20 +330,12 @@ func (stmt *Statement) operationsReturning(binName string) int {
 // When Operations are set they decide the returned bins and BinNames is ignored.
 func (stmt *Statement) hasProjectedBin(binName string) bool {
 	if len(stmt.Operations) > 0 {
-		for _, op := range stmt.Operations {
-			if op.binName == binName {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(stmt.Operations, func(operation *Operation) bool {
+			return operation.binName == binName
+		})
 	}
 	if len(stmt.BinNames) > 0 {
-		for _, name := range stmt.BinNames {
-			if name == binName {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(stmt.BinNames, binName)
 	}
 	return true
 }
