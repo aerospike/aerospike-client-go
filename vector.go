@@ -145,7 +145,8 @@ func NewVectorFloat32(elements []float32) (*Vector, Error) {
 		if bits&float32ExponentMask == float32ExponentMask {
 			return nil, nonFiniteElementError(index, element)
 		}
-		binary.LittleEndian.PutUint32(payload[index*4:], bits)
+		binary.LittleEndian.PutUint32(payload, bits)
+		payload = payload[4:]
 	}
 	return vector, nil
 }
@@ -166,7 +167,8 @@ func NewVectorFloat64(elements []float64) (*Vector, Error) {
 		if bits&float64ExponentMask == float64ExponentMask {
 			return nil, nonFiniteElementError(index, element)
 		}
-		binary.LittleEndian.PutUint64(payload[index*8:], bits)
+		binary.LittleEndian.PutUint64(payload, bits)
+		payload = payload[8:]
 	}
 	return vector, nil
 }
@@ -181,8 +183,9 @@ func NewVectorInt32(elements []int32) (*Vector, Error) {
 		return nil, err
 	}
 	payload := vector.wire[vectorHeaderSize:]
-	for index, element := range elements {
-		binary.LittleEndian.PutUint32(payload[index*4:], uint32(element))
+	for _, element := range elements {
+		binary.LittleEndian.PutUint32(payload, uint32(element))
+		payload = payload[4:]
 	}
 	return vector, nil
 }
@@ -203,7 +206,8 @@ func NewVectorFloat16Bits(bits []uint16) (*Vector, Error) {
 		if element&float16ExponentMask == float16ExponentMask {
 			return nil, nonFiniteElementError(index, fmt.Sprintf("%#04x", element))
 		}
-		binary.LittleEndian.PutUint16(payload[index*2:], element)
+		binary.LittleEndian.PutUint16(payload, element)
+		payload = payload[2:]
 	}
 	return vector, nil
 }
@@ -306,7 +310,8 @@ func (vector *Vector) Float32() ([]float32, Error) {
 	}
 	elements := make([]float32, vector.Dimensions())
 	for index := range elements {
-		elements[index] = math.Float32frombits(binary.LittleEndian.Uint32(payload[index*4:]))
+		elements[index] = math.Float32frombits(binary.LittleEndian.Uint32(payload))
+		payload = payload[4:]
 	}
 	return elements, nil
 }
@@ -319,7 +324,8 @@ func (vector *Vector) Float64() ([]float64, Error) {
 	}
 	elements := make([]float64, vector.Dimensions())
 	for index := range elements {
-		elements[index] = math.Float64frombits(binary.LittleEndian.Uint64(payload[index*8:]))
+		elements[index] = math.Float64frombits(binary.LittleEndian.Uint64(payload))
+		payload = payload[8:]
 	}
 	return elements, nil
 }
@@ -332,7 +338,8 @@ func (vector *Vector) Int32() ([]int32, Error) {
 	}
 	elements := make([]int32, vector.Dimensions())
 	for index := range elements {
-		elements[index] = int32(binary.LittleEndian.Uint32(payload[index*4:]))
+		elements[index] = int32(binary.LittleEndian.Uint32(payload))
+		payload = payload[4:]
 	}
 	return elements, nil
 }
@@ -346,7 +353,8 @@ func (vector *Vector) Float16Bits() ([]uint16, Error) {
 	}
 	elements := make([]uint16, vector.Dimensions())
 	for index := range elements {
-		elements[index] = binary.LittleEndian.Uint16(payload[index*2:])
+		elements[index] = binary.LittleEndian.Uint16(payload)
+		payload = payload[2:]
 	}
 	return elements, nil
 }
