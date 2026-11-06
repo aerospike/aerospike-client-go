@@ -382,6 +382,17 @@ var _ = gg.Describe("Vector encoding", func() {
 				To(gm.PanicWith(gm.MatchError(gm.ContainSubstring("Invalid VectorDistanceMetric: 3"))))
 		})
 
+		gg.It("names each metric", func() {
+			for metric, name := range map[VectorDistanceMetric]string{
+				VectorEuclideanSquared:  "EUCLIDEAN_SQUARED",
+				VectorDotProduct:        "DOT_PRODUCT",
+				VectorCosineSimilarity:  "COSINE_SIMILARITY",
+				VectorDistanceMetric(7): "VectorDistanceMetric(7)",
+			} {
+				gm.Expect(metric.String()).To(gm.Equal(name))
+			}
+		})
+
 		gg.It("rejects a nil query when packed", func() {
 			_, err := packedExpression(ExpVectorDistance(VectorCosineSimilarity, nil, ExpVectorBin("v")))
 			expectParameterError(err, "distance query must not be nil")
