@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"math"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -205,4 +206,33 @@ func (txr *TxnRoll) RollRecords() []*BatchRecord {
 // with MRT_COMMITTED.
 func (txr *TxnRoll) AlreadyCommitted() bool {
 	return txr.alreadyCommitted
+}
+
+// LastUpdateTimesForTest runs statement on every node with the last-update
+// time parsed for each record, as a Top-K query does, and returns the times
+// by digest. A time is 0 when the server sent none.
+func (clnt *Client) LastUpdateTimesForTest(statement *Statement) (map[[20]byte]int64, Error) {
+	policy := clnt.getUsableQueryPolicy(nil)
+	tracker := newPartitionTrackerForNodes(&policy.MultiPolicy, clnt.cluster.GetNodes())
+	nodePartitionsList, err := tracker.assignPartitionsToNodes(clnt.cluster, statement.Namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	merger := &topKMerger{limit: math.MaxInt, byDigest: map[[20]byte]*topKEntry{}}
+	recordset := newRecordset(policy.RecordQueueSize, len(nodePartitionsList))
+	for _, nodePartitions := range nodePartitionsList {
+		cmd := newQueryPartitionCommand(policy, tracker, nodePartitions, statement, recordset)
+		cmd.sendTopK = statement.hasOrderBy()
+		cmd.topKMerger = merger
+		if err := cmd.Execute(); err != nil {
+			return nil, err
+		}
+	}
+
+	times := make(map[[20]byte]int64, len(merger.byDigest))
+	for digest, entry := range merger.byDigest {
+		times[digest] = entry.lastUpdateTime
+	}
+	return times, nil
 }
