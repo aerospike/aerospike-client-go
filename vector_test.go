@@ -509,10 +509,9 @@ var _ = gg.Describe("Vector Test", func() {
 			_, err := client.Get(policy, key)
 			expectNoDimensionsRefused(err)
 
-			// ExpReadOp encodes its expression when it is built and panics on an
-			// expression it cannot encode.
-			gm.Expect(func() { as.ExpReadOp("d", distance, as.ExpReadFlagDefault) }).
-				To(gm.PanicWith(gm.MatchError(gm.ContainSubstring("vector: must have at least 1 dimension"))))
+			// ExpReadOp keeps the error and returns it when the operation runs.
+			_, err = client.Operate(nil, key, as.ExpReadOp("d", distance, as.ExpReadFlagDefault))
+			expectNoDimensionsRefused(err)
 		})
 
 		// A vector bin is not a blob: reading it as one gives no value.
