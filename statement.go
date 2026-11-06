@@ -207,7 +207,8 @@ func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direct
 // QueryNode ranks only its own records.
 //
 // Results are returned after nodes finish scanning. For large scans, set
-// SocketTimeout high enough to cover the scan duration, or to 0.
+// TotalTimeout above the scan duration and leave SocketTimeout at 0. A
+// timed-out attempt restarts the scan on each node.
 //
 // Top-K is single-shot and always runs as a long query. QueryPartitions
 // returns a PARAMETER_ERROR for a PartitionFilter that carries resume points
