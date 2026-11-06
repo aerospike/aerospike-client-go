@@ -35,6 +35,19 @@ const (
 	VectorCosineSimilarity
 )
 
+// String returns the metric's name.
+func (distance VectorDistanceMetric) String() string {
+	switch distance {
+	case VectorEuclideanSquared:
+		return "EUCLIDEAN_SQUARED"
+	case VectorDotProduct:
+		return "DOT_PRODUCT"
+	case VectorCosineSimilarity:
+		return "COSINE_SIMILARITY"
+	}
+	return fmt.Sprintf("VectorDistanceMetric(%d)", int(distance))
+}
+
 // expOp returns the server expression op for the distance.
 func (distance VectorDistanceMetric) expOp() *expOp {
 	switch distance {
