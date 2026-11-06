@@ -73,8 +73,8 @@ func (distance VectorDistanceMetric) expOp() *expOp {
 // [ExpReadFlagEvalNoFail] is set.
 //
 // Packing returns PARAMETER_ERROR for a nil or empty query, or if the cluster
-// lacks vector support. ExpReadOp and ExpWriteOp panic on pack errors.
-// Panics on an unknown metric.
+// lacks vector support. ExpReadOp and ExpWriteOp return them when the
+// operation runs. Panics on an unknown metric.
 func ExpVectorDistance(distance VectorDistanceMetric, query *Vector, bin *Expression) *Expression {
 	return newFilterExpression(
 		distance.expOp(),
