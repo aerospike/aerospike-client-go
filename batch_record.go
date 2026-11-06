@@ -181,7 +181,7 @@ func (br *BatchRecord) setRawError(err Error) {
 
 // Set error result. For internal use only.
 // metricsOn is the command's metrics_on (sampler) decision — required for
-// batch.partial_failure (metrics.md §4.7 / Decision 1).
+// batch.partial_failure.
 func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool, metricsOn bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
@@ -267,7 +267,7 @@ func countBatchPartialFailuresOnce(clstr *Cluster, cmd batcher) {
 }
 
 // batchCommandAnyFilter returns a per-record batch filter when the parent
-// BatchPolicy has none (CM-27: one feature.filter.* per public call).
+// BatchPolicy has none (one feature.filter.* per public call).
 func batchCommandAnyFilter(cmd batcher) *Expression {
 	if cmd == nil {
 		return nil

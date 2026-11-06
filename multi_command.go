@@ -614,5 +614,5 @@ func (cmd *baseMultiCommand) getNamespace() *string {
 }
 
 func (cmd *baseMultiCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	conn.Close()
+	conn.closeOnError()
 }

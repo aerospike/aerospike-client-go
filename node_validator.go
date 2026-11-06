@@ -160,7 +160,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		acmd := newLoginCommand(conn.dataBuffer)
 		err = acmd.login(&clientPolicy, conn, cluster.Password())
 		if err != nil {
-			// CM-8: auth.failure is auth result codes only; network/TLS during login → open/tls.
+			// auth.failure is auth result codes only; network/TLS during login → open/tls.
 			if isConnectionAuthFailure(err) {
 				cluster.recordValidationAuthFailure()
 			} else {

@@ -93,11 +93,22 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 // fan-out. Node partition commands must call setMetricsChild with the returned
 // sampled flag.
 func (clnt *Client) beginPartitionCallMetrics(ct commandType, filter *Expression) (metricsOn, sampled bool, start time.Time) {
+	return clnt.beginCallMetrics(ct, false, filter)
+}
+
+// beginBackgroundCallMetrics is for QueryExecute / ExecuteUDF fan-out: one
+// feature.api.background + command.count / cluster.latency.query for the whole
+// user call; per-node serverCommands are metrics children.
+func (clnt *Client) beginBackgroundCallMetrics(ct commandType, filter *Expression) (metricsOn, sampled bool, start time.Time) {
+	return clnt.beginCallMetrics(ct, true, filter)
+}
+
+func (clnt *Client) beginCallMetrics(ct commandType, background bool, filter *Expression) (metricsOn, sampled bool, start time.Time) {
 	start = time.Now()
 	if clnt == nil || clnt.cluster == nil || !clnt.cluster.metricsEnabled.Load() {
 		return false, false, start
 	}
-	clnt.cluster.recordUsage(ct, false, filter)
+	clnt.cluster.recordUsage(ct, background, filter)
 	sampled = clnt.cluster.decideOperationalSample()
 	if sampled {
 		clnt.cluster.recordCommandCount()

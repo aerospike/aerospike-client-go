@@ -277,12 +277,12 @@ type baseCommand struct {
 	// already owns command.count / cluster.latency / feature.* for this user API
 	// call. This command still records namespace-scoped RPC latency when sampled.
 	metricsParentCall bool
-	// rpcStart is the start of this logical RPC / sub-batch (metrics.md §5.1).
+	// rpcStart is the start of this logical RPC / sub-batch.
 	// Set once before the first wire attempt; includes this command's own retries.
 	// Namespace latency uses this; cluster latency uses call-entry transStart.
 	rpcStart time.Time
 	// attemptBytes{In,Out} accumulate on the current attempt and are committed to
-	// namespace.bytes_* only on RPC success (spec §3 Bytes).
+	// namespace.bytes_* only on RPC success.
 	attemptBytesOut int64
 	attemptBytesIn  int64
 }
@@ -3851,7 +3851,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	isClientTimeout := false
 	loopCount := 0
 
-	// NFR-1: one metrics_on branch per user API call. Load metricsEnabled at most
+	// One metrics_on branch per user API call. Load metricsEnabled at most
 	// once here, cache on the command, and never re-check atomics on the hot path.
 	// Do not call getNode here — that belongs inside the retry loop.
 	// Live counters/histograms stay on Node.stats; cluster only holds enable/sampler
@@ -3908,11 +3908,13 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if notFirstIteration {
+			if cmd.metricsSampled {
+				if cluster := cmd.metricsCluster(); cluster != nil {
+					cluster.recordCommandRetry()
+				}
+			}
 			if cmd.node != nil {
 				applyTransactionRetryMetrics(cmd.node, cmd.metricsSampled)
-				if cmd.metricsSampled && cmd.node.cluster != nil {
-					cmd.node.cluster.recordCommandRetry()
-				}
 			}
 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
@@ -3952,6 +3954,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			break
 		}
 		// set command node, so when you return a record it has the node
+		prevNode := cmd.node
 		cmd.node, err = ifc.getNode(ifc)
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
 			isClientTimeout = false
@@ -3966,13 +3969,18 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		// Cached sampler / metrics_on decision from before the retry loop.
-		metricsEnabled := cmd.metricsSampled
+		sampled := cmd.metricsSampled
+
+		// Reset RPC timer when the attempt node changes (ns latency is RPC-scoped).
+		if sampled && (cmd.rpcStart.IsZero() || prevNode != cmd.node) {
+			cmd.rpcStart = time.Now()
+		}
 
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
 
-			applyTransactionErrorMetrics(cmd.node, metricsEnabled)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -3982,11 +3990,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
-		if metricsEnabled {
-			// One RPC/sub-batch timer for this executeAt (includes own retries).
-			if cmd.rpcStart.IsZero() {
-				cmd.rpcStart = time.Now()
-			}
+		if sampled {
 			cmd.attemptBytesIn = 0
 			cmd.attemptBytesOut = 0
 			start := time.Now()
@@ -4003,17 +4007,27 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
-			applyTransactionErrorMetrics(cmd.node, metricsEnabled)
+			applyTransactionErrorMetrics(cmd.node, sampled)
+
+			poolExhausted := errors.Is(err, ErrConnectionPoolExhausted)
+			poolEmpty := errors.Is(err, ErrConnectionPoolEmpty)
+
+			if poolExhausted && cmd.node.metricsEnabled() {
+				cmd.node.stats.ConnectionsPoolExhausted.IncrementAndGet()
+			}
 
 			// ExitFast before commandSentCounter-- so the loop-exit .iter() still
 			// maps to Iteration 0 (iter sets Iteration = counter-1).
-			if policy.ExitFastOnExhaustedConnectionPool && errors.Is(err, ErrConnectionPoolExhausted) {
-				cmd.recordAttemptFailure(ifc, err, true)
+			if policy.ExitFastOnExhaustedConnectionPool && poolExhausted {
+				// Pool exhausted is not a client timeout.
+				cmd.recordAttemptFailure(ifc, err, false)
 				break
 			}
 
-			if errors.Is(err, ErrConnectionPoolEmpty) || errors.Is(err, ErrConnectionPoolExhausted) {
-				if errors.Is(err, ErrConnectionPoolExhausted) || (errors.Is(err, ErrConnectionPoolEmpty) && loopCount == 1) {
+			if poolEmpty || poolExhausted {
+				// Pool empty on first loop can mean wait-for-conn timed out; treat
+				// as client timeout. Exhausted (at capacity) is a distinct error.
+				if poolEmpty && loopCount == 1 {
 					isClientTimeout = true
 				}
 				// if the connection pool is empty, we still haven't tried
@@ -4032,14 +4046,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		err = ifc.writeBuffer(ifc)
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node, metricsEnabled)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
+			cmd.conn.closeOnError()
 			cmd.conn = nil
 			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart, cmd.metricsSampled)
 			cmd.recordAttemptFailure(ifc, err, false)
@@ -4059,16 +4073,18 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			// now that the deadline has been set in the buffer, compress the contents
 			if err = cmd.compress(); err != nil {
-				applyTransactionErrorMetrics(cmd.node, metricsEnabled)
+				applyTransactionErrorMetrics(cmd.node, sampled)
 				err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 				cmd.recordAttemptFailure(ifc, err, false)
+				cmd.conn.closeOnError()
+				cmd.conn = nil
 				return err
 			}
 		}
 
 		// Send command.
 		cmd.commandWasSent = true
-		if metricsEnabled {
+		if sampled {
 			start := time.Now()
 			var dataSent int
 			dataSent, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
@@ -4079,7 +4095,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node, metricsEnabled)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -4091,11 +4107,11 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			}
 			// try to salvage the connection
 			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
-				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+				startConnSalvage(ifc, policy.TimeoutDelay, cmd.conn, cmd.node)
 			} else {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.conn.Close()
+				cmd.conn.closeOnError()
 			}
 
 			cmd.conn = nil
@@ -4105,7 +4121,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		// Parse results.
-		if metricsEnabled {
+		if sampled {
 			start := time.Now()
 			err = ifc.parseResult(ifc, cmd.conn)
 			dataReceived := cmd.conn.totalReceived
@@ -4117,7 +4133,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node, metricsEnabled)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -4133,12 +4149,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
 					cmd.recordAttemptFailure(ifc, err, isClientTimeout)
-					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+					startConnSalvage(ifc, policy.TimeoutDelay, cmd.conn, cmd.node)
 					continue
 				} else {
 					// IO errors are considered temporary anomalies. Retry.
 					// Close socket to flush out possible garbage. Do not put back in pool.
-					cmd.conn.Close()
+					cmd.conn.closeOnError()
 				}
 
 				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
@@ -4160,7 +4176,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
-				cmd.conn.Close()
+				cmd.conn.closeOnError()
 				cmd.conn = nil
 			}
 
@@ -4271,7 +4287,7 @@ func (cmd *baseCommand) commandPathMetrics() bool {
 	return cmd.metricsSampled
 }
 
-// applySharedLatency records dual latency scopes on command success (metrics.md §5.1):
+// applySharedLatency records dual latency scopes on command success:
 //   - namespace.latency.* from rpcStart (logical RPC/sub-batch, including its retries)
 //   - cluster.latency.* from callStart (whole public call, including retries);
 //     skipped for batch child RPCs — the coordinator records cluster.latency.batch
@@ -4326,27 +4342,48 @@ func (cmd *baseCommand) metricsCluster() *Cluster {
 
 // forEachNS invokes fn once per distinct namespace on the command.
 // Batch getNamespaces iters yield once per key; dedupe so multi-key same-ns
-// batches do not N× latency/bytes/error samples.
+// batches do not N× latency/bytes/error samples. Empty "" is the rollup bucket
+// when no namespace is resolved.
 func (cmd *baseCommand) forEachNS(ifc command, fn func(string)) {
 	if single := ifc.getNamespace(); single != nil {
-		if *single != "" {
-			fn(*single)
-		}
+		fn(*single)
 		return
 	}
 	if nsMap := ifc.getNamespaces(); nsMap != nil {
-		seen := map[string]struct{}{}
+		// Fast path: single distinct namespace (common for same-ns batches) —
+		// avoid allocating a seen map.
+		var first string
+		var sawFirst bool
+		var rest map[string]struct{}
 		for ns := range nsMap {
-			if ns == "" {
+			if !sawFirst {
+				first = ns
+				sawFirst = true
 				continue
 			}
-			if _, ok := seen[ns]; ok {
+			if ns == first {
 				continue
 			}
-			seen[ns] = struct{}{}
+			if rest == nil {
+				rest = map[string]struct{}{first: {}, ns: {}}
+				continue
+			}
+			rest[ns] = struct{}{}
+		}
+		if !sawFirst {
+			fn("")
+			return
+		}
+		if rest == nil {
+			fn(first)
+			return
+		}
+		for ns := range rest {
 			fn(ns)
 		}
+		return
 	}
+	fn("")
 }
 
 // setMetricsChild marks this command as a fan-out child of a public API call
@@ -4370,10 +4407,10 @@ func isClientOriginTimeout(err Error) bool {
 }
 
 // recordAttemptFailure increments shared namespace.* error/timeout split counters for
-// one failed wire/setup attempt (Decision 14, collection v36 — Java SDK-aligned).
-// Call on intermediate failures that later succeed via retry as well as terminal
-// failure. Do not record latency here (success-only). Detailed ResultCodeCounts
-// still update in parse via updateOrInsert.
+// one failed wire/setup attempt (Java SDK-aligned). Call on intermediate failures
+// that later succeed via retry as well as terminal failure. Do not record latency
+// here (success-only). Detailed ResultCodeCounts still update in parse via
+// updateOrInsert.
 func (cmd *baseCommand) recordAttemptFailure(ifc command, err Error, clientTimeout bool) {
 	if err == nil || !cmd.metricsSampled || cmd.node == nil {
 		return
@@ -4398,6 +4435,25 @@ func applyConnectionRecoveredMetrics(node *Node) {
 		return
 	}
 	node.stats.ConnectionsRecovered.GetAndIncrement()
+}
+
+// startConnSalvage runs TimeoutDelay drain in the background and tracks the
+// live recover_queue_size gauge (in-flight salvage). Matches Java recoverQueue
+// / Rust connections_recovering semantics without a central deque.
+func startConnSalvage(ifc command, timeoutDelay time.Duration, conn *Connection, node *Node) {
+	if conn == nil || node == nil {
+		return
+	}
+	cluster := node.cluster
+	if cluster != nil {
+		cluster.beginConnectionRecover()
+	}
+	go func() {
+		if cluster != nil {
+			defer cluster.endConnectionRecover()
+		}
+		ifc.salvageConn(timeoutDelay, conn, node)
+	}()
 }
 
 func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {

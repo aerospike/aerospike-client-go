@@ -14,11 +14,17 @@
 
 package histogram
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // LatencyBuckets is the shared learn-metrics / asadm range histogram:
 // bucket 0 is <= 1 unit, then each following bucket doubles by latencyShift.
 // Example (columns=7, shift=1): <=1, >1, >2, >4, >8, >16, >32.
+//
+// This type is not safe for concurrent writers; use SyncLatencyBuckets on the
+// command hot path.
 type LatencyBuckets struct {
 	columns int
 	shift   int
@@ -44,6 +50,12 @@ func NewLatencyBuckets(columns, shift int) *LatencyBuckets {
 		Buckets: make([]uint64, columns),
 	}
 }
+
+// Columns returns the number of buckets.
+func (h *LatencyBuckets) Columns() int { return h.columns }
+
+// Shift returns the power-of-two spacing between buckets.
+func (h *LatencyBuckets) Shift() int { return h.shift }
 
 // Index returns the bucket for an elapsed value already converted to the
 // configured latency unit (milliseconds or microseconds).
@@ -156,51 +168,221 @@ func (h *LatencyBuckets) Merge(other *LatencyBuckets) {
 	}
 }
 
-// SyncLatencyBuckets is a mutex-protected LatencyBuckets.
+// latencyShape is an immutable bucket array + layout. Hot-path Add loads the
+// pointer once; Reshape swaps in a new shape so concurrent Adds never write a
+// freed slice (Java LatencyBuckets AtomicLong[] pattern).
+type latencyShape struct {
+	columns int
+	shift   int
+	buckets []atomic.Uint64
+}
+
+func newLatencyShape(columns, shift int) *latencyShape {
+	if columns < 1 {
+		columns = 1
+	}
+	if shift < 1 {
+		shift = 1
+	}
+	return &latencyShape{
+		columns: columns,
+		shift:   shift,
+		buckets: make([]atomic.Uint64, columns),
+	}
+}
+
+const latencyMinUnset = ^uint64(0)
+
+// SyncLatencyBuckets is the concurrent shared MUST latency histogram.
+// Bucket counts, sum, and count use atomics (Java AtomicLong / LongAdder shape).
+// min/max use CAS. Reshape/Reset serialize only the rare layout-change path.
 type SyncLatencyBuckets struct {
-	l sync.Mutex
-	LatencyBuckets
+	shape atomic.Pointer[latencyShape]
+	count atomic.Uint64
+	sum   atomic.Uint64 // sum of elapsed units (exact; Clone exposes float64)
+	min   atomic.Uint64 // latencyMinUnset when empty
+	max   atomic.Uint64
+	// reshapeMu serializes Reshape/Reset against each other only.
+	reshapeMu sync.Mutex
 }
 
+// NewSyncLatencyBuckets creates an empty concurrent latency histogram.
 func NewSyncLatencyBuckets(columns, shift int) *SyncLatencyBuckets {
-	return &SyncLatencyBuckets{LatencyBuckets: *NewLatencyBuckets(columns, shift)}
+	h := &SyncLatencyBuckets{}
+	h.shape.Store(newLatencyShape(columns, shift))
+	h.min.Store(latencyMinUnset)
+	return h
 }
 
+// SyncLatencyBucketsFromSnapshot builds a concurrent histogram seeded from a
+// point-in-time LatencyBuckets (tend drain / aggregate helpers).
+func SyncLatencyBucketsFromSnapshot(lb *LatencyBuckets) SyncLatencyBuckets {
+	if lb == nil || len(lb.Buckets) == 0 {
+		return *NewSyncLatencyBuckets(1, 1)
+	}
+	h := NewSyncLatencyBuckets(lb.columns, lb.shift)
+	shape := h.shape.Load()
+	for i, v := range lb.Buckets {
+		if i < len(shape.buckets) {
+			shape.buckets[i].Store(v)
+		}
+	}
+	h.count.Store(lb.Count)
+	h.sum.Store(uint64(lb.Sum))
+	if lb.Count > 0 {
+		h.min.Store(lb.Min)
+		h.max.Store(lb.Max)
+	}
+	return *h
+}
+
+// Add records one elapsed sample. Lock-free on the hot path.
 func (h *SyncLatencyBuckets) Add(elapsed uint64) {
-	h.l.Lock()
-	h.LatencyBuckets.Add(elapsed)
-	h.l.Unlock()
-}
-
-func (h *SyncLatencyBuckets) Clone() *LatencyBuckets {
-	h.l.Lock()
-	defer h.l.Unlock()
-	return h.LatencyBuckets.Clone()
-}
-
-func (h *SyncLatencyBuckets) CloneAndReset() *LatencyBuckets {
-	h.l.Lock()
-	defer h.l.Unlock()
-	return h.LatencyBuckets.CloneAndReset()
-}
-
-func (h *SyncLatencyBuckets) Reshape(columns, shift int) {
-	h.l.Lock()
-	h.LatencyBuckets.Reshape(columns, shift)
-	h.l.Unlock()
-}
-
-func (h *SyncLatencyBuckets) Reset() {
-	h.l.Lock()
-	h.LatencyBuckets.Reset()
-	h.l.Unlock()
-}
-
-func (h *SyncLatencyBuckets) Merge(other *LatencyBuckets) {
-	if other == nil {
+	if h == nil {
 		return
 	}
-	h.l.Lock()
-	h.LatencyBuckets.Merge(other)
-	h.l.Unlock()
+	shape := h.shape.Load()
+	if shape == nil || len(shape.buckets) == 0 {
+		return
+	}
+	idx := LatencyBucketIndex(elapsed, len(shape.buckets), shape.shift)
+	shape.buckets[idx].Add(1)
+	h.count.Add(1)
+	h.sum.Add(elapsed)
+
+	// max: CAS upward
+	for {
+		old := h.max.Load()
+		if elapsed <= old {
+			break
+		}
+		if h.max.CompareAndSwap(old, elapsed) {
+			break
+		}
+	}
+	// min: unset sentinel or CAS downward
+	for {
+		old := h.min.Load()
+		if old != latencyMinUnset && elapsed >= old {
+			break
+		}
+		if h.min.CompareAndSwap(old, elapsed) {
+			break
+		}
+	}
+}
+
+// Clone returns a point-in-time non-concurrent snapshot. Concurrent Add may
+// interleave; acceptable for metrics export (same tradeoff as Java atomics).
+func (h *SyncLatencyBuckets) Clone() *LatencyBuckets {
+	if h == nil {
+		return NewLatencyBuckets(1, 1)
+	}
+	shape := h.shape.Load()
+	if shape == nil {
+		return NewLatencyBuckets(1, 1)
+	}
+	out := NewLatencyBuckets(shape.columns, shape.shift)
+	for i := range shape.buckets {
+		out.Buckets[i] = shape.buckets[i].Load()
+	}
+	out.Count = h.count.Load()
+	out.Sum = float64(h.sum.Load())
+	out.Max = h.max.Load()
+	min := h.min.Load()
+	if out.Count == 0 || min == latencyMinUnset {
+		out.Min = 0
+		out.Max = 0
+	} else {
+		out.Min = min
+	}
+	return out
+}
+
+// CloneAndReset snapshots then zeros the live counters (tend drain).
+func (h *SyncLatencyBuckets) CloneAndReset() *LatencyBuckets {
+	snap := h.Clone()
+	h.Reset()
+	return snap
+}
+
+// Reshape replaces the bucket layout when columns/shift change. Resets samples.
+func (h *SyncLatencyBuckets) Reshape(columns, shift int) {
+	if h == nil {
+		return
+	}
+	if columns < 1 {
+		columns = 1
+	}
+	if shift < 1 {
+		shift = 1
+	}
+	h.reshapeMu.Lock()
+	defer h.reshapeMu.Unlock()
+	cur := h.shape.Load()
+	if cur != nil && cur.columns == columns && cur.shift == shift {
+		return
+	}
+	h.shape.Store(newLatencyShape(columns, shift))
+	h.count.Store(0)
+	h.sum.Store(0)
+	h.max.Store(0)
+	h.min.Store(latencyMinUnset)
+}
+
+// Reset zeros counters and buckets, keeping the current layout.
+func (h *SyncLatencyBuckets) Reset() {
+	if h == nil {
+		return
+	}
+	h.reshapeMu.Lock()
+	defer h.reshapeMu.Unlock()
+	cur := h.shape.Load()
+	cols, shift := 1, 1
+	if cur != nil {
+		cols, shift = cur.columns, cur.shift
+	}
+	h.shape.Store(newLatencyShape(cols, shift))
+	h.count.Store(0)
+	h.sum.Store(0)
+	h.max.Store(0)
+	h.min.Store(latencyMinUnset)
+}
+
+// Merge adds a snapshot into this concurrent histogram.
+func (h *SyncLatencyBuckets) Merge(other *LatencyBuckets) {
+	if h == nil || other == nil || other.Count == 0 {
+		return
+	}
+	shape := h.shape.Load()
+	if shape == nil || len(shape.buckets) != len(other.Buckets) {
+		return
+	}
+	for i, v := range other.Buckets {
+		if v != 0 {
+			shape.buckets[i].Add(v)
+		}
+	}
+	h.count.Add(other.Count)
+	h.sum.Add(uint64(other.Sum))
+	// max
+	for {
+		old := h.max.Load()
+		if other.Max <= old {
+			break
+		}
+		if h.max.CompareAndSwap(old, other.Max) {
+			break
+		}
+	}
+	// min
+	for {
+		old := h.min.Load()
+		if old != latencyMinUnset && other.Min >= old {
+			break
+		}
+		if h.min.CompareAndSwap(old, other.Min) {
+			break
+		}
+	}
 }

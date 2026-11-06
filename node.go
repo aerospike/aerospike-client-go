@@ -235,7 +235,7 @@ func (nd *Node) refreshSessionToken() (err Error) {
 			// force new connections to use default creds until a new valid session token is acquired
 			nd.resetSessionInfo()
 			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
+			conn.closeOnError()
 			return err
 		}
 
@@ -480,7 +480,9 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	cc := nd.connectionCount.IncrementAndGet()
 	if clusterClientPolicy.LimitConnectionsToQueueSize && cc > clusterClientPolicy.ConnectionQueueSize {
 		nd.connectionCount.DecrementAndGet()
-		nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
+		if nd.metricsEnabled() {
+			nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
+		}
 
 		return nil, ErrTooManyConnectionsForNode.err()
 	}
@@ -518,7 +520,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 			nd.incrErrorCount()
 		}
 		nd.stats.ConnectionsFailed.IncrementAndGet()
-		// CM-8: auth.failure is auth result codes only; network/TLS during login → open/tls.
+		// auth.failure is auth result codes only; network/TLS during login → open/tls.
 		if isConnectionAuthFailure(err) {
 			nd.recordConnectionAuthFailure()
 		} else {
@@ -526,12 +528,14 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		}
 
 		// Socket not authenticated. Do not put back into pool.
-		conn.Close()
+		conn.closeOnError()
 		return nil, err
 	}
 
-	nd.stats.ConnectionsSuccessful.IncrementAndGet()
-	if nd.cluster.operationalEnabled.Load() {
+	if nd.metricsEnabled() {
+		nd.stats.ConnectionsSuccessful.IncrementAndGet()
+	}
+	if nd.cluster != nil && nd.cluster.operationalEnabled.Load() {
 		if policy := nd.stats.getMetricPolicy(); policy != nil {
 			elapsed := policy.elapsedUnits(time.Since(connStart))
 			nd.stats.addConnLatency(elapsed)
@@ -607,7 +611,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 			break
 		}
 
-		conn.Close()
+		conn.closeOnError()
 		conn = nil
 	}
 
@@ -626,7 +630,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
 		// Do not put back into pool for other types of errors.
-		conn.Close()
+		conn.closeOnError()
 		return nil, err
 	}
 
@@ -640,9 +644,12 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 // closed and discarded.
 func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) bool {
 	conn.refresh()
-	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
-		nd.stats.ConnectionsPoolOverflow.IncrementAndGet()
-		conn.Close()
+	if !nd.active.Get() {
+		conn.closeNodeRemoved()
+		return false
+	}
+	if !nd.connections.Offer(conn, hint) {
+		conn.closePoolShrink()
 		return false
 	}
 	return true
@@ -657,7 +664,12 @@ func (nd *Node) PutConnection(conn *Connection) {
 
 // InvalidateConnection closes and discards a connection from the pool.
 func (nd *Node) InvalidateConnection(conn *Connection) {
-	conn.Close()
+	conn.closeOnError()
+}
+
+// metricsEnabled reports whether Tier 0 / master metrics collection is on.
+func (nd *Node) metricsEnabled() bool {
+	return nd != nil && nd.cluster != nil && nd.cluster.metricsEnabled.Load()
 }
 
 // GetHost retrieves host for the node.
@@ -718,13 +730,13 @@ func (nd *Node) String() string {
 
 func (nd *Node) closeConnections() {
 	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
-		conn.Close()
+		conn.closeNodeRemoved()
 	}
 
 	// close the tend connection
 	nd.tendConn.Do(func(conn *Connection) {
 		if conn != nil {
-			conn.Close()
+			conn.closeNodeRemoved()
 		}
 	})
 }
@@ -848,7 +860,7 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 	if errCall := nd.usingTendConn(timeout, func(conn *Connection) Error {
 		response, err = conn.RequestInfo(name...)
 		if err != nil {
-			conn.Close()
+			conn.closeOnError()
 		}
 		return err
 	}); errCall != nil {
@@ -864,7 +876,7 @@ func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *in
 	if errCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		response, err = newInfo(conn, name...)
 		if err != nil {
-			conn.Close()
+			conn.closeOnError()
 		}
 		return err
 	}); errCall != nil {
@@ -967,9 +979,8 @@ func (nd *Node) WarmUp(count int) (int, Error) {
 
 			if nd.putConnectionWithHint(conn, 0) {
 				cnt.IncrementAndGet()
-			} else {
-				conn.Close()
 			}
+			// else: putConnectionWithHint already closed the connection with the right reason.
 
 			return nil
 		})

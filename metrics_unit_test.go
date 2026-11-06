@@ -453,6 +453,140 @@ func TestDisableMetricsFromInsideExport(t *testing.T) {
 	}
 }
 
+func TestExporterSuspendProbesEvery10thInterval(t *testing.T) {
+	clstr := &Cluster{}
+	failing := &failNExporter{failLeft: 100}
+	reg := &registeredExporter{exporter: failing}
+	clstr.exporters = []*registeredExporter{reg}
+	snap := &MetricsSnapshot{}
+
+	// 3 consecutive failures → suspend.
+	for i := 0; i < metricsExporterFailureThreshold; i++ {
+		if clstr.fanOutExport(snap) {
+			t.Fatalf("expected failure on attempt %d", i+1)
+		}
+	}
+	if reg.skipRemaining != metricsExporterSuspendIntervals {
+		t.Fatalf("after N failures skipRemaining want %d got %d", metricsExporterSuspendIntervals, reg.skipRemaining)
+	}
+	callsAfterSuspend := failing.calls
+
+	// Next 9 ticks must skip (no Export call).
+	for i := 0; i < metricsExporterSuspendIntervals-1; i++ {
+		clstr.fanOutExport(snap)
+	}
+	if failing.calls != callsAfterSuspend {
+		t.Fatalf("suspended exporter must not be probed before 10th interval: calls %d→%d", callsAfterSuspend, failing.calls)
+	}
+	// 10th interval probes.
+	clstr.fanOutExport(snap)
+	if failing.calls != callsAfterSuspend+1 {
+		t.Fatalf("expected probe on 10th interval, calls=%d", failing.calls)
+	}
+	if reg.skipRemaining != metricsExporterSuspendIntervals {
+		t.Fatalf("failed probe should re-suspend for %d, got %d", metricsExporterSuspendIntervals, reg.skipRemaining)
+	}
+
+	// Succeed on next probe.
+	failing.failLeft = 0
+	for i := 0; i < metricsExporterSuspendIntervals-1; i++ {
+		clstr.fanOutExport(snap)
+	}
+	if !clstr.fanOutExport(snap) {
+		t.Fatal("successful probe should return true")
+	}
+	if reg.consecutiveFails != 0 || reg.skipRemaining != 0 {
+		t.Fatalf("success should clear suspend state, fails=%d skip=%d", reg.consecutiveFails, reg.skipRemaining)
+	}
+}
+
+type failNExporter struct {
+	failLeft int
+	calls    int
+}
+
+func (e *failNExporter) Export(*MetricsSnapshot) {
+	e.calls++
+	if e.failLeft > 0 {
+		e.failLeft--
+		panic("export fail")
+	}
+}
+
+func TestPerExporterDepartedDrain(t *testing.T) {
+	clstr := &Cluster{}
+	a := &recordingExporter{}
+	b := &failNExporter{failLeft: 100}
+	ra := &registeredExporter{exporter: a}
+	rb := &registeredExporter{exporter: b}
+	clstr.exporters = []*registeredExporter{ra, rb}
+	clstr.storeDeparted(NodeMetricsSnapshot{NodeName: "n1"})
+
+	snap := &MetricsSnapshot{}
+	snap.NodesDeparted, _ = clstr.peekDeparted()
+	if len(snap.NodesDeparted) != 1 {
+		t.Fatalf("expected 1 departed, got %d", len(snap.NodesDeparted))
+	}
+	clstr.fanOutExport(snap)
+
+	if _, ok := ra.drainedDeparted["n1"]; !ok {
+		t.Fatal("successful exporter A should mark n1 drained")
+	}
+	if len(rb.drainedDeparted) != 0 {
+		t.Fatal("failed exporter B must not drain")
+	}
+	out, _ := clstr.peekDeparted()
+	if len(out) != 1 {
+		t.Fatalf("shared departed must remain until all exporters drain, got %d", len(out))
+	}
+
+	// A alone should not see n1 again.
+	filtered := filterDepartedForExporter(snap, ra)
+	if len(filtered.NodesDeparted) != 0 {
+		t.Fatal("A should filter already-drained key")
+	}
+}
+
+func TestParseReportSizeLimit(t *testing.T) {
+	n, ok := parseReportSizeLimit("10mb")
+	if !ok || n != 10_000_000 {
+		t.Fatalf("10mb: got %d ok=%v", n, ok)
+	}
+	n, ok = parseReportSizeLimit("1g")
+	if !ok || n != 1_000_000_000 {
+		t.Fatalf("1g: got %d ok=%v", n, ok)
+	}
+	n, ok = coerceReportSizeLimit(1024)
+	if !ok || n != 1024 {
+		t.Fatalf("int: got %d ok=%v", n, ok)
+	}
+	if _, ok := parseReportSizeLimit("nope"); ok {
+		t.Fatal("invalid size must fail")
+	}
+}
+
+func TestNormalizeSamplerUnsetToOneOne(t *testing.T) {
+	mp := &MetricsPolicy{
+		LatencyColumns:     7,
+		LatencyBase:        2,
+		LatencyShift:       1,
+		HistogramType:      1,
+		OperationalEnabled: true,
+		Interval:           time.Second,
+		Exporter:           MetricsExporterNone,
+	}
+	out := normalizeMetricsPolicy(mp)
+	if out.SamplerRange != 1 || out.SamplerThreshold != 1 {
+		t.Fatalf("unset sampler → 1/1, got %d/%d", out.SamplerRange, out.SamplerThreshold)
+	}
+	mp.SetSamplerNever()
+	mp.SamplerRange = 1_000_000
+	out = normalizeMetricsPolicy(mp)
+	if out.SamplerThreshold != 0 {
+		t.Fatal("SetSamplerNever must keep threshold 0")
+	}
+}
+
 func TestFileMetricsExporterBracketBalance(t *testing.T) {
 	dir := t.TempDir()
 	e := NewFileMetricsExporter(dir)

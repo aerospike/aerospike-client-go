@@ -19,9 +19,8 @@ import "time"
 // batchExecute Uses werrGroup to run commands using multiple goroutines,
 // and waits for their return.
 //
-// Sampler / aggregates (Decision 11 / CM-20): one metrics_on for the whole user
-// batch. Children record namespace.latency.batch only; this coordinator records
-// command.count and, on success, cluster.latency.batch.
+// One metrics_on for the whole user batch. Children record namespace.latency.batch
+// only; this coordinator records command.count and, on success, cluster.latency.batch.
 func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, cmd batcher) (int, Error) {
 	maxConcurrentNodes := policy.ConcurrentNodes
 	if maxConcurrentNodes <= 0 {

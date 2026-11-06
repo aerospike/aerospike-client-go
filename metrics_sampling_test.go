@@ -167,14 +167,14 @@ var _ = gg.Describe("Metrics sampling integration", func() {
 		gm.Expect(after.BatchPartialFailure).To(gm.Equal(before.BatchPartialFailure))
 	})
 
-	gg.It("CpuPercent is not stuck near 100 under idle", func() {
+	gg.It("CPUPercent is not stuck near 100 under idle", func() {
 		p := as.DefaultMetricsPolicy()
 		p.Exporter = as.MetricsExporterNone
 		client.EnableMetrics(p)
 		_ = client.MetricsSnapshot() // prime CPU sample
 		time.Sleep(200 * time.Millisecond)
 		snap := client.MetricsSnapshot()
-		gm.Expect(snap.CpuPercent).To(gm.BeNumerically("<", 95),
+		gm.Expect(snap.CPUPercent).To(gm.BeNumerically("<", 95),
 			"idle process CPU should not look like total-including-idle (~100%%)")
 	})
 })

@@ -134,8 +134,14 @@ func TestFileMetricsExporterWritesSnakeCaseHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(body)
-	if !strings.Contains(s, " header(3)") {
-		t.Fatalf("expected header(3) snake_case v3 schema, got:\n%s", s)
+	if !strings.Contains(s, " header(4)") {
+		t.Fatalf("expected header(4) snake_case v3 schema, got:\n%s", s)
+	}
+	if strings.Contains(s, "delay_queue_timeout_count") {
+		t.Fatalf("native file must omit async delay_queue_timeout_count, got:\n%s", s)
+	}
+	if !strings.Contains(s, "recover_queue_size") {
+		t.Fatalf("expected recover_queue_size in header, got:\n%s", s)
 	}
 	if !strings.Contains(s, "key_busy") || !strings.Contains(s, "bytes_in") || !strings.Contains(s, "client_type") {
 		t.Fatalf("expected snake_case file schema, got:\n%s", s)
@@ -147,7 +153,7 @@ func TestFileMetricsExporterWritesSnakeCaseHeader(t *testing.T) {
 		t.Fatalf("expected cluster line, got:\n%s", s)
 	}
 	if !strings.Contains(s, "client_timeouts") || !strings.Contains(s, "cluster[name,client_type") {
-		t.Fatalf("expected CM-7 splits and snake_case cluster header, got:\n%s", s)
+		t.Fatalf("expected timeout/error splits and snake_case cluster header, got:\n%s", s)
 	}
 }
 
@@ -320,17 +326,57 @@ func TestNormalizeZeroValueMetricsPolicy(t *testing.T) {
 	}
 }
 
-func TestResetOpenedClosedSinceEnable(t *testing.T) {
+func TestRecoverQueueSizeTracksInFlightSalvage(t *testing.T) {
+	clstr := &Cluster{}
+	if clstr.recoverQueueSize() != 0 {
+		t.Fatal("expected 0")
+	}
+	clstr.beginConnectionRecover()
+	clstr.beginConnectionRecover()
+	if clstr.recoverQueueSize() != 2 {
+		t.Fatalf("got %d", clstr.recoverQueueSize())
+	}
+	clstr.endConnectionRecover()
+	if clstr.recoverQueueSize() != 1 {
+		t.Fatalf("got %d", clstr.recoverQueueSize())
+	}
+	clstr.endConnectionRecover()
+	clstr.endConnectionRecover() // underflow guard
+	if clstr.recoverQueueSize() != 0 {
+		t.Fatalf("got %d", clstr.recoverQueueSize())
+	}
+	snap := clstr.buildMetricsSnapshot(false)
+	if snap.RecoverQueueSize != 0 {
+		t.Fatalf("snapshot recover_queue_size=%d", snap.RecoverQueueSize)
+	}
+}
+
+func TestResetMetricsSinceEnable(t *testing.T) {
 	clstr := &Cluster{}
 	nd := &Node{cluster: clstr}
 	nd.stats.ConnectionsSuccessful.Set(9)
 	nd.stats.ConnectionsClosed.Set(4)
+	nd.stats.ConnectionsIdleDropped.Set(7)
+	nd.stats.ConnectionsClosedError.Set(3)
+	nd.stats.ConnectionsPoolOverflow.Set(2)
+	nd.stats.ConnectionsClosedNodeRemoved.Set(5)
+	nd.stats.ConnectionsPoolExhausted.Set(1)
+	clstr.commandCount.Set(100)
+	clstr.usageBlocking.Set(50)
 	clstr.nodes.Set([]*Node{nd})
 
-	clstr.resetOpenedClosedSinceEnable()
+	clstr.resetMetricsSinceEnable()
 	if nd.stats.ConnectionsSuccessful.Get() != 0 || nd.stats.ConnectionsClosed.Get() != 0 {
 		t.Fatalf("opened/closed should reset at enable, got %d/%d",
 			nd.stats.ConnectionsSuccessful.Get(), nd.stats.ConnectionsClosed.Get())
+	}
+	if nd.stats.ConnectionsIdleDropped.Get() != 0 || nd.stats.ConnectionsClosedError.Get() != 0 ||
+		nd.stats.ConnectionsPoolOverflow.Get() != 0 || nd.stats.ConnectionsClosedNodeRemoved.Get() != 0 ||
+		nd.stats.ConnectionsPoolExhausted.Get() != 0 {
+		t.Fatalf("close-reason/pool counters should reset at enable")
+	}
+	if clstr.commandCount.Get() != 0 || clstr.usageBlocking.Get() != 0 {
+		t.Fatalf("cluster enable-scoped counters should reset")
 	}
 }
 

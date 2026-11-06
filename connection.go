@@ -101,10 +101,25 @@ type Connection struct {
 
 	closer sync.Once
 
+	// closeReason classifies SHOULD connection.closed.* counters when Close runs
+	// under metrics.enabled. Unspecified closes only bump the Tier 0 closed total.
+	closeReason connCloseReason
+
 	// Used to track the last time the connection was used. This is used to determine
 	// if the connection is idle/timeout and should be closed.
 	salvageConnection bool
 }
+
+// connCloseReason selects which connection.closed.* SHOULD counter Close increments.
+type connCloseReason uint8
+
+const (
+	connCloseNone connCloseReason = iota
+	connCloseError
+	connCloseIdle
+	connClosePoolShrink
+	connCloseNodeRemoved
+)
 
 // makes sure that the connection is closed eventually, even if it is not consumed
 func connectionFinalizer(c *Connection) {
@@ -122,7 +137,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
 			if conn != nil {
-				if conn.node != nil {
+				if conn.node != nil && conn.node.metricsEnabled() {
 					conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 				}
 				if errors.Is(terr, os.ErrDeadlineExceeded) {
@@ -181,7 +196,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 }
 
 // errTLSHandshakePhase marks network errors that occurred during TLS handshake
-// or hostname verification so CM-8 can distinguish them from dial/open failures.
+// or hostname verification so they can be distinguished from dial/open failures.
 var errTLSHandshakePhase = errors.New("aerospike: tls handshake failure")
 
 func isTLSHandshakeFailure(err Error) bool {
@@ -311,7 +326,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 	// the line should happen before .Close()
 	if !ctn.salvageConnection {
-		ctn.Close()
+		ctn.closeOnError()
 	}
 
 	return total, aerr
@@ -397,14 +412,30 @@ func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duratio
 	return nil
 }
 
-// Close closes the connection
+// Close closes the connection. When metrics are enabled, increments Tier 0 closed
+// and the SHOULD close-reason counter selected by closeReason (if any).
 func (ctn *Connection) Close() {
+	if ctn == nil {
+		return
+	}
 	ctn.closer.Do(func() {
-		if ctn != nil && ctn.conn != nil {
+		if ctn.conn != nil {
 			// deregister
 			if ctn.node != nil {
 				ctn.node.connectionCount.DecrementAndGet()
-				ctn.node.stats.ConnectionsClosed.IncrementAndGet()
+				if ctn.node.metricsEnabled() {
+					ctn.node.stats.ConnectionsClosed.IncrementAndGet()
+					switch ctn.closeReason {
+					case connCloseError:
+						ctn.node.stats.ConnectionsClosedError.IncrementAndGet()
+					case connCloseIdle:
+						ctn.node.stats.ConnectionsIdleDropped.IncrementAndGet()
+					case connClosePoolShrink:
+						ctn.node.stats.ConnectionsPoolOverflow.IncrementAndGet()
+					case connCloseNodeRemoved:
+						ctn.node.stats.ConnectionsClosedNodeRemoved.IncrementAndGet()
+					}
+				}
 			}
 
 			if err := ctn.conn.Close(); err != nil {
@@ -420,6 +451,50 @@ func (ctn *Connection) Close() {
 			ctn.node = nil
 		}
 	})
+}
+
+func (ctn *Connection) setCloseReason(r connCloseReason) {
+	if ctn != nil && ctn.closeReason == connCloseNone {
+		ctn.closeReason = r
+	}
+}
+
+// closeOnError closes the connection and counts connection.closed.error when metrics are on.
+func (ctn *Connection) closeOnError() {
+	if ctn == nil {
+		return
+	}
+	ctn.setCloseReason(connCloseError)
+	ctn.Close()
+}
+
+// closeIdle closes an idle pooled connection (connection.closed.idle).
+func (ctn *Connection) closeIdle() {
+	if ctn == nil {
+		return
+	}
+	ctn.setCloseReason(connCloseIdle)
+	ctn.Close()
+}
+
+// closePoolShrink closes a connection rejected because the pool is full
+// (connection.closed.pool_shrink).
+func (ctn *Connection) closePoolShrink() {
+	if ctn == nil {
+		return
+	}
+	ctn.setCloseReason(connClosePoolShrink)
+	ctn.Close()
+}
+
+// closeNodeRemoved closes a connection because its node left the cluster
+// (connection.closed.node_removed).
+func (ctn *Connection) closeNodeRemoved() {
+	if ctn == nil {
+		return
+	}
+	ctn.setCloseReason(connCloseNodeRemoved)
+	ctn.Close()
 }
 
 // Login will send authentication information to the server.
@@ -452,7 +527,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 				ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 			}
 			// Socket not authenticated. Do not put back into pool.
-			ctn.Close()
+			ctn.closeOnError()
 			return err
 		}
 

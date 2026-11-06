@@ -54,10 +54,11 @@ func (n *nodeStats) getOrCreateNsOp(namespace string) *nsOperationalMetrics {
 }
 
 func (n *nodeStats) addSharedLatency(namespace string, lt LatencyType, elapsed uint64) {
-	if namespace == "" || lt == LatencyConn {
+	if lt == LatencyConn {
 		// Connection-open latency is node-scoped (addConnLatency), not namespace.
 		return
 	}
+	// Empty namespace "" is the rollup bucket for RPCs with no resolved ns.
 	op := n.getOrCreateNsOp(namespace)
 	op.Latencies[lt].Add(elapsed)
 }
@@ -83,9 +84,6 @@ func (n *nodeStats) snapshotConnLatency() LatencySnapshot {
 }
 
 func (n *nodeStats) addSharedBytes(namespace string, in, out int64) {
-	if namespace == "" {
-		return
-	}
 	op := n.getOrCreateNsOp(namespace)
 	if in != 0 {
 		op.BytesIn.AddAndGet(int(in))
@@ -96,12 +94,9 @@ func (n *nodeStats) addSharedBytes(namespace string, in, out int64) {
 }
 
 // addSharedError updates shared namespace.* error/timeout split counters.
-// Call once per failed attempt (Decision 14 / collection v36), including
-// intermediate failures that later succeed via retry.
+// Call once per failed attempt, including intermediate failures that later
+// succeed via retry.
 func (n *nodeStats) addSharedError(namespace string, resultCode types.ResultCode, clientTimeout bool) {
-	if namespace == "" {
-		return
-	}
 	op := n.getOrCreateNsOp(namespace)
 	if clientTimeout {
 		op.ClientTimeouts.IncrementAndGet()
@@ -231,6 +226,31 @@ func (n *nodeStats) reshapeOperational() {
 	})
 }
 
+// resetEnableScoped zeros Tier 0 close/open counters, node open/tls/auth
+// failures, and shared operational histograms/counters for the off→on
+// EnableMetrics edge.
+func (n *nodeStats) resetEnableScoped() {
+	if n == nil {
+		return
+	}
+	n.ConnectionsSuccessful.Set(0)
+	n.ConnectionsClosed.Set(0)
+	n.ConnectionsClosedError.Set(0)
+	n.ConnectionsIdleDropped.Set(0)
+	n.ConnectionsPoolOverflow.Set(0)
+	n.ConnectionsClosedNodeRemoved.Set(0)
+	n.ConnectionsPoolEmpty.Set(0)
+	n.ConnectionsPoolExhausted.Set(0)
+	n.ConnectionOpenFailure.Set(0)
+	n.ConnectionTlsHandshakeFailure.Set(0)
+	n.ConnectionAuthFailure.Set(0)
+	n.ConnLatency.Reset()
+	n.OperationalNamespaces.Range(func(key, _ any) bool {
+		n.OperationalNamespaces.Delete(key)
+		return true
+	})
+}
+
 func (n *nodeStats) snapshotNamespaces() []NamespaceMetricsSnapshot {
 	byNS := map[string]int{}
 	var out []NamespaceMetricsSnapshot
@@ -266,7 +286,7 @@ func (n *nodeStats) snapshotNamespaces() []NamespaceMetricsSnapshot {
 		return true
 	})
 
-	// Overlay language-optional per-command phase histograms (Decision 5).
+	// Overlay language-optional per-command phase histograms.
 	n.DetailedMetrics.Range(func(key, value any) bool {
 		ns := key.(string)
 		arr := value.(*detailedMetricsArray)

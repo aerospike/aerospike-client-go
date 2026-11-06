@@ -29,9 +29,9 @@ import (
 
 // decideOperationalSample is the command-path sampler gate (one decision per
 // user API call / sub-batch, drawn before the retry loop). Connection-path
-// CM-8 failures use operationalEnabled alone — they are not sampler-gated.
+// open/tls/auth failures use operationalEnabled alone — they are not sampler-gated.
 //
-// Spec: draw = next_random_uint64; metrics_on when (draw % range) < threshold.
+// draw = next_random_uint64; metrics_on when (draw % range) < threshold.
 func (clstr *Cluster) decideOperationalSample() bool {
 	if !clstr.operationalEnabled.Load() {
 		return false
@@ -50,7 +50,7 @@ func (clstr *Cluster) decideOperationalSample() bool {
 
 func (clstr *Cluster) recordUsage(ct commandType, background bool, filter *Expression) {
 	// Caller already checked metricsEnabled and skipped non data-plane commands.
-	// Usage is off by default. P1: feature.api.*; P2/CM-27: shape + filter.
+	// Usage is off by default. feature.api.* plus shape + filter when enabled.
 	if !clstr.usageEnabled.Load() {
 		return
 	}
@@ -168,8 +168,8 @@ func (clstr *Cluster) recordValidationAuthFailure() {
 	clstr.validationOpenFailure.IncrementAndGet() // rollup
 }
 
-// isConnectionAuthFailure reports whether err is an authentication result (CM-8
-// connection.auth.failure / validation.auth.failure). Network and TLS failures
+// isConnectionAuthFailure reports whether err is an authentication result
+// (connection.auth.failure / validation.auth.failure). Network and TLS failures
 // during login are open/tls failures, not auth.
 func isConnectionAuthFailure(err Error) bool {
 	if err == nil {
@@ -187,26 +187,78 @@ func isConnectionAuthFailure(err Error) bool {
 	)
 }
 
-// resetOpenedClosedSinceEnable zeros Tier 0 opened/closed counters so snapshots
+// resetMetricsSinceEnable zeros enable-scoped counters/histograms so snapshots
 // report cumulative values since the current EnableMetrics (collection spec).
-func (clstr *Cluster) resetOpenedClosedSinceEnable() {
+// Called only on the metrics-off → metrics-on edge.
+func (clstr *Cluster) resetMetricsSinceEnable() {
 	if clstr == nil {
 		return
 	}
+	clstr.commandCount.Set(0)
+	clstr.commandRetries.Set(0)
+	clstr.batchPartialFailure.Set(0)
+	clstr.validationOpenFailure.Set(0)
+	clstr.validationTlsHandshakeFailure.Set(0)
+	clstr.validationAuthFailure.Set(0)
+	clstr.usageBlocking.Set(0)
+	clstr.usageDeferred.Set(0)
+	clstr.usageBackground.Set(0)
+	clstr.usageShapePoint.Set(0)
+	clstr.usageShapeBatch.Set(0)
+	clstr.usageShapeQuery.Set(0)
+	clstr.usageFilterAEL.Set(0)
+	clstr.usageFilterExp.Set(0)
+	for i := LatencyRead; i < latencyTypeMax; i++ {
+		clstr.clusterLatencies[i].Reset()
+	}
+
 	clstr.statsLock.Lock()
 	defer clstr.statsLock.Unlock()
 	for _, stat := range clstr.stats {
 		if stat != nil {
-			stat.ConnectionsSuccessful.Set(0)
-			stat.ConnectionsClosed.Set(0)
+			stat.resetEnableScoped()
 		}
 	}
 	for _, node := range clstr.GetNodes() {
 		if node != nil {
-			node.stats.ConnectionsSuccessful.Set(0)
-			node.stats.ConnectionsClosed.Set(0)
+			node.stats.resetEnableScoped()
 		}
 	}
+}
+
+// beginConnectionRecover increments the live TimeoutDelay salvage gauge.
+func (clstr *Cluster) beginConnectionRecover() {
+	if clstr != nil {
+		clstr.connectionsRecovering.Add(1)
+	}
+}
+
+// endConnectionRecover decrements the live TimeoutDelay salvage gauge.
+func (clstr *Cluster) endConnectionRecover() {
+	if clstr == nil {
+		return
+	}
+	for {
+		cur := clstr.connectionsRecovering.Load()
+		if cur <= 0 {
+			clstr.connectionsRecovering.Store(0)
+			return
+		}
+		if clstr.connectionsRecovering.CompareAndSwap(cur, cur-1) {
+			return
+		}
+	}
+}
+
+func (clstr *Cluster) recoverQueueSize() int {
+	if clstr == nil {
+		return 0
+	}
+	n := clstr.connectionsRecovering.Load()
+	if n < 0 {
+		return 0
+	}
+	return int(n)
 }
 
 func (clstr *Cluster) appID() string {
@@ -289,14 +341,10 @@ func (clstr *Cluster) installExporters(policy *MetricsPolicy) {
 		clstr.fileExporter = nil
 	}
 
+	// FILE calls only the built-in writer. CUSTOM/NONE keep app exporters
+	// registered; periodicExportEnabled gates the export loop for NONE.
 	var kept []*registeredExporter
-	switch token {
-	case MetricsExporterFile:
-		// FILE calls only the built-in writer (PRD metrics.exporter: FILE).
-	case MetricsExporterCustom, MetricsExporterNone:
-		// NONE keeps exporters registered; periodicExportEnabled gates the loop.
-		kept = app
-	default:
+	if token != MetricsExporterFile {
 		kept = app
 	}
 
@@ -314,9 +362,18 @@ func (clstr *Cluster) installExporters(policy *MetricsPolicy) {
 	clstr.exporters = kept
 }
 
+// exporterCount returns the number of exporters that will receive periodic Export.
+func (clstr *Cluster) exporterCount() int {
+	clstr.metricsMu.Lock()
+	defer clstr.metricsMu.Unlock()
+	return len(clstr.exporters)
+}
+
 func (clstr *Cluster) startMetricsExport(interval time.Duration) {
 	if interval <= 0 {
 		interval = defaultMetricsExportInterval
+	} else if interval > maxMetricsExportInterval {
+		interval = maxMetricsExportInterval
 	}
 
 	// Idempotent when already running at the same interval — dynconfig polling
@@ -395,27 +452,33 @@ func (clstr *Cluster) metricsExportLoop(interval time.Duration, stop <-chan stru
 			// Build outside metricsMu so EnableMetrics reshape (statsLock) cannot
 			// deadlock with export. fanOutExport releases metricsMu across Export
 			// so DisableMetrics from inside an exporter cannot deadlock.
+			clstr.metricsMu.Lock()
+			nExp := len(clstr.exporters)
+			clstr.metricsMu.Unlock()
+			if nExp == 0 {
+				continue
+			}
 			snap := clstr.buildMetricsSnapshotForExport()
 			clstr.exportInCallback.Store(true)
-			ok := clstr.fanOutExport(snap)
-			clstr.exportInCallback.Store(false)
-			if ok {
-				// Clear the whole set after a fully successful export fan-out
-				// not by snapshot identity.
-				clstr.clearDeparted()
-			}
+			func() {
+				defer clstr.exportInCallback.Store(false)
+				clstr.fanOutExport(snap)
+			}()
 		}
 	}
 }
 
-// fanOutExport returns true only when every active exporter succeeded
-// (CLIENT-5654: nodes_departed cleared only after a fully successful export).
+// fanOutExport delivers a snapshot to each active exporter. Suspended exporters
+// are probed every metricsExporterSuspendIntervals ticks.
+// nodes_departed is drained per exporter on that exporter's successful Export
+// (only keys present in the snapshot it received).
 // Export runs without metricsMu so DisableMetrics from inside an exporter
 // cannot deadlock; skip/fail counters are updated under the lock around calls.
 func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
 	type pending struct {
-		reg *registeredExporter
-		exp MetricsExporter
+		reg  *registeredExporter
+		exp  MetricsExporter
+		file bool
 	}
 
 	clstr.metricsMu.Lock()
@@ -431,15 +494,14 @@ func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
 		}
 		if e.skipRemaining > 0 {
 			e.skipRemaining--
-			if e.skipRemaining == 0 {
-				// Fresh chance after the suspend window (Decision 10).
-				e.consecutiveFails = 0
+			if e.skipRemaining > 0 {
+				// Still suspended; probe when countdown hits 0 on a later tick.
+				continue
 			}
-			// Suspended exporters are skipped for this round; do not fail the
-			// overall success gate (they already failed previously).
-			continue
+			// skipRemaining == 0: probe this interval.
 		}
-		toCall = append(toCall, pending{reg: e, exp: e.exporter})
+		_, isFile := e.exporter.(*FileMetricsExporter)
+		toCall = append(toCall, pending{reg: e, exp: e.exporter, file: isFile || e.clientOwnedFile})
 	}
 	clstr.metricsMu.Unlock()
 
@@ -448,28 +510,17 @@ func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
 	}
 
 	type outcome struct {
-		reg *registeredExporter
-		ok  bool
+		reg            *registeredExporter
+		ok             bool
+		departedKeys   []string
 	}
 	results := make([]outcome, 0, len(toCall))
 	for _, p := range toCall {
-		ok := true
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					ok = false
-					logger.Logger.Warn("metrics exporter panic: %v", r)
-				}
-			}()
-			p.exp.Export(snap)
-			if fe, okFE := p.exp.(*FileMetricsExporter); okFE {
-				if err := fe.LastExportError(); err != nil {
-					ok = false
-					logger.Logger.Warn("metrics file exporter: %s", err.Error())
-				}
-			}
-		}()
-		results = append(results, outcome{reg: p.reg, ok: ok})
+		// Per-exporter nodes_departed view: omit keys already drained by this exporter.
+		exporterSnap := filterDepartedForExporter(snap, p.reg)
+		departedKeys := departedKeysFromSnap(exporterSnap)
+		ok := callExporter(p.exp, exporterSnap, p.file)
+		results = append(results, outcome{reg: p.reg, ok: ok, departedKeys: departedKeys})
 	}
 
 	clstr.metricsMu.Lock()
@@ -478,15 +529,155 @@ func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
 	for _, r := range results {
 		if r.ok {
 			r.reg.consecutiveFails = 0
+			r.reg.skipRemaining = 0
+			markDepartedDrained(r.reg, r.departedKeys)
+			clstr.clearDepartedKeysIfFullyDrained(r.departedKeys)
 			continue
 		}
 		allOK = false
 		r.reg.consecutiveFails++
 		if r.reg.consecutiveFails >= metricsExporterFailureThreshold {
-			r.reg.skipRemaining = metricsExporterFailureThreshold
+			// Remain suspended; probe again in 10 intervals.
+			r.reg.skipRemaining = metricsExporterSuspendIntervals
 		}
 	}
 	return allOK
+}
+
+type exportWatchdogResult int
+
+const (
+	exportOK exportWatchdogResult = iota
+	exportTimedOut
+	exportFailed
+)
+
+// callExporter invokes one exporter. File writers are unbounded; custom
+// exporters use the 10s watchdog. Panics count as failure.
+func callExporter(exp MetricsExporter, snap *MetricsSnapshot, file bool) (ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+			logger.Logger.Warn("metrics exporter panic: %v", r)
+		}
+	}()
+	if file {
+		exp.Export(snap)
+	} else {
+		switch exportWithWatchdog(exp, snap, metricsExportWatchdog) {
+		case exportOK:
+		case exportTimedOut:
+			logger.Logger.Warn("metrics exporter Export timed out after %s", metricsExportWatchdog)
+			return false
+		case exportFailed:
+			logger.Logger.Warn("metrics exporter Export failed (panic)")
+			return false
+		}
+	}
+	if fe, okFE := exp.(*FileMetricsExporter); okFE {
+		if err := fe.LastExportError(); err != nil {
+			logger.Logger.Warn("metrics file exporter: %s", err.Error())
+			return false
+		}
+	}
+	return true
+}
+
+// exportWithWatchdog runs Export with a wall-clock bound. Timeout or panic
+// counts as failure. The Export goroutine is not cancelled on timeout (Go has
+// no preemption for arbitrary callbacks); a late Export must not touch shared
+// state after return — exporters must treat the snapshot as read-only and
+// copy if they retain it.
+func exportWithWatchdog(exp MetricsExporter, snap *MetricsSnapshot, limit time.Duration) exportWatchdogResult {
+	done := make(chan error, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- fmt.Errorf("panic: %v", r)
+			}
+		}()
+		exp.Export(snap)
+		done <- nil
+	}()
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		if err != nil {
+			return exportFailed
+		}
+		return exportOK
+	case <-timer.C:
+		return exportTimedOut
+	}
+}
+
+func filterDepartedForExporter(snap *MetricsSnapshot, reg *registeredExporter) *MetricsSnapshot {
+	if snap == nil || reg == nil || len(snap.NodesDeparted) == 0 || len(reg.drainedDeparted) == 0 {
+		return snap
+	}
+	out := *snap
+	filtered := make([]NodeMetricsSnapshot, 0, len(snap.NodesDeparted))
+	for i := range snap.NodesDeparted {
+		key := departedNodeKey(&snap.NodesDeparted[i])
+		if _, done := reg.drainedDeparted[key]; done {
+			continue
+		}
+		filtered = append(filtered, snap.NodesDeparted[i])
+	}
+	out.NodesDeparted = filtered
+	return &out
+}
+
+func departedKeysFromSnap(snap *MetricsSnapshot) []string {
+	if snap == nil || len(snap.NodesDeparted) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(snap.NodesDeparted))
+	for i := range snap.NodesDeparted {
+		keys = append(keys, departedNodeKey(&snap.NodesDeparted[i]))
+	}
+	return keys
+}
+
+func markDepartedDrained(reg *registeredExporter, keys []string) {
+	if reg == nil || len(keys) == 0 {
+		return
+	}
+	if reg.drainedDeparted == nil {
+		reg.drainedDeparted = make(map[string]struct{}, len(keys))
+	}
+	for _, k := range keys {
+		reg.drainedDeparted[k] = struct{}{}
+	}
+}
+
+// clearDepartedKeysIfFullyDrained removes keys from the shared departed set when
+// every registered exporter has drained them (or there are no exporters).
+func (clstr *Cluster) clearDepartedKeysIfFullyDrained(keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	// Caller holds metricsMu. Check each exporter's drained set.
+	stillNeeded := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		for _, e := range clstr.exporters {
+			if e == nil {
+				continue
+			}
+			if _, ok := e.drainedDeparted[k]; !ok {
+				stillNeeded[k] = struct{}{}
+				break
+			}
+		}
+	}
+	toClear := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if _, need := stillNeeded[k]; !need {
+			toClear = append(toClear, k)
+		}
+	}
+	clstr.clearDepartedKeys(toClear)
 }
 
 const maxNodesDeparted = 256
@@ -529,7 +720,7 @@ func (clstr *Cluster) storeDeparted(snap NodeMetricsSnapshot) {
 }
 
 // peekDeparted returns finals for nodes still absent from the live cluster
-// (metrics.md §5.6 / PRD: depart+rejoin before snapshot → not in nodes_departed).
+// (depart+rejoin before snapshot → not in nodes_departed).
 func (clstr *Cluster) peekDeparted() ([]NodeMetricsSnapshot, bool) {
 	live := map[string]struct{}{}
 	for _, n := range clstr.GetNodes() {
@@ -581,6 +772,26 @@ func (clstr *Cluster) clearDeparted() {
 	defer clstr.departedMu.Unlock()
 	clstr.departed = nil
 	clstr.departedOverflow = false
+}
+
+// clearDepartedKeys removes specific identities from the shared departed set
+// after every exporter has successfully Export'd them.
+func (clstr *Cluster) clearDepartedKeys(keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	clstr.departedMu.Lock()
+	defer clstr.departedMu.Unlock()
+	if clstr.departed == nil {
+		return
+	}
+	for _, k := range keys {
+		delete(clstr.departed, k)
+	}
+	if len(clstr.departed) == 0 {
+		clstr.departed = nil
+		clstr.departedOverflow = false
+	}
 }
 
 // sampleHeapObjectsBytes reads live heap object bytes without a full STW MemStats.
@@ -723,9 +934,8 @@ func (clstr *Cluster) buildMetricsSnapshot(forExport bool) *MetricsSnapshot {
 		AppID:                         clstr.appID(),
 		Labels:                        clstr.staticLabels(),
 		TotalNodes:                    len(nodes),
-		RecoverQueueSize:              0,
+		RecoverQueueSize:              clstr.recoverQueueSize(),
 		InvalidNodeCount:              clstr.invalidNodeCount.Get(),
-		DelayQueueTimeoutCount:        0,
 		OpenConnections:               open,
 		CommandCount:                  int64(clstr.commandCount.Get()),
 		CommandRetries:                int64(clstr.commandRetries.Get()),
@@ -735,7 +945,7 @@ func (clstr *Cluster) buildMetricsSnapshot(forExport bool) *MetricsSnapshot {
 		ValidationOpenFailure:         int64(clstr.validationOpenFailure.Get()),
 		ValidationTlsHandshakeFailure: int64(clstr.validationTlsHandshakeFailure.Get()),
 		ValidationAuthFailure:         int64(clstr.validationAuthFailure.Get()),
-		CpuPercent:                    cpuPct,
+		CPUPercent:                    cpuPct,
 		MemoryBytes:                   memBytes,
 		Nodes:                         nodeSnaps,
 		NodesDeparted:                 departed,
@@ -788,18 +998,24 @@ func (clstr *Cluster) nodeSnapshotLocked(node *Node) NodeMetricsSnapshot {
 		NodeAddress: node.host.Name,
 		NodePort:    node.host.Port,
 		Connections: ConnectionMetricsSnapshot{
-			InUse:  inUse,
-			InPool: inPool,
-			Opened: st.ConnectionsSuccessful.Get(),
-			Closed: st.ConnectionsClosed.Get(),
+			InUse:             inUse,
+			InPool:            inPool,
+			Opened:            st.ConnectionsSuccessful.Get(),
+			Closed:            st.ConnectionsClosed.Get(),
+			ClosedError:       st.ConnectionsClosedError.Get(),
+			ClosedIdle:        st.ConnectionsIdleDropped.Get(),
+			ClosedPoolShrink:  st.ConnectionsPoolOverflow.Get(),
+			ClosedNodeRemoved: st.ConnectionsClosedNodeRemoved.Get(),
 		},
 		ConnectionOpenFailure:         int64(st.ConnectionOpenFailure.Get()),
 		ConnectionTlsHandshakeFailure: int64(st.ConnectionTlsHandshakeFailure.Get()),
 		ConnectionAuthFailure:         int64(st.ConnectionAuthFailure.Get()),
 		CircuitBreakerHits:            int64(st.CircuitBreakerHits.Get()),
 		ConnectionPoolEmptyCount:      int64(st.ConnectionsPoolEmpty.Get()),
+		ConnectionPoolExhaustedCount:  int64(st.ConnectionsPoolExhausted.Get()),
 		TendsTotal:                    int64(st.TendsTotal.Get()),
 		PartitionMapUpdates:           int64(st.PartitionMapUpdates.Get()),
+		ErrorRate:                     int64(node.errorCount.Get()),
 		GetMetrics:                    snapshotSyncHist(&st.GetMetrics),
 		GetHeaderMetrics:              snapshotSyncHist(&st.GetHeaderMetrics),
 		ExistsMetrics:                 snapshotSyncHist(&st.ExistsMetrics),
@@ -890,13 +1106,19 @@ func aggregateNodeSnapshots(dst, src *NodeMetricsSnapshot) {
 	dst.Connections.InPool += src.Connections.InPool
 	dst.Connections.Opened += src.Connections.Opened
 	dst.Connections.Closed += src.Connections.Closed
+	dst.Connections.ClosedError += src.Connections.ClosedError
+	dst.Connections.ClosedIdle += src.Connections.ClosedIdle
+	dst.Connections.ClosedPoolShrink += src.Connections.ClosedPoolShrink
+	dst.Connections.ClosedNodeRemoved += src.Connections.ClosedNodeRemoved
 	dst.ConnectionOpenFailure += src.ConnectionOpenFailure
 	dst.ConnectionTlsHandshakeFailure += src.ConnectionTlsHandshakeFailure
 	dst.ConnectionAuthFailure += src.ConnectionAuthFailure
 	dst.CircuitBreakerHits += src.CircuitBreakerHits
 	dst.ConnectionPoolEmptyCount += src.ConnectionPoolEmptyCount
+	dst.ConnectionPoolExhaustedCount += src.ConnectionPoolExhaustedCount
 	dst.TendsTotal += src.TendsTotal
 	dst.PartitionMapUpdates += src.PartitionMapUpdates
+	dst.ErrorRate += src.ErrorRate
 	mergeHistogram(&dst.GetMetrics, &src.GetMetrics)
 	mergeHistogram(&dst.GetHeaderMetrics, &src.GetHeaderMetrics)
 	mergeHistogram(&dst.ExistsMetrics, &src.ExistsMetrics)

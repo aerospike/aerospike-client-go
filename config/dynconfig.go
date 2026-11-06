@@ -218,8 +218,10 @@ type Metrics struct {
 	// integer number of seconds. Stored as interface{} so YAML can accept either.
 	ExportInterval  interface{}        `yaml:"export_interval"`
 	Exporter        *string            `yaml:"exporter"`
-	ReportDir       *string            `yaml:"report_dir"`
-	ReportSizeLimit *int               `yaml:"report_size_limit"`
+	ReportDir *string `yaml:"report_dir"`
+	// ReportSizeLimit is a soft byte limit: integer bytes or a size string
+	// (e.g. "10mb", "1g"). Stored as interface{} so YAML accepts either form.
+	ReportSizeLimit interface{}        `yaml:"report_size_limit"`
 	Labels          *map[string]string `yaml:"labels"`
 	Extended        *MetricsExtended   `yaml:"extended"`
 }

@@ -33,9 +33,9 @@ const metricsFileMinSize = 1_000_000
 //
 // This client never shipped a learn-metrics file before, so the format is v3
 // snake_case end-to-end (same naming as dynamic config / Rust snapshot JSON) and
-// includes cluster.latency.*, usage feature.*, CM-7 timeout/error splits, and
-// CM-8 validation counters. Legacy Java/C# camelCase positional grammar and
-// UX-6 major-release deferrals do not apply here.
+// includes cluster.latency.*, usage feature.*, client/server timeout and error
+// splits, and validation counters. Legacy Java/C# camelCase positional grammar
+// does not apply here.
 //
 // Close/flush on disable; reopen lazily on the next Export after re-enable.
 type FileMetricsExporter struct {
@@ -157,6 +157,9 @@ func (e *FileMetricsExporter) openNewFile() error {
 
 func (e *FileMetricsExporter) closeLocked() {
 	if e.file != nil {
+		if err := e.file.Sync(); err != nil {
+			logger.Logger.Debug("metrics file exporter sync: %s", err.Error())
+		}
 		_ = e.file.Close()
 		e.file = nil
 	}
@@ -173,11 +176,9 @@ func (e *FileMetricsExporter) writeLine(s string) error {
 		e.closeLocked()
 		return err
 	}
-	if err := e.file.Sync(); err != nil {
-		logger.Logger.Debug("metrics file exporter sync: %s", err.Error())
-	}
 	e.size += int64(n)
 	if e.maxSize > 0 && e.size >= e.maxSize {
+		// Sync+close current file before rotating.
 		return e.openNewFile()
 	}
 	return nil
@@ -195,9 +196,10 @@ func (e *FileMetricsExporter) SetReportSizeLimit(limit int64) {
 func formatMetricsFileHeader(columns, shift int, unit LatencyUnit) string {
 	var b strings.Builder
 	b.WriteString(time.Now().Format("2006-01-02 15:04:05.000"))
-	// header(3): first Go metrics-file schema (snake_case v3; no prior shippers).
-	b.WriteString(" header(3)")
-	b.WriteString(" cluster[name,client_type,client_version,app_id,label[],cpu,mem,recover_queue_size,invalid_node_count,command_count,command_retries,delay_queue_timeout_count,batch_partial_failure,validation_open_failure,validation_tls_handshake_failure,validation_auth_failure,latency[],feature[],node[]]")
+	// header(4): snake_case v3; drops async delay_queue_timeout_count (native track
+	// omits async placeholders). recover_queue_size is the live TimeoutDelay salvage gauge.
+	b.WriteString(" header(4)")
+	b.WriteString(" cluster[name,client_type,client_version,app_id,label[],cpu,mem,recover_queue_size,invalid_node_count,command_count,command_retries,batch_partial_failure,validation_open_failure,validation_tls_handshake_failure,validation_auth_failure,latency[],feature[],node[]]")
 	b.WriteString(" feature[blocking,deferred,background,shape_point,shape_batch,shape_query,filter_ael,filter_exp]")
 	b.WriteString(" label[name,value]")
 	b.WriteString(" node[name,address,port,conn,connection_open_failure,connection_tls_handshake_failure,connection_auth_failure,conn_latency,namespace[]]")
@@ -220,14 +222,13 @@ func (e *FileMetricsExporter) formatClusterLine(s *MetricsSnapshot) string {
 	b.WriteString(escapeMetricsToken(s.AppID))
 	b.WriteByte(',')
 	writeLabels(&b, s.Labels)
-	fmt.Fprintf(&b, ",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,",
-		int(s.CpuPercent),
+	fmt.Fprintf(&b, ",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,",
+		int(s.CPUPercent),
 		s.MemoryBytes,
 		s.RecoverQueueSize,
 		s.InvalidNodeCount,
 		s.CommandCount,
 		s.CommandRetries,
-		s.DelayQueueTimeoutCount,
 		s.BatchPartialFailure,
 		s.ValidationOpenFailure,
 		s.ValidationTlsHandshakeFailure,
@@ -318,7 +319,8 @@ func writeNode(b *strings.Builder, n *NodeMetricsSnapshot, s *MetricsSnapshot) {
 	b.WriteString(",[")
 	first := true
 	for i := range n.Namespaces {
-		if n.Namespaces[i].Namespace == "" || n.Namespaces[i].Namespace == "_" {
+		// "_" is a reserved internal sentinel; empty "" is the unknown-ns rollup.
+		if n.Namespaces[i].Namespace == "_" {
 			continue
 		}
 		if !first {

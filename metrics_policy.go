@@ -27,13 +27,15 @@ import (
 
 const (
 	defaultMetricsExportInterval = 30 * time.Second
-	defaultSamplerRange          = 1
-	defaultSamplerThreshold      = 1
-	defaultLatencyColumns        = 7
-	defaultLatencyShift          = 1
-	defaultLatencyBase           = 2
+	// maxMetricsExportInterval clamps absurd API/YAML Interval values.
+	maxMetricsExportInterval = 24 * time.Hour
+	defaultSamplerRange      = 1
+	defaultSamplerThreshold  = 1
+	defaultLatencyColumns    = 7
+	defaultLatencyShift      = 1
+	defaultLatencyBase       = 2
 
-	// MetricsExporterNone collects without periodic Export calls (PRD metrics.exporter: NONE).
+	// MetricsExporterNone collects without periodic Export calls (metrics.exporter: NONE).
 	MetricsExporterNone = "NONE"
 	// MetricsExporterFile selects the client-owned metrics file writer (FILE).
 	MetricsExporterFile = "FILE"
@@ -46,7 +48,7 @@ type MetricsPolicy struct {
 	// HistogramType specifies if Go-only detailed (language-optional) histograms
 	// should be [histogram.Linear] or [histogram.Logarithmic]. Shared MUST latency
 	// classes (conn/read/write/batch/query) use LatencyShift range buckets instead
-	// of LatencyBase (collection Decision 5).
+	// of LatencyBase.
 	//
 	// Default: [histogram.Logarithmic]
 	HistogramType histogram.Type
@@ -109,7 +111,9 @@ type MetricsPolicy struct {
 	SamplerRange     int
 	SamplerThreshold int
 
-	// Interval is the periodic export period (v3 export_interval duration). Default 30s.
+	// Interval is the periodic export period (v3 export_interval duration).
+	// Default 30 * time.Second (not 30 — Go's time.Duration unit is nanoseconds).
+	// Values above 24h are clamped.
 	Interval time.Duration
 
 	// ReportDir is the metrics log directory used when Exporter is FILE.
@@ -119,7 +123,8 @@ type MetricsPolicy struct {
 	ReportDir string
 
 	// ReportSizeLimit is a soft byte limit for the metrics log. 0 is unbounded.
-	// Values below 1_000_000 are raised to 1_000_000 when set.
+	// Non-zero values below 1_000_000 are raised to 1_000_000 when the policy
+	// is normalized / applied (same floor as the file writer).
 	ReportSizeLimit int64
 
 	// Exporter is the YAML metrics.exporter token: NONE | FILE | CUSTOM.
@@ -161,13 +166,10 @@ func (mp *MetricsPolicy) SetSamplerProbability(p float64) {
 		return
 	}
 	mp.SamplerThreshold = int(math.Round(p * 1_000_000))
-	if mp.SamplerThreshold < 0 {
-		mp.SamplerThreshold = 0
-	}
 }
 
 // SetSamplerNever disables command-path operational sampling (threshold=0).
-// Connection-path CM-8 failures remain gated only by operationalEnabled.
+// Connection-path open/tls/auth failures remain gated only by operationalEnabled.
 func (mp *MetricsPolicy) SetSamplerNever() {
 	if mp == nil {
 		return
@@ -261,6 +263,80 @@ func (mp *MetricsPolicy) samplerRange() int {
 		return 1
 	}
 	return mp.SamplerRange
+}
+
+// parseReportSizeLimit accepts a size with unit (e.g. "10mb", "1g", "512kb")
+// or a bare integer number of bytes.
+func parseReportSizeLimit(s string) (int64, bool) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, false
+	}
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil && n >= 0 {
+		return n, true
+	}
+	multipliers := []struct {
+		suf string
+		mul int64
+	}{
+		{"kib", 1024},
+		{"mib", 1024 * 1024},
+		{"gib", 1024 * 1024 * 1024},
+		{"kb", 1000},
+		{"mb", 1000 * 1000},
+		{"gb", 1000 * 1000 * 1000},
+		{"k", 1000},
+		{"m", 1000 * 1000},
+		{"g", 1000 * 1000 * 1000},
+		{"b", 1},
+	}
+	for _, m := range multipliers {
+		if !strings.HasSuffix(s, m.suf) {
+			continue
+		}
+		num := strings.TrimSpace(s[:len(s)-len(m.suf)])
+		if n, err := strconv.ParseInt(num, 10, 64); err == nil {
+			if n < 0 {
+				return 0, false
+			}
+			if m.mul > 1 && n > math.MaxInt64/m.mul {
+				return 0, false
+			}
+			return n * m.mul, true
+		}
+		f, err := strconv.ParseFloat(num, 64)
+		if err != nil || f < 0 {
+			return 0, false
+		}
+		prod := f * float64(m.mul)
+		if prod > float64(math.MaxInt64) {
+			return 0, false
+		}
+		return int64(prod), true
+	}
+	return 0, false
+}
+
+func coerceReportSizeLimit(v any) (int64, bool) {
+	switch t := v.(type) {
+	case nil:
+		return 0, false
+	case string:
+		return parseReportSizeLimit(t)
+	case int:
+		if t >= 0 {
+			return int64(t), true
+		}
+	case int64:
+		if t >= 0 {
+			return t, true
+		}
+	case float64:
+		if t >= 0 {
+			return int64(t), true
+		}
+	}
+	return 0, false
 }
 
 // parseExportInterval accepts a duration with unit (e.g. "30s", "500ms") or a
@@ -430,12 +506,40 @@ func isZeroValueMetricsPolicy(mp *MetricsPolicy) bool {
 }
 
 // normalizeMetricsPolicy returns a policy ready for EnableMetrics: nil or
-// zero-value → DefaultMetricsPolicy (legacy enable); otherwise a copy.
+// zero-value → DefaultMetricsPolicy (legacy enable); otherwise a copy with
+// sampler / interval clamps applied.
 func normalizeMetricsPolicy(policy *MetricsPolicy) *MetricsPolicy {
 	if policy == nil || isZeroValueMetricsPolicy(policy) {
 		return DefaultMetricsPolicy()
 	}
-	return policy.copy()
+	mp := policy.copy()
+	normalizeSamplerAndInterval(mp)
+	return mp
+}
+
+// normalizeSamplerAndInterval applies unset-sampler → 1/1 when operational is
+// on (SetSamplerNever keeps threshold=0 with a non-zero range) and clamps
+// absurd Interval values.
+func normalizeSamplerAndInterval(mp *MetricsPolicy) {
+	if mp == nil {
+		return
+	}
+	if mp.OperationalEnabled {
+		if mp.SamplerRange == 0 && mp.SamplerThreshold == 0 {
+			mp.SamplerRange = defaultSamplerRange
+			mp.SamplerThreshold = defaultSamplerThreshold
+		} else if mp.SamplerRange == 0 {
+			mp.SamplerRange = defaultSamplerRange
+		}
+	}
+	if mp.Interval < 0 {
+		mp.Interval = defaultMetricsExportInterval
+	} else if mp.Interval > maxMetricsExportInterval {
+		mp.Interval = maxMetricsExportInterval
+	}
+	if mp.ReportSizeLimit != 0 && mp.ReportSizeLimit < metricsFileMinSize {
+		mp.ReportSizeLimit = metricsFileMinSize
+	}
 }
 
 // metricsYAMLEnabled prefers v3 metrics.enabled over legacy metrics.enable.
@@ -535,7 +639,14 @@ func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
 		mp.ReportDir = *m.ReportDir
 	}
 	if m.ReportSizeLimit != nil {
-		mp.ReportSizeLimit = int64(*m.ReportSizeLimit)
+		if n, ok := coerceReportSizeLimit(m.ReportSizeLimit); ok {
+			mp.ReportSizeLimit = n
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReportSizeLimit set to %d", n)
+			}
+		} else if dynConfig.logUpdate.Load() {
+			logger.Logger.Warn("ReportSizeLimit value %#v is invalid; keeping %d", m.ReportSizeLimit, mp.ReportSizeLimit)
+		}
 	}
 	if m.Exporter != nil {
 		mp.Exporter = normalizeExporterToken(*m.Exporter)
