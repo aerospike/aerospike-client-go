@@ -170,7 +170,7 @@ func orderByValueOf(record *Record, spec orderBySpec) orderByValue {
 // replaces reports whether candidate, another copy of kept's record, takes
 // its place. The later last-update time wins, even when it ranks worse.
 // Equal times, including none sent by the server, keep the better-ranked
-// copy, so the result doesn't depend on which node answers first.
+// copy, or the copy already kept when both rank the same.
 func (merger *topKMerger) replaces(candidate, kept *topKEntry) bool {
 	if candidate.lastUpdateTime != kept.lastUpdateTime {
 		return candidate.lastUpdateTime > kept.lastUpdateTime
