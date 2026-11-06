@@ -92,13 +92,6 @@ func tryConcreteValue(v any) Value {
 		return NewValueArray(val)
 	case []byte:
 		return BytesValue(val)
-	case *Vector:
-		if val == nil {
-			return nullValue
-		}
-		return VectorValue{vector: val}
-	case Vector:
-		return VectorValue{vector: &val}
 	case int8:
 		return IntegerValue(int(val))
 	case int16:
@@ -421,6 +414,22 @@ func tryConcreteValue(v any) Value {
 		return NewMapperValue(uint64InterfaceMap(val))
 	}
 
+	return vectorToValue(v)
+}
+
+// vectorToValue converts a vector to its Value, and returns nil for any other
+// type. Vectors are matched after the main switch in tryConcreteValue, as
+// cases there would slow the dispatch of every other type.
+func vectorToValue(v any) Value {
+	switch vector := v.(type) {
+	case *Vector:
+		if vector == nil {
+			return nullValue
+		}
+		return VectorValue{vector: vector}
+	case Vector:
+		return VectorValue{vector: &vector}
+	}
 	return nil
 }
 

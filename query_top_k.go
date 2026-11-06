@@ -97,9 +97,18 @@ func (merger *topKMerger) add(result *Result, lastUpdateTime int64) {
 		}
 		heap.Remove(merger, kept.index)
 		delete(merger.byDigest, kept.digest)
-	} else if len(merger.heap) == merger.limit && !merger.ranksAhead(&candidate, merger.heap[0]) {
-		// Already k records and this one is not ahead of the worst (heap[0]):
-		// it cannot make the top k.
+	} else if len(merger.heap) == merger.limit {
+		// Already k records: the candidate must rank ahead of the worst
+		// (heap[0]) to make the top k, and then takes its place.
+		worst := merger.heap[0]
+		if !merger.ranksAhead(&candidate, worst) {
+			return
+		}
+		delete(merger.byDigest, worst.digest)
+		*worst = candidate
+		worst.index = 0
+		merger.byDigest[worst.digest] = worst
+		heap.Fix(merger, 0)
 		return
 	}
 
@@ -107,11 +116,6 @@ func (merger *topKMerger) add(result *Result, lastUpdateTime int64) {
 	*entry = candidate
 	heap.Push(merger, entry)
 	merger.byDigest[entry.digest] = entry
-
-	if len(merger.heap) > merger.limit {
-		evicted := heap.Pop(merger).(*topKEntry)
-		delete(merger.byDigest, evicted.digest)
-	}
 }
 
 // results returns the kept records, best first.
