@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/internal/seq"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
+	hist "github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
 const aesModule = "github.com/aerospike/aerospike-client-go/v8"
@@ -54,8 +55,73 @@ type Cluster struct {
 	statsLock sync.Mutex
 
 	// enable performance metrics
-	metricsEnabled atomic.Bool // bool
-	metricsPolicy  iatomic.TypedVal[*MetricsPolicy]
+	metricsEnabled     atomic.Bool // master collection + export timer
+	operationalEnabled atomic.Bool
+	usageEnabled       atomic.Bool
+	metricsPolicy      iatomic.TypedVal[*MetricsPolicy]
+	// Hot-path note: live per-node counters/histograms remain on Node.stats
+	// (aggregated into Cluster.stats during tend). The fields below are only
+	// enable/sampler flags, a few cluster-wide counters, and export plumbing —
+	// not a second copy of detailed metrics.
+	commandCount     iatomic.Int
+	commandRetries   iatomic.Int
+	usageBlocking    iatomic.Int
+	usageDeferred    iatomic.Int
+	usageBackground  iatomic.Int
+	usageShapePoint  iatomic.Int
+	usageShapeBatch  iatomic.Int
+	usageShapeQuery  iatomic.Int
+	usageFilterAEL   iatomic.Int
+	usageFilterExp   iatomic.Int
+	invalidNodeCount iatomic.Int
+
+	// connectionsRecovering is the live TimeoutDelay salvage gauge
+	// (recover_queue_size): sockets currently handed to a background drain
+	// goroutine. Go has no Java-style recover deque; this counts in-flight
+	// salvageConn work (Rust connections_recovering / recover_queue_size).
+	connectionsRecovering atomic.Int64
+
+	// cluster.latency.{read,write,batch,query} — whole-call success.
+	// LatencyConn slot is unused (conn is node-scoped).
+	clusterLatencies [latencyTypeMax]hist.SyncLatencyBuckets
+
+	// batch.partial_failure — per-key errors on an otherwise completed batch (SHOULD).
+	batchPartialFailure iatomic.Int
+
+	// Pre-Node validation failures (seed / NodeValidator that never becomes a Node).
+	validationOpenFailure         iatomic.Int
+	validationTlsHandshakeFailure iatomic.Int
+	validationAuthFailure         iatomic.Int
+
+	metricsMu      sync.Mutex
+	exporters      []*registeredExporter
+	appExporters   []*registeredExporter // AddExporter targets retained across FILE/NONE
+	fileExporter   *FileMetricsExporter
+	exportStop     chan struct{}
+	exportWG       sync.WaitGroup
+	exportRunning  atomic.Bool
+	exportInterval time.Duration // last started export interval (under metricsMu)
+	// exportInCallback is true while the metrics thread is inside Export.
+	// stopMetricsExport must not Wait in that case (would deadlock on itself).
+	exportInCallback atomic.Bool
+	// latencyUnit mirrors MetricsPolicy.LatencyUnit so a unit-only change
+	// forces histogram reset (Reshape alone keys on columns/shift).
+	latencyUnit LatencyUnit
+
+	// nodes_departed: set by node identity, soft-cap 256; cleared entirely after
+	// a fully successful periodic Export. On-demand includes but does not clear.
+	departedMu       sync.Mutex
+	departed         map[string]NodeMetricsSnapshot
+	departedOverflow bool
+
+	// Process CPU sample state for MetricsSnapshot.CPUPercent (SHOULD).
+	// Separate windows for on-demand vs periodic export so frequent
+	// MetricsSnapshot() calls cannot skew exported CPU.
+	cpuSampleMu             sync.Mutex
+	lastCPUSecondsExport    float64
+	lastCPUSampleAtExport   time.Time
+	lastCPUSecondsOnDemand  float64
+	lastCPUSampleAtOnDemand time.Time
 
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
@@ -141,6 +207,8 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
 	newCluster.maxErrorCount.Set(loadedPolicy.MaxErrorRate)
+	// Pre-shape cluster latency buckets so EnableMetrics races cannot Add into nil Buckets.
+	newCluster.reshapeClusterLatencies(DefaultMetricsPolicy())
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
@@ -314,6 +382,7 @@ func (clstr *Cluster) tend() Error {
 				// (asadm / `peers-clear-std`). `host` here is the post-IpMap target
 				// address; the pre-translation address is logged in peers_parser.go.
 				logger.Logger.Warn("Add node `%s` (peer node `%s`) failed: `%s`", host, _peer.nodeName, err)
+				clstr.invalidNodeCount.IncrementAndGet()
 				return nil
 			}
 
@@ -598,6 +667,7 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
 				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+				clstr.invalidNodeCount.IncrementAndGet()
 				errChan <- err
 				return
 			}
@@ -761,6 +831,8 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 			if node != nil && !clstr.findNodeName(nodes, node.name) {
 				logger.Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
 				nodes = append(nodes, node)
+				// Depart + rejoin before snapshot: drop from nodes_departed.
+				clstr.clearDepartedForLiveNode(node)
 			}
 		}
 
@@ -794,6 +866,7 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 
 	// Cleanup node resources.
 	for _, node := range nodesToRemove {
+		clstr.captureDepartedNode(node)
 		// Remove node's aliases from cluster alias set.
 		// Aliases are only used in tend goroutine, so synchronization is not necessary.
 		clstr.aliases.DeleteAllDeref(node.GetAliases()...)
@@ -914,6 +987,7 @@ func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 // and stops the tend goroutine.
 func (clstr *Cluster) Close() {
 	if clstr.closed.CompareAndToggle(false) {
+		clstr.DisableMetrics()
 		// send close signal to maintenance channel
 		close(clstr.tendChannel)
 
@@ -1052,26 +1126,55 @@ func (clstr *Cluster) MetricsEnabled() bool {
 }
 
 // EnableMetrics enables the cluster command metrics gathering.
-// If the parameters for the histogram in the policy are the different from the one already
-// on the cluster, the metrics will be reset.
+// If the parameters for the histogram in the policy are different from the one
+// already on the cluster, the metrics will be reset.
+// nil or a zero-value &MetricsPolicy{} maps to DefaultMetricsPolicy (legacy
+// master+operational: OperationalEnabled defaults true). YAML v3
+// metrics.enabled without extended.operational defaults operational off.
+// Tier 0 opened/closed reset only on a true off→on edge so dynconfig re-apply
+// does not wipe cumulative counters.
+//
+// Exporter install and the export timer are serialized with Export via
+// metricsMu. Histogram reshape uses statsLock and runs before that critical
+// section to avoid lock nesting.
 func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
-	if policy == nil {
-		policy = DefaultMetricsPolicy()
+	policy = normalizeMetricsPolicy(policy)
+
+	prev := clstr.metricsPolicy.Get()
+	needReshape := metricsHistogramChanged(prev, policy)
+
+	// Reshape histograms before flipping enable flags so a concurrent command
+	// cannot Add into a zero-value SyncLatencyBuckets (nil shape).
+	if needReshape {
+		clstr.reshapeClusterLatencies(policy)
+		clstr.statsLock.Lock()
+		for _, stat := range clstr.stats {
+			stat.reshape(policy)
+		}
+		for _, node := range clstr.GetNodes() {
+			node.stats.reshape(policy)
+		}
+		clstr.statsLock.Unlock()
+	}
+
+	wasEnabled := clstr.metricsEnabled.Load()
+	if !wasEnabled {
+		clstr.resetMetricsSinceEnable()
 	}
 
 	clstr.metricsPolicy.Set(policy)
+	clstr.operationalEnabled.Store(policy.OperationalEnabled)
+	clstr.usageEnabled.Store(policy.UsageEnabled)
 	clstr.metricsEnabled.Store(true)
 
-	clstr.statsLock.Lock()
-	defer clstr.statsLock.Unlock()
-
-	// reshape the histogram in case it has changed
-	for _, stat := range clstr.stats {
-		stat.reshape(policy)
-	}
-
-	for _, node := range clstr.GetNodes() {
-		node.stats.reshape(policy)
+	// installExporters / start|stop take metricsMu; they serialize with fanOutExport.
+	clstr.installExporters(policy)
+	if policy.periodicExportEnabled() && clstr.exporterCount() > 0 {
+		clstr.startMetricsExport(policy.Interval)
+	} else {
+		// NONE, or FILE with empty report_dir / CUSTOM with no exporters:
+		// collect without periodic Export.
+		clstr.stopMetricsExport()
 	}
 }
 
@@ -1118,8 +1221,18 @@ func (clstr *Cluster) getNodeLabels() *Labels {
 }
 
 // DisableMetrics disables the cluster command metrics gathering.
+// Stops the export timer, then closes the client-owned file writer under
+// metricsMu so it cannot race an in-flight Export.
 func (clstr *Cluster) DisableMetrics() {
 	clstr.metricsEnabled.Store(false)
+	clstr.operationalEnabled.Store(false)
+	clstr.usageEnabled.Store(false)
+	clstr.stopMetricsExport()
+	clstr.metricsMu.Lock()
+	if clstr.fileExporter != nil {
+		clstr.fileExporter.Close()
+	}
+	clstr.metricsMu.Unlock()
 }
 
 //-------------------------------------------------------

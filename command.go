@@ -260,6 +260,31 @@ type baseCommand struct {
 	commandWasSent     bool
 
 	receiveSize int64
+
+	// cluster is set at command construction when known (single-key path).
+	// Used for cheap metrics gating without calling getNode on the hot path.
+	cluster *Cluster
+
+	// metricsSampled is the one sampler decision for this user API call / sub-batch RPC.
+	// Drawn once before the retry loop when metrics are enabled.
+	metricsSampled    bool
+	metricsSampledSet bool
+	usageBackground   bool
+	// usageSkip suppresses feature.api.* for non data-plane commands (txn commit/abort
+	// internals). Connect/info/admin/UDF-register/index/truncate never reach executeAt.
+	usageSkip bool
+	// metricsParentCall means a coordinator (e.g. batchExecute / queryPartitions)
+	// already owns command.count / cluster.latency / feature.* for this user API
+	// call. This command still records namespace-scoped RPC latency when sampled.
+	metricsParentCall bool
+	// rpcStart is the start of this logical RPC / sub-batch.
+	// Set once before the first wire attempt; includes this command's own retries.
+	// Namespace latency uses this; cluster latency uses call-entry transStart.
+	rpcStart time.Time
+	// attemptBytes{In,Out} accumulate on the current attempt and are committed to
+	// namespace.bytes_* only on RPC success.
+	attemptBytesOut int64
+	attemptBytesIn  int64
 }
 
 //--------------------------------------------------
@@ -3826,6 +3851,33 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	isClientTimeout := false
 	loopCount := 0
 
+	// One metrics_on branch per user API call. Load metricsEnabled at most
+	// once here, cache on the command, and never re-check atomics on the hot path.
+	// Do not call getNode here — that belongs inside the retry loop.
+	// Live counters/histograms stay on Node.stats; cluster only holds enable/sampler
+	// flags and a few aggregate counters.
+	// Batch node RPCs arrive with metricsSampledSet already true (parent owns
+	// command.count / cluster.latency / feature.*).
+	if !cmd.metricsSampledSet {
+		cmd.metricsSampled = false
+		cmd.metricsSampledSet = true
+		if cluster := cmd.metricsCluster(); cluster != nil && cluster.metricsEnabled.Load() {
+			if !cmd.usageSkip {
+				var filter *Expression
+				if p := ifc.getPolicy(ifc); p != nil {
+					if bp := p.GetBasePolicy(); bp != nil {
+						filter = bp.FilterExpression
+					}
+				}
+				cluster.recordUsage(ifc.commandType(), cmd.usageBackground, filter)
+			}
+			cmd.metricsSampled = cluster.decideOperationalSample()
+			if cmd.metricsSampled {
+				cluster.recordCommandCount()
+			}
+		}
+	}
+
 	var err Error
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -3837,7 +3889,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			if cmd.node != nil && cmd.node.cluster != nil {
 				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
 			}
-			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
+			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart, cmd.metricsSampled)
+			// Attempts already recorded per failure; do not double-count the synthetic exit.
 			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandSentCounter).setNode(cmd.node)
 		}
 
@@ -3855,8 +3908,13 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if notFirstIteration {
+			if cmd.metricsSampled {
+				if cluster := cmd.metricsCluster(); cluster != nil {
+					cluster.recordCommandRetry()
+				}
+			}
 			if cmd.node != nil {
-				applyTransactionRetryMetrics(cmd.node)
+				applyTransactionRetryMetrics(cmd.node, cmd.metricsSampled)
 			}
 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
@@ -3866,9 +3924,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
 						if alreadyRetried {
 							// Batch was retried in separate subcommands. Complete this command.
-							applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
+							// Children already recorded attempt failures / latencies for their
+							// own RPCs — do not double-count on the parent.
+							applyTransactionMetrics(cmd.node, ifc.commandType(), transStart, cmd.metricsSampled)
 							if err != nil {
-								return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+								err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+								return err
 							}
 							return nil
 						}
@@ -3893,6 +3954,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			break
 		}
 		// set command node, so when you return a record it has the node
+		prevNode := cmd.node
 		cmd.node, err = ifc.getNode(ifc)
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
 			isClientTimeout = false
@@ -3906,22 +3968,31 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		// Cached sampler / metrics_on decision from before the retry loop.
+		sampled := cmd.metricsSampled
+
+		// Reset RPC timer when the attempt node changes (ns latency is RPC-scoped).
+		if sampled && (cmd.rpcStart.IsZero() || prevNode != cmd.node) {
+			cmd.rpcStart = time.Now()
+		}
 
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
 
-			applyTransactionErrorMetrics(cmd.node)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			cmd.recordAttemptFailure(ifc, err, false)
 
 			// Max error rate achieved, try again per policy
 			continue
 		}
 
-		if metricsEnabled {
+		if sampled {
+			cmd.attemptBytesIn = 0
+			cmd.attemptBytesOut = 0
 			start := time.Now()
 			cmd.conn, err = ifc.getConnection(policy)
 			// Capture connection acquire time.
@@ -3936,21 +4007,34 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
-			applyTransactionErrorMetrics(cmd.node)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
-			// exit immediately if connection pool is exhausted and the corresponding policy option is set
-			if policy.ExitFastOnExhaustedConnectionPool && errors.Is(err, ErrConnectionPoolExhausted) {
+			poolExhausted := errors.Is(err, ErrConnectionPoolExhausted)
+			poolEmpty := errors.Is(err, ErrConnectionPoolEmpty)
+
+			if poolExhausted && cmd.node.metricsEnabled() {
+				cmd.node.stats.ConnectionsPoolExhausted.IncrementAndGet()
+			}
+
+			// ExitFast before commandSentCounter-- so the loop-exit .iter() still
+			// maps to Iteration 0 (iter sets Iteration = counter-1).
+			if policy.ExitFastOnExhaustedConnectionPool && poolExhausted {
+				// Pool exhausted is not a client timeout.
+				cmd.recordAttemptFailure(ifc, err, false)
 				break
 			}
 
-			if errors.Is(err, ErrConnectionPoolEmpty) || errors.Is(err, ErrConnectionPoolExhausted) {
-				if errors.Is(err, ErrConnectionPoolExhausted) || (errors.Is(err, ErrConnectionPoolEmpty) && loopCount == 1) {
+			if poolEmpty || poolExhausted {
+				// Pool empty on first loop can mean wait-for-conn timed out; treat
+				// as client timeout. Exhausted (at capacity) is a distinct error.
+				if poolEmpty && loopCount == 1 {
 					isClientTimeout = true
 				}
 				// if the connection pool is empty, we still haven't tried
 				// the command to increase the iteration count.
 				cmd.commandSentCounter--
 			}
+			cmd.recordAttemptFailure(ifc, err, isClientTimeout)
 			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
 		}
@@ -3962,16 +4046,17 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		err = ifc.writeBuffer(ifc)
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
+			cmd.conn.closeOnError()
 			cmd.conn = nil
-			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
+			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart, cmd.metricsSampled)
+			cmd.recordAttemptFailure(ifc, err, false)
 			return err
 		}
 
@@ -3988,14 +4073,18 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			// now that the deadline has been set in the buffer, compress the contents
 			if err = cmd.compress(); err != nil {
-				applyTransactionErrorMetrics(cmd.node)
-				return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+				applyTransactionErrorMetrics(cmd.node, sampled)
+				err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+				cmd.recordAttemptFailure(ifc, err, false)
+				cmd.conn.closeOnError()
+				cmd.conn = nil
+				return err
 			}
 		}
 
 		// Send command.
 		cmd.commandWasSent = true
-		if metricsEnabled {
+		if sampled {
 			start := time.Now()
 			var dataSent int
 			dataSent, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
@@ -4006,22 +4095,23 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			isClientTimeout = isClientOriginTimeout(err)
+			cmd.recordAttemptFailure(ifc, err, isClientTimeout)
 
-			isClientTimeout = false
 			if deviceOverloadError(err) {
 				cmd.node.incrErrorCount()
 			}
 			// try to salvage the connection
 			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
-				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+				startConnSalvage(ifc, policy.TimeoutDelay, cmd.conn, cmd.node)
 			} else {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.conn.Close()
+				cmd.conn.closeOnError()
 			}
 
 			cmd.conn = nil
@@ -4031,7 +4121,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		// Parse results.
-		if metricsEnabled {
+		if sampled {
 			start := time.Now()
 			err = ifc.parseResult(ifc, cmd.conn)
 			dataReceived := cmd.conn.totalReceived
@@ -4043,15 +4133,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node)
+			applyTransactionErrorMetrics(cmd.node, sampled)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			if networkError(err) {
-				isTimeout := errors.Is(err, ErrTimeout)
-				isClientTimeout = isTimeout
-				if !isTimeout {
+				isClientTimeout = isClientOriginTimeout(err)
+				if !isClientTimeout {
 					if deviceOverloadError(err) {
 						cmd.node.incrErrorCount()
 					}
@@ -4059,21 +4148,24 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
-					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+					cmd.recordAttemptFailure(ifc, err, isClientTimeout)
+					startConnSalvage(ifc, policy.TimeoutDelay, cmd.conn, cmd.node)
 					continue
 				} else {
 					// IO errors are considered temporary anomalies. Retry.
 					// Close socket to flush out possible garbage. Do not put back in pool.
-					cmd.conn.Close()
+					cmd.conn.closeOnError()
 				}
 
 				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 
 				// retry only for non-streaming commands
 				if !cmd.oneShot {
+					cmd.recordAttemptFailure(ifc, err, isClientTimeout)
 					cmd.conn = nil
 					continue
 				}
+				// oneShot: fall through; terminal path records once below.
 			}
 
 			// close the connection
@@ -4084,15 +4176,20 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
-				cmd.conn.Close()
+				cmd.conn.closeOnError()
 				cmd.conn = nil
 			}
 
-			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
-			return errChain.setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart, cmd.metricsSampled)
+			err = errChain.setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			// Classify from the attempt error (server TIMEOUT vs client socket timeout).
+			cmd.recordAttemptFailure(ifc, err, isClientOriginTimeout(errChain))
+			return err
 		}
 
-		applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
+		applyTransactionMetrics(cmd.node, ifc.commandType(), transStart, cmd.metricsSampled)
+		applySharedLatency(cmd, ifc, transStart)
+		applySharedBytesOnSuccess(cmd, ifc)
 
 		// Return a borrowed buffer to the pool. The candidate is decided before
 		// the connection buffer is restored and returned only after, so the pool
@@ -4116,12 +4213,11 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 	}
 
-	// execution timeout
+	// execution timeout — prior attempts already recorded their failures.
 	if cmd.node != nil && cmd.node.cluster != nil {
 		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
 	}
-	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
-	return errChain
+	return chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 }
 
 func (cmd *baseCommand) prepareBuffer(ifc command, deadline time.Time) Error {
@@ -4160,24 +4256,178 @@ func deviceOverloadError(err Error) bool {
 	return err.Matches(types.DEVICE_OVERLOAD)
 }
 
-func applyTransactionMetrics(node *Node, tt commandType, tb time.Time) {
-	if node != nil && node.cluster.MetricsEnabled() {
+func applyTransactionMetrics(node *Node, tt commandType, tb time.Time, metricsOn bool) {
+	if metricsOn && node != nil {
 		applyMetrics(tt, &node.stats, tb)
 	}
 }
 
-func applyTransactionErrorMetrics(node *Node) {
-	if node == nil || !node.cluster.metricsEnabled.Load() {
+// applyTransactionErrorMetrics updates the Go-local TransactionErrorCount.
+// Intentionally sampler-gated (metricsOn): at p<1 this under-counts vs ungated
+// legacy behavior; shared namespace.* splits are the cross-client signal.
+func applyTransactionErrorMetrics(node *Node, metricsOn bool) {
+	if !metricsOn || node == nil {
 		return
 	}
 	node.stats.TransactionErrorCount.GetAndIncrement()
 }
 
-func applyTransactionRetryMetrics(node *Node) {
-	if node == nil || !node.cluster.metricsEnabled.Load() {
+// applyTransactionRetryMetrics updates the Go-local TransactionRetryCount.
+// Sampler-gated like TransactionErrorCount (see above).
+func applyTransactionRetryMetrics(node *Node, metricsOn bool) {
+	if !metricsOn || node == nil {
 		return
 	}
 	node.stats.TransactionRetryCount.GetAndIncrement()
+}
+
+// commandPathMetrics returns the cached per-call sampler decision.
+// executeAt sets metricsSampledSet after a single metricsEnabled load.
+func (cmd *baseCommand) commandPathMetrics() bool {
+	return cmd.metricsSampled
+}
+
+// applySharedLatency records dual latency scopes on command success:
+//   - namespace.latency.* from rpcStart (logical RPC/sub-batch, including its retries)
+//   - cluster.latency.* from callStart (whole public call, including retries);
+//     skipped for batch child RPCs — the coordinator records cluster.latency.batch
+func applySharedLatency(cmd *baseCommand, ifc command, callStart time.Time) {
+	if cmd == nil || !cmd.metricsSampled {
+		return
+	}
+	ct := ifc.commandType()
+	if cmd.node != nil {
+		rpcStart := cmd.rpcStart
+		if rpcStart.IsZero() {
+			rpcStart = callStart
+		}
+		d := time.Since(rpcStart)
+		cmd.forEachNS(ifc, func(ns string) {
+			cmd.node.stats.addElapsedForCommand(ns, ct, d)
+		})
+	}
+	if cmd.metricsParentCall {
+		return
+	}
+	if cluster := cmd.metricsCluster(); cluster != nil {
+		cluster.addClusterLatency(latencyTypeForCommand(ct), time.Since(callStart))
+	}
+}
+
+// applySharedBytesOnSuccess commits attemptBytes{In,Out} once the RPC succeeded.
+func applySharedBytesOnSuccess(cmd *baseCommand, ifc command) {
+	if cmd == nil || !cmd.metricsSampled || cmd.node == nil {
+		return
+	}
+	in, out := cmd.attemptBytesIn, cmd.attemptBytesOut
+	if in == 0 && out == 0 {
+		return
+	}
+	cmd.forEachNS(ifc, func(ns string) {
+		cmd.node.stats.addSharedBytes(ns, in, out)
+	})
+}
+
+// metricsCluster returns a cluster pointer already known to the command.
+// It never calls getNode — that would put partition resolution on the metrics path.
+func (cmd *baseCommand) metricsCluster() *Cluster {
+	if cmd.cluster != nil {
+		return cmd.cluster
+	}
+	if cmd.node != nil {
+		return cmd.node.cluster
+	}
+	return nil
+}
+
+// forEachNS invokes fn once per distinct namespace on the command.
+// Batch getNamespaces iters yield once per key; dedupe so multi-key same-ns
+// batches do not N× latency/bytes/error samples. Empty "" is the rollup bucket
+// when no namespace is resolved.
+func (cmd *baseCommand) forEachNS(ifc command, fn func(string)) {
+	if single := ifc.getNamespace(); single != nil {
+		fn(*single)
+		return
+	}
+	if nsMap := ifc.getNamespaces(); nsMap != nil {
+		// Fast path: single distinct namespace (common for same-ns batches) —
+		// avoid allocating a seen map.
+		var first string
+		var sawFirst bool
+		var rest map[string]struct{}
+		for ns := range nsMap {
+			if !sawFirst {
+				first = ns
+				sawFirst = true
+				continue
+			}
+			if ns == first {
+				continue
+			}
+			if rest == nil {
+				rest = map[string]struct{}{first: {}, ns: {}}
+				continue
+			}
+			rest[ns] = struct{}{}
+		}
+		if !sawFirst {
+			fn("")
+			return
+		}
+		if rest == nil {
+			fn(first)
+			return
+		}
+		for ns := range rest {
+			fn(ns)
+		}
+		return
+	}
+	fn("")
+}
+
+// setMetricsChild marks this command as a fan-out child of a public API call
+// that already owns command.count / cluster.latency / feature.*. Namespace RPC
+// instruments still record when sampled.
+func (cmd *baseCommand) setMetricsChild(sampled bool) {
+	cmd.metricsParentCall = true
+	cmd.metricsSampled = sampled
+	cmd.metricsSampledSet = true
+	cmd.usageSkip = true
+}
+
+// isClientOriginTimeout reports a client-side timeout (socket / total / pool),
+// not a server protocol TIMEOUT (fromServer). errors.Is(err, ErrTimeout) alone is
+// insufficient because it matches result-code TIMEOUT from either origin.
+func isClientOriginTimeout(err Error) bool {
+	if err == nil || !err.Matches(types.TIMEOUT, types.QUERY_TIMEOUT) {
+		return false
+	}
+	return !isServerError(err)
+}
+
+// recordAttemptFailure increments shared namespace.* error/timeout split counters for
+// one failed wire/setup attempt (Java SDK-aligned). Call on intermediate failures
+// that later succeed via retry as well as terminal failure. Do not record latency
+// here (success-only). Detailed ResultCodeCounts still update in parse via
+// updateOrInsert.
+func (cmd *baseCommand) recordAttemptFailure(ifc command, err Error, clientTimeout bool) {
+	if err == nil || !cmd.metricsSampled || cmd.node == nil {
+		return
+	}
+	if clientTimeout {
+		cmd.forEachNS(ifc, func(ns string) {
+			cmd.node.stats.addSharedError(ns, types.TIMEOUT, true)
+		})
+		return
+	}
+	rc := err.resultCode()
+	if rc == types.OK {
+		return
+	}
+	cmd.forEachNS(ifc, func(ns string) {
+		cmd.node.stats.addSharedError(ns, rc, false)
+	})
 }
 
 func applyConnectionRecoveredMetrics(node *Node) {
@@ -4185,6 +4435,25 @@ func applyConnectionRecoveredMetrics(node *Node) {
 		return
 	}
 	node.stats.ConnectionsRecovered.GetAndIncrement()
+}
+
+// startConnSalvage runs TimeoutDelay drain in the background and tracks the
+// live recover_queue_size gauge (in-flight salvage). Matches Java recoverQueue
+// / Rust connections_recovering semantics without a central deque.
+func startConnSalvage(ifc command, timeoutDelay time.Duration, conn *Connection, node *Node) {
+	if conn == nil || node == nil {
+		return
+	}
+	cluster := node.cluster
+	if cluster != nil {
+		cluster.beginConnectionRecover()
+	}
+	go func() {
+		if cluster != nil {
+			defer cluster.endConnectionRecover()
+		}
+		ifc.salvageConn(timeoutDelay, conn, node)
+	}()
 }
 
 func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
@@ -4236,75 +4505,56 @@ func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 }
 
 // applyDetailedMetricsParsing updates the detailed metrics for parsing time.
+// Shared namespace.bytes_in is deferred to applySharedBytesOnSuccess.
 func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.Time, dataReceived int64) {
-	if cmd.node == nil || cmd.node.cluster == nil || !cmd.node.cluster.MetricsEnabled() {
+	if cmd.node == nil || !cmd.metricsSampled {
 		return
 	}
+	cmd.attemptBytesIn = dataReceived
 
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
 
-	if single := ifc.getNamespace(); single != nil {
-		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+	cmd.forEachNS(ifc, func(ns string) {
+		arr := cmd.node.stats.getOrCreateMetricsArray(ns)
 		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.Parsing.Add(end)
 		cm.BytesReceived.Add(uint64(dataReceived))
-	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
-		for ns := range nsMap {
-			if ns == "" {
-				continue
-			}
-			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
-			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
-			cm.Parsing.Add(end)
-			cm.BytesReceived.Add(uint64(dataReceived))
-		}
-	}
+	})
 }
 
 // applyDetailedMetricsConnectionAq updates the detailed metrics for connection acquire time.
 func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
+	if !cmd.metricsSampled || cmd.node == nil {
+		return
+	}
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
 
-	if single := ifc.getNamespace(); single != nil {
-		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+	cmd.forEachNS(ifc, func(ns string) {
+		arr := cmd.node.stats.getOrCreateMetricsArray(ns)
 		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.ConnectionAq.Add(end)
-	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
-		for ns := range nsMap {
-			if ns == "" {
-				continue
-			}
-			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
-			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
-			cm.ConnectionAq.Add(end)
-		}
-	}
+	})
 }
 
-// applyDetailedMetricsDataSizeAndLatencyOnWrite updates the detailed metrics for bytes sent and transmission time.
+// applyDetailedMetricsDataSizeAndLatencyOnWrite updates detailed phase metrics for
+// bytes sent and transmission time. Shared namespace.bytes_out is deferred to
+// applySharedBytesOnSuccess.
 func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc command, bytesSent int, startTime time.Time) {
+	if !cmd.metricsSampled || cmd.node == nil {
+		return
+	}
+	cmd.attemptBytesOut = int64(bytesSent)
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
 
-	if singleNS := ifc.getNamespace(); singleNS != nil {
-		if *singleNS != "" {
-			arr := cmd.node.stats.getOrCreateMetricsArray(*singleNS)
-			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
-			cm.BytesSent.Add(uint64(bytesSent))
-			cm.Latency.Add(end)
-		}
-	} else if nsIter := ifc.getNamespaces(); nsIter != nil {
-		for ns := range nsIter {
-			if ns != "" {
-				arr := cmd.node.stats.getOrCreateMetricsArray(ns)
-				cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
-				cm.BytesSent.Add(uint64(bytesSent))
-				cm.Latency.Add(end)
-			}
-		}
-	}
+	cmd.forEachNS(ifc, func(ns string) {
+		arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
+		cm.BytesSent.Add(uint64(bytesSent))
+		cm.Latency.Add(end)
+	})
 }
 
 func (cmd *baseCommand) writeAndValidateBinName(binName string) (int, bool) {
