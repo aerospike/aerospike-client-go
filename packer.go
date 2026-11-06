@@ -121,6 +121,9 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	// (canonicalPackBuffer); all other paths keep the order-free fast loop.
 	if !isCanonicalPack(cmd) || len(theMap) < 2 {
 		for k, v := range theMap {
+			if _, isVector := k.(VectorValue); isVector {
+				return 0, errVectorMapKey()
+			}
 			n, err = packObject(cmd, k, true)
 			if err != nil {
 				return 0, err
@@ -137,6 +140,9 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 
 	for _, k := range canonicalKeyOrder(theMap) {
+		if _, isVector := k.(VectorValue); isVector {
+			return 0, errVectorMapKey()
+		}
 		n, err = packObject(cmd, k, true)
 		if err != nil {
 			return 0, err
@@ -540,13 +546,16 @@ func errVectorMapKey() Error {
 	return newError(types.PARAMETER_ERROR, "list/map cannot hold a vector")
 }
 
+// isVectorValue reports whether value is a vector. Vectors are matched here
+// rather than as packObject cases, which would slow the dispatch of every other
+// type packed into a list or map.
+func isVectorValue(value Value) bool {
+	_, isVector := value.(VectorValue)
+	return isVector
+}
+
 func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	switch v := obj.(type) {
-	case VectorValue:
-		if mapKey {
-			return 0, errVectorMapKey()
-		}
-		return v.pack(cmd)
 	case Value:
 		return v.pack(cmd)
 	case []Value:
@@ -593,14 +602,6 @@ func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 		return packFloat32(cmd, v)
 	case float64:
 		return packFloat64(cmd, v)
-	case *Vector:
-		if v == nil {
-			return packNil(cmd)
-		}
-		if mapKey {
-			return 0, errVectorMapKey()
-		}
-		return VectorValue{vector: v}.pack(cmd)
 	case struct{}:
 		if mapKey {
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
@@ -631,6 +632,9 @@ func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	// try to see if the object is convertible to a concrete value.
 	// This will be faster and much more memory efficient than reflection.
 	if v := tryConcreteValue(obj); v != nil {
+		if mapKey && isVectorValue(v) {
+			return 0, errVectorMapKey()
+		}
 		return v.pack(cmd)
 	}
 

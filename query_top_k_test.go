@@ -19,7 +19,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/rand"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -342,6 +344,62 @@ func TestTopKMerger(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("keeps exactly the k best of many offers in any arrival order", func(t *testing.T) {
+		const count = 1000
+		type scoredRecord struct {
+			score  int
+			digest []byte
+		}
+
+		// Scores repeat, so the digest decides ties; digests are unique.
+		records := make([]scoredRecord, count)
+		for index := range records {
+			digest := make([]byte, 20)
+			binary.BigEndian.PutUint32(digest, uint32(index*2654435761))
+			records[index] = scoredRecord{score: (index * 37) % 300, digest: digest}
+		}
+
+		// The expected order: highest score first, then smallest digest.
+		expected := slices.Clone(records)
+		slices.SortFunc(expected, func(left, right scoredRecord) int {
+			if left.score != right.score {
+				return right.score - left.score
+			}
+			return bytes.Compare(left.digest, right.digest)
+		})
+
+		shuffler := rand.New(rand.NewSource(7))
+		for _, k := range []int{1, 10, 250, 2000} {
+			statement := NewStatement("test", "topk")
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			if err := statement.SetTopK(k); err != nil {
+				t.Fatal(err)
+			}
+
+			for round := range 3 {
+				merger := newTopKMerger(statement)
+				for _, index := range shuffler.Perm(count) {
+					key, err := NewKeyWithDigest("test", "topk", nil, records[index].digest)
+					if err != nil {
+						t.Fatal(err)
+					}
+					merger.add(&Result{Record: &Record{Key: key, Bins: BinMap{"score": records[index].score}}}, 0)
+				}
+
+				got := merger.results()
+				want := expected[:min(k, count)]
+				if len(got) != len(want) {
+					t.Fatalf("k=%d round %d: kept %d records, want %d", k, round, len(got), len(want))
+				}
+				for position, result := range got {
+					if result.Record.Bins["score"] != want[position].score || !bytes.Equal(result.Record.Key.Digest(), want[position].digest) {
+						t.Fatalf("k=%d round %d: position %d is score %v, want %d", k, round, position, result.Record.Bins["score"], want[position].score)
+					}
+				}
+			}
+		}
+	})
 
 	t.Run("ranks the same when offered from many goroutines", func(t *testing.T) {
 		const k, count, goroutines = 50, 1000, 8
