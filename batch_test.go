@@ -667,6 +667,49 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
 			})
 
+			gg.Context("when a row is the only one sent to its node", func() {
+				gg.It("applies the row's own filter", func() {
+					key, _ := as.NewKey(ns, set, randString(50))
+					gm.Expect(client.PutBins(nil, key, as.NewBin("status", "inactive"))).To(gm.Succeed())
+					defer client.Delete(nil, key)
+
+					rowPolicy := as.NewBatchReadPolicy()
+					rowPolicy.FilterExpression = as.ExpEq(as.ExpStringBin("status"), as.ExpStringVal("active"))
+					records := []*as.BatchRead{as.NewBatchRead(rowPolicy, key, nil)}
+
+					err := client.BatchGetComplex(nil, records)
+					gm.Expect(err).To(gm.HaveOccurred())
+					gm.Expect(err.Matches(types.FILTERED_OUT)).To(gm.BeTrue())
+					gm.Expect(records[0].BatchRecord.ResultCode).To(gm.Equal(types.FILTERED_OUT))
+					gm.Expect(records[0].BatchRecord.Record).To(gm.BeNil())
+				})
+
+				gg.It("applies the row's own read-touch TTL", func() {
+					if nsupPeriod(ns) == 0 {
+						gg.Skip("Not supported with nsup-period == 0")
+					}
+
+					key, _ := as.NewKey(ns, set, randString(50))
+					gm.Expect(client.PutBins(as.NewWritePolicy(0, 10), key, as.NewBin("a", 1))).To(gm.Succeed())
+					defer client.Delete(nil, key)
+
+					// A read after 20% of the TTL has passed touches the record at 80%.
+					time.Sleep(3 * time.Second)
+
+					rowPolicy := as.NewBatchReadPolicy()
+					rowPolicy.ReadTouchTTLPercent = 80
+					batchPolicy := as.NewBatchPolicy()
+					batchPolicy.ReadTouchTTLPercent = -1
+					records := []*as.BatchRead{as.NewBatchRead(rowPolicy, key, []string{"a"})}
+
+					gm.Expect(client.BatchGetComplex(batchPolicy, records)).To(gm.Succeed())
+
+					header, err := client.GetHeader(nil, key)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(header.Expiration).To(gm.BeNumerically(">=", 9), "the read must reset the TTL")
+				})
+			})
+
 			gg.It("BatchRead TTL", func() {
 				// Same as "Reset Read TTL": community/default clusters often run nsup-period=0,
 				// which forbids TTL writes (allow-ttl-without-nsup=false) and returns FAIL_FORBIDDEN.

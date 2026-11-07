@@ -702,6 +702,23 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		gm.Expect(t.Operands).To(gm.BeNil(), "A query trace must not carry operands")
 	})
 
+	keyOnSameBatchNode := func(bp *as.BatchPolicy, key *as.Key) *as.Key {
+		nodeFor := func(candidate *as.Key) *as.Node {
+			node, err := as.GetNodeBatchRead(client.Cluster(), candidate, bp.ReplicaPolicy, as.GetReplicaPolicySC(bp.GetBasePolicy()), nil, 0, 0)
+			gm.Expect(err).NotTo(gm.HaveOccurred())
+			return node
+		}
+		keyNode := nodeFor(key)
+		for i := 0; i < 1000; i++ {
+			candidate, _ := as.NewKey(key.Namespace(), key.SetName(), i)
+			if nodeFor(candidate) == keyNode {
+				return candidate
+			}
+		}
+		gg.Fail("no key found on the same node")
+		return nil
+	}
+
 	gg.It("batch row filter build failure surfaces a build trace on the row", func() {
 		bp := as.NewBatchPolicy()
 		bp.ErrorDetailVerbosity = 3
@@ -713,9 +730,15 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		badPolicy := as.NewBatchReadPolicy()
 		badPolicy.FilterExpression = buildErrorExp()
 
+		// Both rows must share a node to go out in one batch request. A row
+		// alone on its node is sent as a single-record command instead.
+		siblingKey := keyOnSameBatchNode(bp, stdKey)
+		gm.Expect(client.PutBins(nil, siblingKey, as.NewBin(binInt, 10))).To(gm.Succeed())
+		defer client.Delete(nil, siblingKey)
+
 		recs := []*as.BatchRead{
 			as.NewBatchRead(badPolicy, stdKey, nil),
-			as.NewBatchRead(nil, scratchKey, nil),
+			as.NewBatchRead(nil, siblingKey, nil),
 		}
 
 		// RespondAllKeys returns every row, so the call itself does not error;
@@ -734,5 +757,26 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		// The sibling row is unaffected and carries no detail of its own.
 		gm.Expect(recs[1].BatchRecord.ExpTrace).To(gm.BeNil(),
 			"Detail must reset per row, not leak from the previous one")
+	})
+
+	gg.It("batch row filter build failure on a row alone on its node surfaces a build trace on the row", func() {
+		bp := as.NewBatchPolicy()
+		bp.ErrorDetailVerbosity = 3
+
+		// A one-row batch is sent as a single-record command.
+		badPolicy := as.NewBatchReadPolicy()
+		badPolicy.FilterExpression = buildErrorExp()
+		recs := []*as.BatchRead{as.NewBatchRead(badPolicy, stdKey, nil)}
+
+		_ = client.BatchGetComplex(bp, recs)
+
+		bad := recs[0].BatchRecord
+		gm.Expect(bad.ResultCode).To(gm.Equal(types.PARAMETER_ERROR), "Unexpected row result code")
+		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in request"))
+
+		t := bad.ExpTrace
+		gm.Expect(t).NotTo(gm.BeNil(), "Expected a build trace on the failing row")
+		gm.Expect(t.Phase).To(gm.Equal(as.ExpTracePhaseBuild))
+		gm.Expect(t.ByteOffset).To(gm.BeNumerically(">=", 0), "Build traces carry byte_offset")
 	})
 })
