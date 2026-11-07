@@ -30,4 +30,6 @@ cover*.out
 .vscode/settings.json
 ginkgo.report
 /conformance-report.json
+/test/discovery/.run/
+/test/tls/.run/
 .idea

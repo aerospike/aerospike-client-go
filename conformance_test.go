@@ -136,27 +136,13 @@ func (*conformanceSeedScript) SupportsDeadline() bool     { return false }
 func (*conformanceSeedScript) Close()                     {}
 
 func TestConformance(t *testing.T) {
-	dir := strings.TrimSpace(os.Getenv("CONFORMANCE_DIR"))
-	if dir == "" {
+	raw := strings.TrimSpace(os.Getenv("CONFORMANCE_DIR"))
+	if raw == "" {
 		t.Skip("set CONFORMANCE_DIR to an aerospike-client-conformance 1.1.0 checkout")
 	}
-
-	dir, err := filepath.Abs(dir)
+	dir, err := conformanceFixtureDir(raw)
 	if err != nil {
-		t.Fatalf("conformance directory: %v", err)
-	}
-	if info, statErr := os.Stat(dir); statErr != nil || !info.IsDir() {
-		t.Fatalf("conformance directory not found: %s", dir)
-	}
-
-	versionBytes, err := os.ReadFile(filepath.Join(dir, "VERSION"))
-	if err != nil {
-		t.Fatalf("not a conformance fixture set, VERSION not found: %s", dir)
-	}
-	fixtureSetVersion := strings.TrimSpace(string(versionBytes))
-	if fixtureSetVersion != conformanceFixtureSetVersion {
-		t.Fatalf("conformance fixture set %s found, %s expected: check out that release or update the declarations",
-			fixtureSetVersion, conformanceFixtureSetVersion)
+		t.Fatal(err)
 	}
 
 	rows, err := loadConformanceRows(dir)
@@ -176,7 +162,7 @@ func TestConformance(t *testing.T) {
 
 	reportRows := make([]conformanceReportRow, 0, len(rows))
 	t.Cleanup(func() {
-		if writeErr := writeConformanceReport(fixtureSetVersion, reportRows); writeErr != nil {
+		if writeErr := writeConformanceReport(conformanceFixtureSetVersion, reportRows); writeErr != nil {
 			t.Errorf("conformance report: %v", writeErr)
 		}
 	})
@@ -184,31 +170,61 @@ func TestConformance(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.file+":"+row.name, func(t *testing.T) {
 			actual := runner.execute(row)
-			reason := actual.reason
-			if row.declared.reason != "" && row.declared.result == actual.result {
-				reason = row.declared.reason
-			}
-
-			entry := conformanceReportRow{
-				File:   row.file,
-				Case:   row.name,
-				Result: actual.result,
-				Reason: reason,
-			}
-			if actual.reason != "" && actual.reason != reason {
-				entry.Detail = actual.reason
-			}
-			reportRows = append(reportRows, entry)
-
-			if actual.result != row.declared.result {
-				detail := ""
-				if actual.reason != "" {
-					detail = ": " + actual.reason
-				}
-				t.Errorf("declared %s, actual %s%s", row.declared.result, actual.result, detail)
+			reportRows = append(reportRows, conformanceReportEntry(row, actual))
+			if mismatch := conformanceMismatch(row, actual); mismatch != "" {
+				t.Error(mismatch)
 			}
 		})
 	}
+}
+
+// conformanceFixtureDir returns the absolute path of dir after checking that it
+// is a conformance checkout at conformanceFixtureSetVersion.
+func conformanceFixtureDir(dir string) (string, error) {
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("conformance directory: %w", err)
+	}
+	if info, statErr := os.Stat(dir); statErr != nil || !info.IsDir() {
+		return "", fmt.Errorf("conformance directory not found: %s", dir)
+	}
+	versionBytes, err := os.ReadFile(filepath.Join(dir, "VERSION"))
+	if err != nil {
+		return "", fmt.Errorf("not a conformance fixture set, VERSION not found: %s", dir)
+	}
+	if got := strings.TrimSpace(string(versionBytes)); got != conformanceFixtureSetVersion {
+		return "", fmt.Errorf("conformance fixture set %s found, %s expected: check out that release or update the declarations",
+			got, conformanceFixtureSetVersion)
+	}
+	return dir, nil
+}
+
+// conformanceReportEntry is the report row for an outcome. A declared reason
+// replaces the actual one when the results agree, and the actual reason moves
+// to detail.
+func conformanceReportEntry(row *conformanceRow, actual conformanceOutcome) conformanceReportRow {
+	reason := actual.reason
+	if row.declared.reason != "" && row.declared.result == actual.result {
+		reason = row.declared.reason
+	}
+	entry := conformanceReportRow{File: row.file, Case: row.name, Result: actual.result, Reason: reason}
+	if actual.reason != "" && actual.reason != reason {
+		entry.Detail = actual.reason
+	}
+	return entry
+}
+
+// conformanceMismatch describes an outcome that differs from the declared
+// result, or returns "" when they agree.
+func conformanceMismatch(row *conformanceRow, actual conformanceOutcome) string {
+	if actual.result == row.declared.result {
+		return ""
+	}
+	detail := ""
+	if actual.reason != "" {
+		detail = ": " + actual.reason
+	}
+	return fmt.Sprintf("declared %s, actual %s%s", row.declared.result, actual.result, detail)
 }
 
 func (runner *conformanceRunner) execute(row *conformanceRow) conformanceOutcome {
@@ -797,11 +813,7 @@ func writeConformanceReport(fixtureSetVersion string, rows []conformanceReportRo
 		}
 	}
 
-	path := os.Getenv("CONFORMANCE_REPORT")
-	if path == "" {
-		path = conformanceReportFile
-	}
-	file, err := os.Create(path)
+	file, err := os.Create(conformanceReportPath())
 	if err != nil {
 		return err
 	}
@@ -817,6 +829,13 @@ func writeConformanceReport(fixtureSetVersion string, rows []conformanceReportRo
 		Counts:            counts,
 		Rows:              rows,
 	})
+}
+
+func conformanceReportPath() string {
+	if path := os.Getenv("CONFORMANCE_REPORT"); path != "" {
+		return path
+	}
+	return conformanceReportFile
 }
 
 func needsFixtureServer(rows []*conformanceRow) bool {

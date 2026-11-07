@@ -1,0 +1,120 @@
+name: TLS certificate matching
+
+on:
+  workflow_call:
+    inputs:
+      server-container-repo:
+        description: Aerospike Enterprise image repository path
+        type: string
+        required: true
+      server-tag:
+        description: Aerospike Enterprise image tag
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  tls-matching:
+    name: cases
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    timeout-minutes: 60
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout conformance fixtures
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aerospike/aerospike-client-conformance
+          ref: f66304f36d1cded608e4d6c199622266e2db1dc3 # main, fixture set 1.1.0
+          path: conformance-fixtures
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Require OIDC
+        env:
+          OIDC_PROVIDER: ${{ vars.OIDC_PROVIDER }}
+          OIDC_AUDIENCE: ${{ vars.OIDC_AUDIENCE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${OIDC_PROVIDER}" || -z "${OIDC_AUDIENCE}" ]]; then
+            echo "::error::vars.OIDC_PROVIDER and vars.OIDC_AUDIENCE are required to pull the Aerospike image."
+            exit 1
+          fi
+
+      - name: Set up JFrog CLI
+        id: jf
+        uses: step-security/setup-jfrog-cli@a6b41f8338bea0983ddff6bd4ede7d2dcd81e1fa # v4.8.1
+        env:
+          JF_URL: https://aerospike.jfrog.io
+        with:
+          oidc-provider-name: ${{ vars.OIDC_PROVIDER }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
+
+      - name: Docker login
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: aerospike.jfrog.io
+          username: ${{ steps.jf.outputs.oidc-user }}
+          password: ${{ steps.jf.outputs.oidc-token }}
+
+      - name: Run TLS certificate matching
+        env:
+          AEROSPIKE_IMAGE: aerospike.jfrog.io/${{ inputs.server-container-repo }}:${{ inputs.server-tag }}
+          CONFORMANCE_DIR: ${{ github.workspace }}/conformance-fixtures
+          CONFORMANCE_REPORT: ${{ runner.temp }}/conformance-report/conformance-report.json
+          FEATURES_CONTENT: ${{ secrets.FEATURES_CONF }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${FEATURES_CONTENT}" ]]; then
+            echo "::error::FEATURES_CONF is required to run TLS certificate matching."
+            exit 1
+          fi
+          features="${RUNNER_TEMP}/features.conf"
+          printf '%s\n' "${FEATURES_CONTENT}" > "${features}"
+          unset FEATURES_CONTENT
+          docker pull "${AEROSPIKE_IMAGE}"
+          FEATURES_CONF_PATH="${features}" bash test/tls/run_tls_matching.sh
+
+      - name: TLS-only fixtures for collect
+        if: ${{ always() }}
+        env:
+          SRC: ${{ github.workspace }}/conformance-fixtures
+          DST: ${{ runner.temp }}/tls-fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p "${DST}/tls"
+          cp "${SRC}/VERSION" "${DST}/VERSION"
+          cp "${SRC}/tls/name-matching.yaml" "${DST}/tls/name-matching.yaml"
+
+      - name: Upload conformance report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformance-report-go-tls
+          path: ${{ runner.temp }}/conformance-report/conformance-report.json
+          overwrite: true
+
+      - name: Collect conformance report
+        if: ${{ always() }}
+        uses: aerospike/aerospike-client-conformance/.github/actions/collect-conformance-report@f66304f36d1cded608e4d6c199622266e2db1dc3 # main
+        with:
+          reports-directory: ${{ runner.temp }}/conformance-report
+          fixtures-directory: ${{ runner.temp }}/tls-fixtures
+          declarations-directory: ${{ runner.temp }}/conformance-report

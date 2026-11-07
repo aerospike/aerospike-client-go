@@ -7,7 +7,8 @@ name: Discovery integration
 # push and on workflow_dispatch. Fork pull requests do not receive
 # FEATURES_CONF, so the gate job reports EE as a skipped layer instead.
 #
-# TLS certificate matching is PLAN §7.3, not this matrix.
+# TLS certificate matching is an EE job. It starts one Enterprise container
+# per fixture certificate shape, so it uses the same FEATURES_CONF gate.
 
 permissions:
   id-token: write
@@ -41,7 +42,7 @@ jobs:
           set -euo pipefail
           layers='[]'
           if [[ "${ENTERPRISE}" != true ]]; then
-            layers=$(jq -cn '[{layer: "L2 EE", tests: "ee and ee cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"}]')
+            layers=$(jq -cn '[{layer: "L2 EE", tests: "ee and ee cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"},{layer: "TLS certificate matching", tests: "certificate name matching against Enterprise servers", reason: "fork pull requests get no FEATURES_CONF"}]')
           fi
           echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
@@ -92,4 +93,14 @@ jobs:
       server-tag: 8.2.0.0
       tls-listen-port-base: "43331"
       profile: ${{ matrix.profile }}
+    secrets: inherit
+
+  tls-matching:
+    name: TLS certificate matching
+    needs: gate
+    if: needs.gate.outputs.enterprise == 'true'
+    uses: ./.github/workflows/tls-matching.yaml
+    with:
+      server-container-repo: database-docker-dev-local/aerospike-server-enterprise
+      server-tag: 8.2.0.0
     secrets: inherit
