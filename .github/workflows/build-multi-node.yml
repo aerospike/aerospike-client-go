@@ -42,7 +42,7 @@ jobs:
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -84,14 +84,14 @@ jobs:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Aerospike multi-node cluster
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@b4b1e9dc89314a2d542f9d6fe0ee150ad06f9860 # v5.0.0
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@308f37e0cd5c7a6386a99ea7afc379d5a4ea9256 # v5.1.0
         with:
           server-tag: ${{ matrix.version }}
           num-nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
@@ -131,7 +131,7 @@ jobs:
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@f484eec846448c97c777a26f8b58c5a69a327e12 # v2.20.0
+        uses: vladopajic/go-test-coverage@249eda999ac7e91238727277beec9b32b28a19b0 # v2.21.0
         continue-on-error: true
         with:
           config: ./.testcoverage.yml

@@ -18,6 +18,7 @@ package fixtures
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -241,6 +242,39 @@ func countQuery(filter *as.Filter) (int, error) {
 	return count, nil
 }
 
+// queryTopKPairs returns the k best records through a Top-K query that ranks
+// an indexed integer bin highest first and breaks ties by a second integer
+// bin, lowest first. Each record is returned as its two values.
+func queryTopKPairs(bin, tieBin string, k int) ([][2]int, error) {
+	statement := as.NewStatement(namespace, set, bin, tieBin)
+	if err := statement.SetFilter(as.NewRangeFilter(bin, 1, 1000)); err != nil {
+		return nil, err
+	}
+	if err := statement.SetOrderBy(bin, as.BinDataTypeInteger, as.OrderDesc); err != nil {
+		return nil, err
+	}
+	if err := statement.ThenOrderBy(tieBin, as.BinDataTypeInteger, as.OrderAsc); err != nil {
+		return nil, err
+	}
+	if err := statement.SetTopK(k); err != nil {
+		return nil, err
+	}
+	recordset, err := client.Query(nil, statement)
+	if err != nil {
+		return nil, err
+	}
+	defer recordset.Close()
+
+	var pairs [][2]int
+	for res := range recordset.Results() {
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		pairs = append(pairs, [2]int{res.Record.Bins[bin].(int), res.Record.Bins[tieBin].(int)})
+	}
+	return pairs, nil
+}
+
 func GeoJSONQuery() Fixture {
 	const indexName = "testset_geo_index"
 	return Fixture{
@@ -362,4 +396,108 @@ func QueryAggregateSum() Fixture {
 			return nil
 		},
 	}
+}
+
+func QueryTopK() Fixture {
+	const size, k = 20, 5
+	keys := numberedKeys("topkkey", size)
+	return Fixture{
+		Setup: func() error {
+			_ = client.DropIndex(nil, namespace, set, "topkindex")
+			return DeleteKeys(keys...)
+		},
+		// Scores tie in pairs (records 19 and 20 score 10, records 17 and 18
+		// score 9, and so on), so the lower id comes first within each pair.
+		Validate: func() error {
+			got, err := queryTopKPairs("topkbin", "topkid", k)
+			if err != nil {
+				return err
+			}
+			want := [][2]int{{10, 19}, {10, 20}, {9, 17}, {9, 18}, {8, 15}}
+			if fmt.Sprint(got) != fmt.Sprint(want) {
+				return fmt.Errorf("top %d = %v, want %v", k, got, want)
+			}
+			return nil
+		},
+		Cleanup: func() error {
+			if err := DeleteKeys(keys...); err != nil {
+				return err
+			}
+			_ = client.DropIndex(nil, namespace, set, "topkindex")
+			return nil
+		},
+	}
+}
+
+func QueryVectorKNN() Fixture {
+	const size = 20
+	keys := make([]string, size)
+	for i := range keys {
+		keys[i] = "knnkey" + strconv.Itoa(i)
+	}
+	return Fixture{
+		Setup:   func() error { return DeleteKeys(keys...) },
+		Cleanup: func() error { return DeleteKeys(keys...) },
+		// Record i holds (i, i, i, i): nearest to (7.3, ...) by squared
+		// Euclidean distance are 7, 8, 6, 9, 5; largest dot product with
+		// (1, ...) are 19 down to 15.
+		Validate: func() error {
+			checks := []struct {
+				distance  as.VectorDistanceMetric
+				query     []float32
+				direction as.OrderDirection
+				want      []int
+			}{
+				{as.VectorEuclideanSquared, []float32{7.3, 7.3, 7.3, 7.3}, as.OrderAsc, []int{7, 8, 6, 9, 5}},
+				{as.VectorDotProduct, []float32{1, 1, 1, 1}, as.OrderDesc, []int{19, 18, 17, 16, 15}},
+			}
+			for _, check := range checks {
+				got, err := queryNearestIDs(check.distance, check.query, check.direction, len(check.want))
+				if err != nil {
+					return err
+				}
+				if fmt.Sprint(got) != fmt.Sprint(check.want) {
+					return fmt.Errorf("nearest %d by %v = %v, want %v", len(check.want), check.distance, got, check.want)
+				}
+			}
+			return nil
+		},
+	}
+}
+
+// queryNearestIDs returns the ids of the k records whose "vec" bin is nearest
+// to query, best first, through a Top-K query on the projected distance.
+func queryNearestIDs(distance as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) ([]int, error) {
+	queryVector, err := as.NewVectorFloat32(query)
+	if err != nil {
+		return nil, err
+	}
+
+	statement := as.NewStatement(namespace, set)
+	statement.Operations = []*as.Operation{
+		as.ExpReadOp("dist",
+			as.ExpVectorDistance(distance, queryVector, as.ExpVectorBin("vec")),
+			as.ExpReadFlagDefault),
+		as.GetBinOp("id"),
+	}
+	if err := statement.SetOrderBy("dist", as.BinDataTypeDouble, direction); err != nil {
+		return nil, err
+	}
+	if err := statement.SetTopK(k); err != nil {
+		return nil, err
+	}
+	recordset, err := client.Query(nil, statement)
+	if err != nil {
+		return nil, err
+	}
+	defer recordset.Close()
+
+	var ids []int
+	for res := range recordset.Results() {
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		ids = append(ids, res.Record.Bins["id"].(int))
+	}
+	return ids, nil
 }

@@ -152,6 +152,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			return false, newError(types.QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
 		}
 
+		if vector, ok := recs.(*Vector); ok {
+			recs = luaVectorValue(vector)
+		}
+
 		// If the channel is full and it blocks, we don't want this command to
 		// block forever, or panic in case the channel is closed in the meantime.
 		select {

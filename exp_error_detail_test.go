@@ -35,11 +35,11 @@ import (
 // Four areas:
 //
 //  1. Eval-phase (PHASE_EVAL) expression traces for filter runtime faults:
-//     div/mod by zero, INT64_MIN overflow, CDT out-of-bounds (with subcode),
+//     div/mod by zero, INT64_MIN overflow, CDT out-of-bounds,
 //     unordered-map compare.
-//  2. Verbosity tier-1 suppression semantics: an AS_SUB_NONE error at
-//     verbosity 1 stages no error details at all, while a real-subcode CDT
-//     fault ships subcode-only (no message, no trace).
+//  2. Verbosity tier-1 suppression semantics: a filter fault reaches the
+//     client with no subcode, so verbosity 1 stages no error details at
+//     all.
 //  3. Verb parity: build / fault / FALSE / absent / metadata-FALSE / tier-2 /
 //     clean-pass filter scenarios across put, delete and operate, including
 //     the verb-specific metadata-filter messages.
@@ -247,13 +247,13 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		assertEvalTrace(ae, "eq", 1, []string{"eq"})
 	})
 
-	gg.It("filter fault CDT out of bounds carries subcode and eval trace", func() {
-		// A CDT sub-op fault carries a real subcode through the FILTERED_OUT
-		// status (the CDT layer's out-of-bounds subcode = 1).
+	gg.It("filter fault CDT out of bounds carries eval trace but no subcode", func() {
+		// The CDT out-of-bounds subcode is bound to OP_NOT_APPLICABLE, so the
+		// server drops it under FILTERED_OUT; message and trace still ship.
 		exp := as.ExpEq(cdtOobExp(), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "out of bounds")
 
 		assertEvalTrace(ae, "call", 2, []string{"eq", "call"})
@@ -263,9 +263,9 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	// 2. Verbosity tier-1 suppression semantics.
 	//
 	// Python: CASES_FILTER_VERBOSITY / CASES_MP_VERBOSITY. Build failures and
-	// div-by-zero faults carry AS_SUB_NONE, so at tier 1 (subcode-only) they
-	// have nothing to send and field 45 is suppressed entirely; a real-subcode
-	// CDT fault ships subcode only (no message, no trace).
+	// div-by-zero faults carry AS_SUB_NONE, and a CDT fault's subcode is
+	// dropped under FILTERED_OUT, so at tier 1 (subcode-only) they have
+	// nothing to send and field 45 is suppressed entirely.
 	// ---------------------------------------------------------------------
 
 	gg.It("verbosity 1 suppresses build-error details entirely", func() {
@@ -278,14 +278,11 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		assertNoDetails(ae, types.FILTERED_OUT)
 	})
 
-	gg.It("verbosity 1 CDT fault ships subcode only", func() {
+	gg.It("verbosity 1 CDT fault under a filter has no details", func() {
 		exp := as.ExpEq(cdtOobExp(), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(1, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
-		gm.Expect(ae.ExpTrace).To(gm.BeNil(), "Tier 1 must surface no trace")
-
-		gm.Expect(ae.ServerMessage).To(gm.BeEmpty(), "Tier 1 must surface no message text")
+		assertNoDetails(ae, types.FILTERED_OUT)
 	})
 
 	gg.It("verbosity 2 eval fault ships message but no trace", func() {
@@ -450,14 +447,33 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		gm.Expect(rec.Bins["result"]).To(gm.Equal(11))
 	})
 
-	gg.It("exp read invalid flags stages no details", func() {
-		// A write-only policy flag on a read op is rejected structurally
-		// before any expression is built: rc 4 with NO error details staged.
-		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR,
-			as.ExpReadOp("result", as.ExpNumAdd(as.ExpIntBin(binInt), as.ExpIntVal(1)),
-				as.ExpReadFlags(as.ExpWriteFlagCreateOnly)))
+	// A write-only flag on a read op is rejected before any expression is
+	// built. From 8.2.1 the server names the flags in the message; earlier
+	// servers send no details.
+	invalidReadFlagsOp := func() *as.Operation {
+		return as.ExpReadOp("result", as.ExpNumAdd(as.ExpIntBin(binInt), as.ExpIntVal(1)),
+			as.ExpReadFlags(as.ExpWriteFlagCreateOnly))
+	}
+	messageNamesFlagsVersion := &version.Version{Major: 8, Minor: 2, Patch: 1, Build: 0}
+
+	gg.It("exp read invalid flags stages no details before 8.2.1", func() {
+		if !serverVersion.IsSmaller(messageNamesFlagsVersion) {
+			gg.Skip("servers from 8.2.1 name the flags; got " + serverVersion.String())
+		}
+		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR, invalidReadFlagsOp())
 
 		assertNoDetails(ae, types.PARAMETER_ERROR)
+	})
+
+	gg.It("exp read invalid flags names the flags from 8.2.1", func() {
+		if serverVersion.IsSmaller(messageNamesFlagsVersion) {
+			gg.Skip("servers before 8.2.1 send no message; got " + serverVersion.String())
+		}
+		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR, invalidReadFlagsOp())
+
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
+		gm.Expect(ae.ExpTrace).To(gm.BeNil())
+		assertMessageContains(ae, "expression op flags 0x1 invalid for a read")
 	})
 
 	gg.It("exp read eval fault div by zero surfaces an eval trace", func() {
@@ -705,6 +721,23 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		gm.Expect(t.Operands).To(gm.BeNil(), "A query trace must not carry operands")
 	})
 
+	keyOnSameBatchNode := func(bp *as.BatchPolicy, key *as.Key) *as.Key {
+		nodeFor := func(candidate *as.Key) *as.Node {
+			node, err := as.GetNodeBatchRead(client.Cluster(), candidate, bp.ReplicaPolicy, as.GetReplicaPolicySC(bp.GetBasePolicy()), nil, 0, 0)
+			gm.Expect(err).NotTo(gm.HaveOccurred())
+			return node
+		}
+		keyNode := nodeFor(key)
+		for i := 0; i < 1000; i++ {
+			candidate, _ := as.NewKey(key.Namespace(), key.SetName(), i)
+			if nodeFor(candidate) == keyNode {
+				return candidate
+			}
+		}
+		gg.Fail("no key found on the same node")
+		return nil
+	}
+
 	gg.It("batch row filter build failure surfaces a build trace on the row", func() {
 		bp := as.NewBatchPolicy()
 		bp.ErrorDetailVerbosity = 3
@@ -716,9 +749,15 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		badPolicy := as.NewBatchReadPolicy()
 		badPolicy.FilterExpression = buildErrorExp()
 
+		// Both rows must share a node to go out in one batch request. A row
+		// alone on its node is sent as a single-record command instead.
+		siblingKey := keyOnSameBatchNode(bp, stdKey)
+		gm.Expect(client.PutBins(nil, siblingKey, as.NewBin(binInt, 10))).To(gm.Succeed())
+		defer client.Delete(nil, siblingKey)
+
 		recs := []*as.BatchRead{
 			as.NewBatchRead(badPolicy, stdKey, nil),
-			as.NewBatchRead(nil, scratchKey, nil),
+			as.NewBatchRead(nil, siblingKey, nil),
 		}
 
 		// RespondAllKeys returns every row, so the call itself does not error;
@@ -737,5 +776,26 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		// The sibling row is unaffected and carries no detail of its own.
 		gm.Expect(recs[1].BatchRecord.ExpTrace).To(gm.BeNil(),
 			"Detail must reset per row, not leak from the previous one")
+	})
+
+	gg.It("batch row filter build failure on a row alone on its node surfaces a build trace on the row", func() {
+		bp := as.NewBatchPolicy()
+		bp.ErrorDetailVerbosity = 3
+
+		// A one-row batch is sent as a single-record command.
+		badPolicy := as.NewBatchReadPolicy()
+		badPolicy.FilterExpression = buildErrorExp()
+		recs := []*as.BatchRead{as.NewBatchRead(badPolicy, stdKey, nil)}
+
+		_ = client.BatchGetComplex(bp, recs)
+
+		bad := recs[0].BatchRecord
+		gm.Expect(bad.ResultCode).To(gm.Equal(types.PARAMETER_ERROR), "Unexpected row result code")
+		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in request"))
+
+		t := bad.ExpTrace
+		gm.Expect(t).NotTo(gm.BeNil(), "Expected a build trace on the failing row")
+		gm.Expect(t.Phase).To(gm.Equal(as.ExpTracePhaseBuild))
+		gm.Expect(t.ByteOffset).To(gm.BeNumerically(">=", 0), "Build traces carry byte_offset")
 	})
 })

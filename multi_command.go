@@ -39,6 +39,13 @@ type baseMultiCommand struct {
 	tracker        *partitionTracker
 	nodePartitions *nodePartitions
 
+	// topKMerger collects the records of a Top-K query instead of the recordset.
+	topKMerger *topKMerger
+
+	// lastUpdateTime is the current Top-K record's last-update time, or 0 when
+	// the server sent none. Reset at the start of each parseKey.
+	lastUpdateTime int64
+
 	terminationErrorType types.ResultCode
 
 	resObjType     reflect.Type
@@ -265,6 +272,8 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 	var userKey Value
 	var err Error
 
+	cmd.lastUpdateTime = 0
+
 	for i := 0; i < fieldCount; i++ {
 		if err = cmd.readBytes(4); err != nil {
 			return nil, err
@@ -293,6 +302,13 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 			if bval != nil {
 				v := Buffer.LittleBytesToInt64(cmd.dataBuffer, 1)
 				*bval = v
+			}
+		case LAST_UPDATE_TIME:
+			if cmd.topKMerger != nil {
+				if size != 8 {
+					return nil, newError(types.PARSE_ERROR, fmt.Sprintf("Last-update time field has invalid size: %d", size)).setNode(cmd.node)
+				}
+				cmd.lastUpdateTime = Buffer.BytesToInt64(cmd.dataBuffer, 1)
 			}
 		}
 	}
@@ -528,6 +544,14 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			}
 
 			if !cmd.tracker.allowRecord(cmd.nodePartitions) {
+				continue
+			}
+
+			// Top-K records arrive best first, not in digest order, so they
+			// set no resume point: a retried partition is scanned again and
+			// the merger drops the duplicates.
+			if cmd.topKMerger != nil {
+				cmd.topKMerger.add(&Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: &bval}, cmd.lastUpdateTime)
 				continue
 			}
 

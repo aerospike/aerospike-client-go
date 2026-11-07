@@ -43,7 +43,7 @@ func ExpModifyByPath(
 		expCdtModifyList{
 			IntegerValue(ExpCdtSelect),
 			cdtContextList(ctx),
-			IntegerValue(flag | 4),
+			IntegerValue(flag),
 			modifyExp,
 		},
 	}

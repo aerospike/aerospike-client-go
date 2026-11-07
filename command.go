@@ -152,6 +152,12 @@ const (
 	ttMaxCommandTypes // Automatically gets the count of command types via iota
 )
 
+// bufferPool is the subset of the shared buffer pool used by commands.
+type bufferPool interface {
+	Get(sz int) []byte
+	Put(buf []byte)
+}
+
 var (
 	buffPool = pool.NewTieredBufferPool(MinBufferSize, PoolCutOffBufferSize)
 )
@@ -223,6 +229,11 @@ type command interface {
 // Holds data buffer for the command
 type baseCommand struct {
 	bufferEx
+
+	// pool is for testing purposes only: when non-nil it replaces the shared
+	// buffer pool so tests can observe the buffers a command borrows and
+	// returns. Production code leaves it nil.
+	pool bufferPool
 
 	txn     *Txn
 	version *uint64
@@ -1308,6 +1319,11 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 				cmd.writeBatchWrite(key, txn, ver, attr, attr.filterExp, 3, 0)
 				cmd.writeFieldString(bu.PackageName, UDF_PACKAGE_NAME)
 				cmd.writeFieldString(bu.FunctionName, UDF_FUNCTION)
+				if bu.argBytesHaveVector {
+					if err := cmd.markVector(); err != nil {
+						return nil, err
+					}
+				}
 				cmd.writeFieldBytes(bu.argBytes, UDF_ARGLIST)
 
 			case _BRT_BATCH_DELETE:
@@ -2547,7 +2563,28 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions) Error {
+// readsAllBins reports whether an operation reads every bin. The server
+// rejects RESPOND_ALL_OPS with such an operation.
+func readsAllBins(operations []*Operation) bool {
+	for _, operation := range operations {
+		if operation.opType == _READ && operation.binName == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// writeOrderBySpec writes one Top-K order-by spec: type, direction, flags,
+// name length and name.
+func (cmd *baseCommand) writeOrderBySpec(spec orderBySpec) {
+	cmd.WriteByte(byte(spec.orderType))
+	cmd.WriteByte(byte(spec.direction))
+	cmd.WriteByte(0) // flags: none apply to the supported order-by types
+	cmd.WriteByte(byte(len(spec.binName)))
+	cmd.WriteString(spec.binName)
+}
+
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions, sendTopK bool) Error {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
@@ -2698,6 +2735,21 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fieldCount++
 	}
 
+	// Estimate Top-K order-by and limit fields.
+	orderBySize := 0
+	if sendTopK {
+		orderBySize = statement.orderBy.wireSize()
+		if statement.hasThenOrderBy {
+			orderBySize += statement.thenOrderBy.wireSize()
+		}
+		cmd.dataOffset += orderBySize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+		if statement.hasTopK() {
+			cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+	}
+
 	if filterExpression != nil {
 		var err Error
 		predSize, err = cmd.estimateExpressionSize(filterExpression)
@@ -2789,6 +2841,12 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			readAttr |= _INFO1_SHORT_QUERY
 		} else if policy.ExpectedDuration == LONG_RELAX_AP {
 			writeAttr |= _INFO2_RELAX_AP_LONG_QUERY
+		}
+		// The server sends a record only when a projected read has a value. A
+		// Top-K record whose order-by value is empty must still arrive, to rank
+		// last.
+		if statement.hasTopK() && operationCount > 0 && !readsAllBins(operations) {
+			writeAttr |= _INFO2_RESPOND_ALL_OPS
 		}
 		infoAttr := 0
 		if isNew || statement.Filter == nil {
@@ -2891,6 +2949,20 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	if maxRecords > 0 {
 		cmd.writeFieldInt64(maxRecords, MAX_RECORDS)
+	}
+
+	// Write Top-K: the order-by specs concatenated in one field, then the
+	// limit as a uint32 when set. The server rejects an order-by without a
+	// limit.
+	if sendTopK {
+		cmd.writeFieldHeader(orderBySize, ORDER_BY)
+		cmd.writeOrderBySpec(statement.orderBy)
+		if statement.hasThenOrderBy {
+			cmd.writeOrderBySpec(statement.thenOrderBy)
+		}
+		if statement.hasTopK() {
+			cmd.writeFieldInt32(int32(statement.topK), TOP_K)
+		}
 	}
 
 	// Write scan timeout
@@ -3426,6 +3498,12 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
+	if operation.hasVector {
+		if err := cmd.markVector(); err != nil {
+			return err
+		}
+	}
+
 	nameLength, valid := cmd.writeAndValidateBinName(operation.binName)
 	switch operation.opType {
 	case _READ, _READ_HEADER, _TOUCH, _DELETE:
@@ -3576,6 +3654,15 @@ func (cmd *baseCommand) writeFieldHeader(size int, ftype FieldType) {
 	cmd.WriteByte((byte(ftype)))
 }
 
+// markVector refuses a vector unless every node in the cluster supports
+// vectors. A command without a node has nothing to check against.
+func (cmd *baseCommand) markVector() Error {
+	if cmd.node != nil && !cmd.node.cluster.supportsVector.Get() {
+		return newError(types.PARAMETER_ERROR, "Vector is not supported by all nodes in the cluster")
+	}
+	return nil
+}
+
 func (cmd *baseCommand) begin() {
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
 }
@@ -3608,6 +3695,45 @@ const (
 	zlibHeaderPad = 2
 )
 
+// borrowedBuffer returns the buffer the command borrowed from the pool when
+// its request or response outgrew the connection buffer, or nil if the command
+// used the connection buffer throughout.
+//
+// The candidate is dataBufferCompress when set (compression requested, request
+// under the threshold), otherwise dataBuffer. A candidate sharing the
+// connection buffer's array belongs to the connection.
+func (cmd *baseCommand) borrowedBuffer() []byte {
+	candidate := cmd.dataBuffer
+	if cmd.dataBufferCompress != nil {
+		candidate = cmd.dataBufferCompress
+	}
+	if len(candidate) == 0 || cmd.conn == nil {
+		return nil
+	}
+	if sameArray(candidate, cmd.conn.origDataBuffer) {
+		return nil
+	}
+	return candidate
+}
+
+// sameArray reports whether a and b are slices of the same backing array,
+// at any offset. Multi commands rely on this: their dataBuffer is
+// conn.dataBuffer[head:head+n] from bufferedConn.read.
+func sameArray(a, b []byte) bool {
+	if cap(a) == 0 || cap(b) == 0 {
+		return false
+	}
+	return &a[:cap(a)][cap(a)-1] == &b[:cap(b)][cap(b)-1]
+}
+
+// bufferPool returns the pool the command borrows from and returns to.
+func (cmd *baseCommand) bufferPool() bufferPool {
+	if cmd.pool != nil {
+		return cmd.pool
+	}
+	return buffPool
+}
+
 func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 
 	if willCompress {
@@ -3633,7 +3759,7 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 		cmd.dataBuffer = cmd.dataBuffer[:size]
 	} else {
 		// not enough space
-		cmd.dataBuffer = buffPool.Get(size)
+		cmd.dataBuffer = cmd.bufferPool().Get(size)
 	}
 
 	// The trick here to keep a ref to the buffer, and set the buffer itself
@@ -3696,7 +3822,7 @@ func (cmd *baseCommand) compress() Error {
 		// If not possible to reuse it, reallocate a buffer.
 		if compressedSz+msgHeaderPad > len(cmd.dataBufferCompress) {
 			// compression added to the size of the message
-			buf := buffPool.Get(compressedSz + msgHeaderPad)
+			buf := cmd.bufferPool().Get(compressedSz + msgHeaderPad)
 			if n := copy(buf[msgHeaderPad:], b.Bytes()); n < compressedSz {
 				return newError(types.SERIALIZE_ERROR)
 			}
@@ -4044,17 +4170,19 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
 
-		// in case it has grown and re-allocated, it means
-		// it was borrowed from the pool, sp put it back.
-		if &cmd.dataBufferCompress != &cmd.conn.origDataBuffer {
-			buffPool.Put(cmd.dataBufferCompress)
-		} else if &cmd.dataBuffer != &cmd.conn.origDataBuffer {
-			buffPool.Put(cmd.dataBuffer)
-		}
+		// Return a borrowed buffer to the pool. The candidate is decided before
+		// the connection buffer is restored and returned only after, so the pool
+		// never holds a buffer that is still referenced. The connection's own
+		// buffer never qualifies (CLIENT-5514).
+		borrowed := cmd.borrowedBuffer()
 
 		cmd.dataBuffer = nil
 		cmd.dataBufferCompress = nil
 		cmd.conn.dataBuffer = cmd.conn.origDataBuffer
+
+		if borrowed != nil {
+			cmd.bufferPool().Put(borrowed)
+		}
 
 		// Put connection back in pool.
 		ifc.putConnection(cmd.conn)
