@@ -9,14 +9,52 @@
 # .github/discovery/run-l2-suite.sh in debian:bookworm-slim. Removes every
 # container and network it created on exit.
 #
+# Needs docker, bash 4 and go (unless L2_SKIP_BUILD=1 and a linux l2.test is in
+# the repo root). Work directory: test/discovery/.run.
+#
 # Usage:
 #   test/discovery/run_l2.sh
 #   L2_PROFILE=reachable test/discovery/run_l2.sh
 #   DISCOVERY_SUBSET=ee FEATURES_CONF_PATH=/path/features.conf test/discovery/run_l2.sh
 #
-# Env: L2_PROFILE, DISCOVERY_SUBSET, FEATURES_CONF_PATH, L2_DNS, L2_NODE_CONTROL,
-# L2_SKIP_BUILD, AEROSPIKE_IMAGE, SHARED_WORKFLOWS_DIR, L2_DISABLE_LISTENERS.
-# Profiles and the rest: test/discovery/README.md.
+# Every TestL2* skips unless its profile's DISCOVERY_* variable is set. Default
+# rows also skip when another profile's variable is set.
+#
+# Env:
+#   L2_PROFILE                  profile below (default: default)
+#   DISCOVERY_SUBSET            ce (default) or ee
+#   FEATURES_CONF_PATH          Enterprise feature-key file. Required for ee. Never FEATURES_CONF env
+#   L2_DNS                      1 starts DNS for N-4 (default 1 on default, 0 otherwise)
+#   L2_NODE_CONTROL             1 lets N-11 start a node. Some profiles turn this on
+#   L2_SKIP_BUILD               1 uses ./l2.test (must already be linux)
+#   AEROSPIKE_IMAGE             server image override
+#   SHARED_WORKFLOWS_DIR        local shared-workflows clone instead of downloading the action
+#   L2_DISABLE_LISTENERS        1 disables every Toxiproxy listener (N-1 guard). Tests then fail
+#   L2_UNRESOLVED_HOSTNAME      pass-through-ports only. 1 gives the nodes no host entry for the
+#                               access hostname, so the servers cannot resolve it (default 0)
+#   L2_VERBATIM_ACCESS_ADDRESS  unresolved-access only. 1 tells the tests the server image
+#                               advertises access addresses verbatim (default 0)
+#   L2_SUBNET                   port-map-range node subnet, three octets (default 10.213.66)
+#   L2_PORT_MAP_PORT_BASE       port-map-range listener port is this base plus the node's last
+#                               octet (default 31000)
+#   L2_CLIENT_NETWORK_MTU       low-mtu client network MTU (default 1200)
+#   L2_PROXY_PORT_RANGE         port-range Toxiproxy source ports, "<first> <last>"
+#                               (default "40000 40009")
+#
+# Profiles (L2_PROFILE: what it builds, tests):
+#   default             one hostname, DNS on, node control opt-in. N-1..N-14, F-4. N-6 on ee
+#   reachable           last node reachable as as-reachable.test. N-10
+#   pass-through-names  each node node-N.pass-through.test. N-15
+#   pass-through-ports  one hostname, own ports, node control. N-16, N-18
+#   port-map-range      fixed subnet, listener per IP, node control. N-19
+#   low-mtu             client network MTU 1200. F-2
+#   port-range          Toxiproxy source ports 40000 40009. F-3
+#   idle-reset          default topology plus DISCOVERY_IDLE_RESET. F-1
+#   cn-only             ee only. Certificate is CN, no SAN. N-17
+#   unresolved-access   no access-address, node control. Later tests, not CI
+#
+# On ee, every profile except cn-only uses a SAN-only certificate (aerospike-tls
+# as dNSName, CN does not match).
 
 set -euo pipefail
 
