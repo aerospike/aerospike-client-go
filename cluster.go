@@ -66,9 +66,11 @@ type Cluster struct {
 
 	// Address translation, fixed at construction. The observer is the
 	// translator when it implements ClusterViewChangeObserver, else nil.
+	// translationMisses is set only when the user supplied AddressTranslator.
 	addressTranslator  AddressTranslator
 	translatorName     string
 	translationOnMiss  TranslationMissMode
+	translationMisses  *translationMisses
 	viewChangeObserver ClusterViewChangeObserver
 
 	// Periodic seed refresh, fixed at construction.
@@ -166,16 +168,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
-	translator := loadedPolicy.AddressTranslator
-	if translator == nil {
-		translator = NewStaticMapAddressTranslator(loadedPolicy.IpMap)
-	}
-	newCluster.addressTranslator = translator
-	newCluster.translatorName = translatorDisplayName(translator)
-	newCluster.translationOnMiss = loadedPolicy.TranslationOnMiss
-	if observer, isObserver := translator.(ClusterViewChangeObserver); isObserver {
-		newCluster.viewChangeObserver = observer
-	}
+	newCluster.setAddressTranslator(loadedPolicy)
 
 	// setup auth info for cluster
 	if loadedPolicy.RequiresAuthentication() {
@@ -533,7 +526,25 @@ func (clstr *Cluster) translate(nodeName, tlsName, host string, port int) (Host,
 		Host:       host,
 		Port:       port,
 		SourceList: sourceList,
-	})
+	}, clstr.translationMisses)
+}
+
+// setAddressTranslator uses the user's translator, or a static-map over IpMap
+// when none is set. Only a user-set translator warns on a pass_through miss,
+// so a client without discovery config logs as before.
+func (clstr *Cluster) setAddressTranslator(policy *ClientPolicy) {
+	translator := policy.AddressTranslator
+	if translator == nil {
+		translator = NewStaticMapAddressTranslator(policy.IpMap)
+	} else {
+		clstr.translationMisses = newTranslationMisses()
+	}
+	clstr.addressTranslator = translator
+	clstr.translatorName = translatorDisplayName(translator)
+	clstr.translationOnMiss = policy.TranslationOnMiss
+	if observer, isObserver := translator.(ClusterViewChangeObserver); isObserver {
+		clstr.viewChangeObserver = observer
+	}
 }
 
 // detectTranslationCollisions marks new peers whose translated addresses

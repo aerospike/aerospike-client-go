@@ -304,7 +304,7 @@ func (row *conformanceRow) translate() conformanceOutcome {
 		SourceList: sourceList,
 	}
 
-	actual, err := translate(translator, onMiss, advertised)
+	actual, err := translate(translator, onMiss, advertised, nil)
 	errorExpect := asMap(expect["error"])
 	if err != nil {
 		if !err.Matches(types.TRANSLATION_MISS) {
