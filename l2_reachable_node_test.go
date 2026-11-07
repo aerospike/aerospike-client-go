@@ -57,13 +57,19 @@ func TestL2ReachableUnmappedPeerPassesThroughUnchanged(t *testing.T) {
 		t.Fatalf("node %s is not active", reachable.name)
 	}
 	assertL2Address(t, advertised, node.GetHost())
-	if misses := logs.containing("has no mapping"); len(misses) != 0 {
-		t.Fatalf("translation miss logged: %v", misses)
+	misses := logs.misses(reachable.name)
+	if len(misses) != 1 {
+		t.Fatalf("one miss warning for %s, got %v", reachable.name, misses)
+	}
+	for _, part := range []string{reachable.name, advertised, "port-map", "Connecting to the advertised address"} {
+		if !strings.Contains(misses[0], part) {
+			t.Fatalf("%q not in miss warning: %s", part, misses[0])
+		}
 	}
 }
 
 func TestL2ReachableAlternateDefaultJoinsNodesWithAlternate(t *testing.T) {
-	assertL2ReachableAlternateJoins(t, l2ReachableAlternatePolicy())
+	assertL2ReachableAlternateJoins(t, l2ReachableAlternatePolicy(), false)
 }
 
 func TestL2ReachableAlternateIdentityIpMapStrictJoins(t *testing.T) {
@@ -72,14 +78,14 @@ func TestL2ReachableAlternateIdentityIpMapStrictJoins(t *testing.T) {
 	policy := l2ReachableAlternatePolicy()
 	policy.IpMap = map[string]string{hostname: hostname}
 	policy.TranslationOnMiss = as.TranslationMissStrict
-	assertL2ReachableAlternateJoins(t, policy)
+	assertL2ReachableAlternateJoins(t, policy, false)
 }
 
 func TestL2ReachableAlternateEmptyCustomPassThroughJoins(t *testing.T) {
 	policy := l2ReachableAlternatePolicy()
 	policy.AddressTranslator = l2EmptyTranslator{}
 	policy.TranslationOnMiss = as.TranslationMissPassThrough
-	assertL2ReachableAlternateJoins(t, policy)
+	assertL2ReachableAlternateJoins(t, policy, true)
 }
 
 func TestL2ReachableAlternateEmptyIpMapStrictDropsPeer(t *testing.T) {
@@ -114,7 +120,7 @@ func TestL2ReachableAlternateSeedWithoutAlternateFailsInit(t *testing.T) {
 	}
 }
 
-func assertL2ReachableAlternateJoins(t *testing.T, policy *as.ClientPolicy) {
+func assertL2ReachableAlternateJoins(t *testing.T, policy *as.ClientPolicy, warnsOnMiss bool) {
 	t.Helper()
 	host, nodes := l2ReachableTopology(t)
 	reachable := l2ReachableNode(t, nodes)
@@ -139,8 +145,21 @@ func assertL2ReachableAlternateJoins(t *testing.T, policy *as.ClientPolicy) {
 		}
 		assertL2Address(t, l2Alternate(t, host, expected), node.GetHost())
 	}
-	if misses := logs.containing("has no mapping"); len(misses) != 0 {
-		t.Fatalf("translation miss logged: %v", misses)
+	misses := logs.containing("has no mapping")
+	if !warnsOnMiss {
+		if len(misses) != 0 {
+			t.Fatalf("translation miss logged: %v", misses)
+		}
+		return
+	}
+	if len(misses) != len(withAlternate) {
+		t.Fatalf("one miss warning per node, got %v", misses)
+	}
+	for _, expected := range withAlternate {
+		found := logs.containing(expected.name, "Connecting to the advertised address")
+		if len(found) != 1 {
+			t.Fatalf("%s miss warnings: %v", expected.name, misses)
+		}
 	}
 }
 

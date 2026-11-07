@@ -146,8 +146,12 @@ func TestL2PortMapRangeNodeOutsideRangeDecidedByOnMiss(t *testing.T) {
 	}) {
 		t.Fatalf("unchanged address %s not tried every tend: %v", advertised, logs.containing("Add node"))
 	}
-	if misses := logs.misses(name); len(misses) != 0 {
-		t.Fatalf("pass_through logged a miss: %v", misses)
+	misses := logs.misses(name)
+	if len(misses) != 1 {
+		t.Fatalf("one miss warning for %s across retries: %v", name, misses)
+	}
+	if !strings.Contains(misses[0], "Connecting to the advertised address") {
+		t.Fatalf("miss warning is not the pass_through one: %s", misses[0])
 	}
 }
 

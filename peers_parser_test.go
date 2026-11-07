@@ -39,10 +39,14 @@ package aerospike
 
 import (
 	"flag"
+	"fmt"
 	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -246,8 +250,13 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 		translator, err := NewPortMapAddressTranslator(map[string]string{"10.88.0.7:3000": "gateway.example.com:30001"})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cluster := translationCluster(translator)
-		cluster.translationOnMiss = TranslationMissStrict
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		policy.TranslationOnMiss = TranslationMissStrict
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
 		parser := peerListParser{
 			buf:     []byte(twoPeerReply),
 			cluster: cluster,
@@ -263,20 +272,259 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 		gm.Expect(parser.peers[1].hosts).To(gm.BeEmpty())
 	})
 
-	gg.It("uses the advertised address on a miss by default", func() {
+	gg.It("keeps the advertised address on a pass_through miss and warns once", func() {
 		translator, err := NewPortMapAddressTranslator(map[string]string{"10.88.0.7:3000": "gateway.example.com:30001"})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
+		logs := captureWarnLogs()
 		parser := peerListParser{
 			buf:     []byte(twoPeerReply),
-			cluster: translationCluster(translator),
+			cluster: cluster,
 		}
 
 		gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
 		gm.Expect(parser.peers[1].hosts).To(gm.HaveLen(1))
 		gm.Expect(parser.peers[1].hosts[0].Name).To(gm.Equal("10.88.0.8"))
 		gm.Expect(parser.peers[1].hosts[0].Port).To(gm.Equal(3200))
+		gm.Expect(logs.msgs).To(gm.HaveLen(1))
+		gm.Expect(logs.msgs[0]).To(gm.And(
+			gm.ContainSubstring("BB9020011AC4202"),
+			gm.ContainSubstring("10.88.0.8:3200"),
+			gm.ContainSubstring("Connecting to the advertised address"),
+		))
 	})
+
+	gg.It("warns once per node and advertised address on a pass_through miss, keeps that address, and warns again after a move", func() {
+		translator, err := NewPortMapAddressTranslator(map[string]string{
+			"10.0.0.1:3000": "lb.example.com:31001",
+			"10.0.0.2:3001": "lb.example.com:31002",
+		})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		policy.UseServicesAlternate = true
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
+
+		logs := captureWarnLogs()
+		alt := "5,3000,[[BB9A,,[203.0.113.1:30001]],[BB9B,,[203.0.113.2:30002]]]"
+
+		parser := peerListParser{buf: []byte(alt), cluster: cluster, sourceList: SourceListAlternate}
+		gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
+		gm.Expect(parser.peers[0].hosts[0].Name).To(gm.Equal("203.0.113.1"))
+		gm.Expect(parser.peers[0].hosts[0].Port).To(gm.Equal(30001))
+		gm.Expect(parser.peers[1].hosts[0].Name).To(gm.Equal("203.0.113.2"))
+		gm.Expect(parser.peers[1].hosts[0].Port).To(gm.Equal(30002))
+		gm.Expect(logs.msgs).To(gm.HaveLen(2))
+		gm.Expect(logs.msgs[0]).To(gm.And(
+			gm.ContainSubstring("port-map"),
+			gm.ContainSubstring("BB9A"),
+			gm.ContainSubstring("203.0.113.1:30001"),
+			gm.ContainSubstring("in the alternate list"),
+			gm.ContainSubstring("Connecting to the advertised address"),
+		))
+		gm.Expect(logs.msgs[1]).To(gm.And(
+			gm.ContainSubstring("port-map"),
+			gm.ContainSubstring("BB9B"),
+			gm.ContainSubstring("203.0.113.2:30002"),
+			gm.ContainSubstring("in the alternate list"),
+			gm.ContainSubstring("Connecting to the advertised address"),
+		))
+
+		again := peerListParser{buf: []byte(alt), cluster: cluster, sourceList: SourceListAlternate}
+		gm.Expect(again.Parse()).ToNot(gm.HaveOccurred())
+		gm.Expect(logs.msgs).To(gm.HaveLen(2))
+
+		moved := strings.ReplaceAll(alt, "203.0.113.2:30002", "203.0.113.2:30003")
+		changed := peerListParser{buf: []byte(moved), cluster: cluster, sourceList: SourceListAlternate}
+		gm.Expect(changed.Parse()).ToNot(gm.HaveOccurred())
+		gm.Expect(changed.peers[1].hosts[0].Port).To(gm.Equal(30003))
+		gm.Expect(logs.msgs).To(gm.HaveLen(3))
+		gm.Expect(logs.msgs[2]).To(gm.And(
+			gm.ContainSubstring("BB9B"),
+			gm.ContainSubstring("203.0.113.2:30003"),
+		))
+	})
+
+	gg.It("does not warn on a pass_through miss when translate is called without the cluster miss map", func() {
+		translator, err := NewPortMapAddressTranslator(map[string]string{
+			"10.0.0.1:3000": "lb.example.com:31001",
+		})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		logs := captureWarnLogs()
+		host, err := translate(translator, TranslationMissPassThrough, Endpoint{
+			NodeName: "BB9A", Host: "203.0.113.1", Port: 30001, SourceList: SourceListAlternate,
+		}, nil)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(host.Name).To(gm.Equal("203.0.113.1"))
+		gm.Expect(logs.msgs).To(gm.BeEmpty())
+	})
+
+	gg.It("does not warn when a user-set translator finds a mapping for the advertised address", func() {
+		translator, err := NewPortMapAddressTranslator(map[string]string{"203.0.113.1:30001": "lb.example.com:31001"})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
+		logs := captureWarnLogs()
+
+		parser := peerListParser{buf: []byte("5,3000,[[BB9A,,[203.0.113.1:30001]]]"), cluster: cluster}
+		gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
+		gm.Expect(parser.peers[0].hosts[0].Name).To(gm.Equal("lb.example.com"))
+		gm.Expect(parser.peers[0].hosts[0].Port).To(gm.Equal(31001))
+		gm.Expect(logs.msgs).To(gm.BeEmpty())
+	})
+
+	gg.It("drops a strict miss and logs the mapping error on every tend, not the pass_through warning", func() {
+		translator, err := NewPortMapAddressTranslator(map[string]string{"10.0.0.9:3000": "lb.example.com:31009"})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		policy.TranslationOnMiss = TranslationMissStrict
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
+		logs := captureWarnLogs()
+		peers := "5,3000,[[BB9A,,[203.0.113.1:30001]]]"
+
+		for range 2 {
+			parser := peerListParser{buf: []byte(peers), cluster: cluster}
+			gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
+			gm.Expect(parser.peers[0].hosts).To(gm.BeEmpty())
+		}
+		gm.Expect(logs.msgs).To(gm.HaveLen(2))
+		for _, msg := range logs.msgs {
+			gm.Expect(msg).To(gm.ContainSubstring("Add a mapping"))
+			gm.Expect(msg).ToNot(gm.ContainSubstring("Connecting to the advertised address"))
+		}
+	})
+
+	gg.It("warns again when the same node advertises a different address, including when it changes back", func() {
+		translator, err := NewPortMapAddressTranslator(map[string]string{"10.0.0.9:3000": "lb.example.com:31009"})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
+		logs := captureWarnLogs()
+
+		for _, address := range []string{"203.0.113.1:30001", "203.0.113.1:30002", "203.0.113.1:30001", "203.0.113.1:30001"} {
+			parser := peerListParser{buf: []byte("5,3000,[[BB9A,,[" + address + "]]]"), cluster: cluster}
+			gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
+		}
+		gm.Expect(logs.msgs).To(gm.HaveLen(3))
+		for i, address := range []string{"203.0.113.1:30001", "203.0.113.1:30002", "203.0.113.1:30001"} {
+			gm.Expect(logs.msgs[i]).To(gm.And(
+				gm.ContainSubstring("BB9A"),
+				gm.ContainSubstring(address),
+				gm.ContainSubstring("Connecting to the advertised address"),
+			))
+		}
+	})
+
+	gg.It("warns once per node when concurrent tends miss the same advertised addresses", func() {
+		translator, err := NewPortMapAddressTranslator(map[string]string{"10.0.0.9:3000": "lb.example.com:31009"})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		policy := NewClientPolicy()
+		policy.AddressTranslator = translator
+		stored := new(atomic.Pointer[ClientPolicy])
+		stored.Store(policy)
+		cluster := &Cluster{clientPolicy: stored}
+		cluster.setAddressTranslator(policy)
+		logs := captureWarnLogs()
+		const workers, tends = 8, 50
+		shared := Endpoint{NodeName: "BBFF", Host: "203.0.113.255", Port: 30255}
+
+		var wg sync.WaitGroup
+		for worker := range workers {
+			wg.Add(1)
+			go func() {
+				defer gg.GinkgoRecover()
+				defer wg.Done()
+				own := Endpoint{NodeName: fmt.Sprintf("BB%02X", worker), Host: "203.0.113.1", Port: 30001 + worker}
+				for range tends {
+					for _, advertised := range []Endpoint{own, shared} {
+						host, err := cluster.translate(advertised.NodeName, advertised.TLSName, advertised.Host, advertised.Port)
+						gm.Expect(err).ToNot(gm.HaveOccurred())
+						gm.Expect(host.Port).To(gm.Equal(advertised.Port))
+					}
+				}
+			}()
+		}
+		wg.Wait()
+
+		gm.Expect(logs.msgs).To(gm.HaveLen(workers + 1))
+		gm.Expect(logs.msgs).To(gm.ContainElement(gm.ContainSubstring("node BBFF")))
+	})
+
+	gg.DescribeTable("a pass_through miss warns only for a user-set translator",
+		func(policyFn func() *ClientPolicy, warnings int) {
+			policy := policyFn()
+			stored := new(atomic.Pointer[ClientPolicy])
+			stored.Store(policy)
+			cluster := &Cluster{clientPolicy: stored}
+			cluster.setAddressTranslator(policy)
+			logs := captureWarnLogs()
+
+			parser := peerListParser{buf: []byte("5,3000,[[BB9A,,[203.0.113.1:30001]]]"), cluster: cluster}
+			gm.Expect(parser.Parse()).ToNot(gm.HaveOccurred())
+			gm.Expect(parser.peers[0].hosts[0].Name).To(gm.Equal("203.0.113.1"))
+			gm.Expect(parser.peers[0].hosts[0].Port).To(gm.Equal(30001))
+			gm.Expect(logs.msgs).To(gm.HaveLen(warnings))
+			for _, msg := range logs.msgs {
+				gm.Expect(msg).To(gm.And(
+					gm.ContainSubstring("port-map"),
+					gm.ContainSubstring("node BB9A"),
+					gm.ContainSubstring("203.0.113.1:30001"),
+					gm.ContainSubstring("in the standard list"),
+					gm.ContainSubstring("Connecting to the advertised address"),
+				))
+			}
+		},
+		gg.Entry("default policy with no AddressTranslator stays silent", func() *ClientPolicy { return NewClientPolicy() }, 0),
+		gg.Entry("IpMap without the advertised address stays silent", func() *ClientPolicy {
+			policy := NewClientPolicy()
+			policy.IpMap = map[string]string{"10.0.0.9": "198.51.100.9"}
+			return policy
+		}, 0),
+		gg.Entry("empty IpMap stays silent", func() *ClientPolicy {
+			policy := NewClientPolicy()
+			policy.IpMap = map[string]string{}
+			return policy
+		}, 0),
+		gg.Entry("AddressTranslator set in code warns once", func() *ClientPolicy {
+			translator, err := NewPortMapAddressTranslator(map[string]string{"10.0.0.9:3000": "lb.example.com:31009"})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			policy := NewClientPolicy()
+			policy.AddressTranslator = translator
+			return policy
+		}, 1),
+		gg.Entry("YAML translation block warns once", func() *ClientPolicy {
+			return staticPolicyFromYaml(`
+static:
+  client:
+    translation:
+      provider: port-map
+      port_map:
+        10.0.0.9:3000: lb.example.com:31009
+`)
+		}, 1),
+	)
 
 	gg.It("names a peer whose alternate address list is empty", func() {
 		parser := peerListParser{
@@ -302,15 +550,46 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 })
 
 func translationCluster(translator AddressTranslator) *Cluster {
+	policy := NewClientPolicy()
+	policy.AddressTranslator = translator
 	stored := new(atomic.Pointer[ClientPolicy])
-	stored.Store(NewClientPolicy())
-	return &Cluster{clientPolicy: stored, addressTranslator: translator}
+	stored.Store(policy)
+	cluster := &Cluster{clientPolicy: stored}
+	cluster.setAddressTranslator(policy)
+	return cluster
 }
 
 func translationClusterAlternate(translator AddressTranslator) *Cluster {
 	cluster := translationCluster(translator)
 	cluster.clientPolicy.Load().UseServicesAlternate = true
 	return cluster
+}
+
+type warnLogCapture struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (capture *warnLogCapture) Printf(format string, v ...any) {
+	capture.mu.Lock()
+	defer capture.mu.Unlock()
+	capture.msgs = append(capture.msgs, fmt.Sprintf(format, v...))
+}
+
+func captureWarnLogs() *warnLogCapture {
+	capture := &warnLogCapture{}
+	previous := logger.Logger.Logger
+	logger.Logger.SetLogger(capture)
+	logger.Logger.SetLevel(logger.WARNING)
+	gg.DeferCleanup(func() {
+		logger.Logger.SetLogger(previous)
+		if lookupFlag("debug", "false") == "true" {
+			logger.Logger.SetLevel(logger.DEBUG)
+		} else {
+			logger.Logger.SetLevel(logger.OFF)
+		}
+	})
+	return capture
 }
 
 // hostNames extracts the Name of each host for order-sensitive comparison.
