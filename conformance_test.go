@@ -28,12 +28,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	"gopkg.in/yaml.v3"
 )
@@ -58,6 +60,8 @@ var conformanceErrorMarkers = map[string]string{
 	"discovery-failed": "DNS seed discovery failed for every name",
 	"aws-error":        "DescribeInstances failed",
 	"timeout":          "timed out",
+
+	"translation-collision": "to the same address",
 }
 
 var conformanceResultNames = map[string]struct{}{
@@ -235,6 +239,8 @@ func (runner *conformanceRunner) execute(row *conformanceRow) conformanceOutcome
 	switch row.kind {
 	case "translate":
 		return row.translate()
+	case "collision":
+		return row.collision()
 	case "merge":
 		return row.merge()
 	case "tls":
@@ -256,41 +262,45 @@ func (runner *conformanceRunner) execute(row *conformanceRow) conformanceOutcome
 	}
 }
 
-func (row *conformanceRow) translate() conformanceOutcome {
+func (row *conformanceRow) translation() (AddressTranslator, TranslationMissMode, *conformanceOutcome) {
 	config := asMap(row.data["config"])
+	translation := asMap(config["translation"])
+	onMiss := TranslationMissPassThrough
+	if translation == nil {
+		return NewStaticMapAddressTranslator(stringMap(config["ip_map"])), onMiss, nil
+	}
+	if token, ok := translation["on_miss"].(string); ok {
+		parsed, err := parseTranslationMissMode(token)
+		if err != nil {
+			return nil, onMiss, &conformanceOutcome{conformanceFail, err.Error()}
+		}
+		onMiss = parsed
+	}
+
+	provider, _ := translation["provider"].(string)
+	switch provider {
+	case translatorNameStaticMap:
+		return NewStaticMapAddressTranslator(stringMap(translation["static_map"])), onMiss, nil
+	case translatorNamePassThrough:
+		return NewPassThroughAddressTranslator(), onMiss, nil
+	case translatorNamePortMap:
+		parsed, err := NewPortMapAddressTranslator(stringMap(translation["port_map"]))
+		if err != nil {
+			return nil, onMiss, &conformanceOutcome{conformanceFail, err.Error()}
+		}
+		return parsed, onMiss, nil
+	default:
+		return nil, onMiss, &conformanceOutcome{conformanceUnsupported, "translator " + provider + " is not implemented"}
+	}
+}
+
+func (row *conformanceRow) translate() conformanceOutcome {
+	translator, onMiss, failed := row.translation()
+	if failed != nil {
+		return *failed
+	}
 	input := asMap(row.data["input"])
 	expect := asMap(row.data["expect"])
-	translation := asMap(config["translation"])
-
-	onMiss := TranslationMissPassThrough
-	var translator AddressTranslator
-	if translation == nil {
-		translator = NewStaticMapAddressTranslator(stringMap(config["ip_map"]))
-	} else {
-		if token, ok := translation["on_miss"].(string); ok {
-			parsed, err := parseTranslationMissMode(token)
-			if err != nil {
-				return conformanceOutcome{conformanceFail, err.Error()}
-			}
-			onMiss = parsed
-		}
-
-		provider, _ := translation["provider"].(string)
-		switch provider {
-		case translatorNameStaticMap:
-			translator = NewStaticMapAddressTranslator(stringMap(translation["static_map"]))
-		case translatorNamePassThrough:
-			translator = NewPassThroughAddressTranslator()
-		case translatorNamePortMap:
-			parsed, err := NewPortMapAddressTranslator(stringMap(translation["port_map"]))
-			if err != nil {
-				return conformanceOutcome{conformanceFail, err.Error()}
-			}
-			translator = parsed
-		default:
-			return conformanceOutcome{conformanceUnsupported, "translator " + provider + " is not implemented"}
-		}
-	}
 
 	sourceList := SourceListStandard
 	if asString(input["sourceList"]) == "alternate" {
@@ -330,6 +340,101 @@ func (row *conformanceRow) translate() conformanceOutcome {
 	got := endpointString(actual.Name, actual.Port, actual.TLSName)
 	if expected != got {
 		return conformanceOutcome{conformanceFail, "expected " + expected + ", got " + got}
+	}
+	return conformanceOutcome{conformancePass, ""}
+}
+
+func (row *conformanceRow) collision() conformanceOutcome {
+	translator, onMiss, failed := row.translation()
+	if failed != nil {
+		return *failed
+	}
+	expect := asMap(row.data["expect"])
+
+	var names, entries []string
+	for _, item := range asList(row.data["input"]) {
+		peer := asMap(item)
+		names = append(names, asString(peer["nodeName"]))
+		entries = append(entries, fmt.Sprintf("[%s,%s,[%s]]", asString(peer["nodeName"]), asString(peer["tlsName"]),
+			net.JoinHostPort(asString(peer["host"]), asString(peer["port"]))))
+	}
+
+	server, err := newFakeInfoServer()
+	if err != nil {
+		return conformanceOutcome{conformanceFail, err.Error()}
+	}
+	defer server.close()
+	server.setReply("peers-clear-std", "1,3000,[]")
+
+	policy := NewClientPolicy()
+	policy.AddressTranslator = translator
+	policy.TranslationOnMiss = onMiss
+	policy.Timeout = 200 * time.Millisecond
+	policy.TendInterval = time.Hour
+	previousLookup := lookupHost
+	lookupHost = func(name string) ([]string, error) {
+		return nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
+	}
+	defer func() { lookupHost = previousLookup }()
+
+	capture := &warnLogCapture{}
+	previousLogger := logger.Logger.Logger
+	logger.Logger.SetLogger(capture)
+	logger.Logger.SetLevel(logger.WARNING)
+	defer func() {
+		logger.Logger.SetLogger(previousLogger)
+		logger.Logger.SetLevel(logger.OFF)
+	}()
+
+	client, clientErr := NewClientWithPolicyAndHost(policy, server.host())
+	if clientErr != nil {
+		return conformanceOutcome{conformanceFail, clientErr.Error()}
+	}
+	defer client.Close()
+
+	// One new peers reply, tended once on this goroutine. Translators ignore
+	// sourceList, so alternate rows are served on the standard list.
+	server.setReply("peers-generation", "2")
+	server.setReply("peers-clear-std", "2,3000,["+strings.Join(entries, ",")+"]")
+	_ = client.cluster.tend()
+
+	var collisions []string
+	for _, message := range capture.msgs {
+		if strings.Contains(message, conformanceErrorMarkers["translation-collision"]) {
+			collisions = append(collisions, message)
+		}
+	}
+	reports := func(message string, item any) bool {
+		for _, fact := range messageContains(asMap(item)["messageContains"]) {
+			if !strings.Contains(message, fact) {
+				return false
+			}
+		}
+		return true
+	}
+	expectErrors := asList(expect["errors"])
+	for _, item := range expectErrors {
+		if !slices.ContainsFunc(collisions, func(message string) bool { return reports(message, item) }) {
+			return conformanceOutcome{conformanceFail, fmt.Sprintf("no collision reported naming %v, got %v", asMap(item)["messageContains"], collisions)}
+		}
+	}
+	for _, message := range collisions {
+		if !slices.ContainsFunc(expectErrors, func(item any) bool { return reports(message, item) }) {
+			return conformanceOutcome{conformanceFail, "unexpected collision: " + message}
+		}
+	}
+
+	var nodes []string
+	for _, name := range names {
+		if !slices.ContainsFunc(collisions, func(message string) bool { return strings.Contains(message, name) }) {
+			nodes = append(nodes, name)
+		}
+	}
+	expNodes := stringList(expect["nodes"])
+	slices.Sort(nodes)
+	slices.Sort(expNodes)
+	if !slices.Equal(nodes, expNodes) {
+		return conformanceOutcome{conformanceFail, fmt.Sprintf("expected nodes %v, got %v", expNodes, nodes)}
 	}
 	return conformanceOutcome{conformancePass, ""}
 }
@@ -906,7 +1011,11 @@ func messageContains(contains any) []string {
 	switch values := contains.(type) {
 	case map[string]any:
 		for _, value := range values {
-			facts = append(facts, fmt.Sprint(value))
+			if list, isList := value.([]any); isList {
+				facts = append(facts, messageContains(list)...)
+			} else {
+				facts = append(facts, fmt.Sprint(value))
+			}
 		}
 	case []any:
 		for _, value := range values {
