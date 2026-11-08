@@ -1,0 +1,5 @@
+# Manifest for the aws-tags real AWS harness in aerospike-client-conformance (aws-real/README.md).
+# Each command runs with bash on the runner (Amazon Linux 2023) from the repository root.
+AWS_REAL_SETUP='arch=$(uname -m); case $arch in x86_64) arch=amd64;; aarch64) arch=arm64;; *) echo "unsupported arch $arch" >&2; exit 2;; esac; curl -fsSL "https://go.dev/dl/go1.23.12.linux-${arch}.tar.gz" | sudo tar -C /usr/local -xzf -'
+AWS_REAL_BUILD='export PATH=/usr/local/go/bin:$PATH CGO_ENABLED=0 GOPROXY=https://proxy.golang.org,direct; go build -mod=readonly -o test/discovery/awsrealprobe/awsrealprobe ./test/discovery/awsrealprobe'
+AWS_REAL_PROBE='test/discovery/awsrealprobe/awsrealprobe'
