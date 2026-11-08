@@ -31,5 +31,6 @@ cover*.out
 ginkgo.report
 /conformance-report.json
 /test/discovery/.run/
+/test/discovery/awsrealprobe/awsrealprobe
 /test/tls/.run/
 .idea
