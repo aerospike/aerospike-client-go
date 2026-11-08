@@ -57,7 +57,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aerospike/aerospike-client-conformance
-          ref: f66304f36d1cded608e4d6c199622266e2db1dc3 # main, fixture set 1.1.0
+          ref: 1971a9b61975fbecac1c3b6d4c612eb7bc03d101 # main, fixture set 1.1.0
           path: conformance-fixtures
 
       - name: Setup Go
@@ -91,7 +91,7 @@ jobs:
 
       - name: Collect conformance report
         if: ${{ always() }}
-        uses: aerospike/aerospike-client-conformance/.github/actions/collect-conformance-report@f66304f36d1cded608e4d6c199622266e2db1dc3 # main
+        uses: aerospike/aerospike-client-conformance/.github/actions/collect-conformance-report@1971a9b61975fbecac1c3b6d4c612eb7bc03d101 # main
         with:
           reports-directory: ${{ runner.temp }}/conformance-report
           fixtures-directory: ${{ github.workspace }}/conformance-fixtures
