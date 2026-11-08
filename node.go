@@ -49,10 +49,13 @@ const (
 
 // Node represents an Aerospike Database Server Node
 type Node struct {
-	cluster     *Cluster
-	name        string
-	host        *Host
-	hostName    string
+	cluster  *Cluster
+	name     string
+	host     *Host
+	hostName string
+	// lookupName is the DNS name used to create this node when the seed or
+	// peer was not an IP. Empty for IP literals.
+	lookupName  string
 	aliases     iatomic.TypedVal[[]*Host]
 	stats       nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]
@@ -90,9 +93,10 @@ type Node struct {
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	clusterClientPolicy := cluster.clientPolicy.Load()
 	newNode := &Node{
-		cluster: cluster,
-		name:    nv.name,
-		host:    nv.primaryHost,
+		cluster:    cluster,
+		name:       nv.name,
+		host:       nv.primaryHost,
+		lookupName: nv.lookupName,
 
 		features:      nv.features,
 		serverVersion: nv.serverVersion,

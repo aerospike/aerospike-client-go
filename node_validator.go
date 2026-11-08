@@ -37,11 +37,15 @@ func (nta nodesToAddT) addNodeIfNotExists(ndv *nodeValidator, cluster *Cluster) 
 	return exists
 }
 
+// lookupHost resolves a hostname to IP addresses.
+var lookupHost = net.LookupHost
+
 // Validates a Database server node
 type nodeValidator struct {
 	name        string
 	aliases     []*Host
 	primaryHost *Host
+	lookupName  string
 
 	seedOnlyCluster    bool
 	detectLoadBalancer bool
@@ -123,7 +127,8 @@ func (ndv *nodeValidator) setAliases(host *Host) Error {
 		aliases[0].TLSName = host.TLSName
 		ndv.aliases = aliases
 	} else {
-		addresses, err := net.LookupHost(host.Name)
+		ndv.lookupName = host.Name
+		addresses, err := lookupHost(host.Name)
 		if err != nil {
 			logger.Logger.Error("Host lookup failed with error: %s", err.Error())
 			return errToAerospikeErr(nil, err)

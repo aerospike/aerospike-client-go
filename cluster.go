@@ -332,12 +332,17 @@ func (clstr *Cluster) tend() Error {
 	}
 
 	peers := newPeers(len(nodes)+16, 16)
+	var partMap iatomic.Guard[partitionMap]
 
 	seq.ParDo(nodes, func(node *Node) {
 		if err := node.Refresh(peers); err != nil {
 			logger.Logger.Debug("Error occurred while refreshing node: %s", node.String())
 		}
 	})
+
+	for _, node := range nodes {
+		clstr.moveFailedNode(peers, node, &partMap)
+	}
 
 	// Refresh peers when necessary.
 	if peers.genChanged.Get() || len(peers.peers()) != nodeCountBeforeTend {
@@ -350,8 +355,6 @@ func (clstr *Cluster) tend() Error {
 	}
 
 	clstr.detectTranslationCollisions(peers)
-
-	var partMap iatomic.Guard[partitionMap]
 
 	// find the first host that connects
 	seq.ParDo(peers.peers(), func(_peer *peer) {
@@ -419,9 +422,12 @@ func (clstr *Cluster) tend() Error {
 
 	if peers.genChanged.Get() && !peers.partialView.Get() {
 		clstr.findNodesToRemove(peers)
+	}
 
-		// Remove nodes in a batch.
-		nodesToRemove := peers.getNodesToRemove()
+	// Remove before add so addNodes does not skip a replacement that still
+	// has that name.
+	nodesToRemove := peers.getNodesToRemove()
+	if len(nodesToRemove) > 0 {
 		for i := range nodesToRemove {
 			logger.Logger.Debug("The following nodes will be removed: %s", nodesToRemove[i])
 		}
@@ -617,6 +623,61 @@ func (clstr *Cluster) notifyClusterViewChanged() {
 	clstr.viewChangeObserver.OnClusterViewChanged(clstr.viewChangeCount)
 }
 
+// moveFailedNode replaces a failing node with the same server name on
+// another address of the hostname it was created from.
+func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.Guard[partitionMap]) {
+	if node.failures.Get() <= 0 || !node.active.Get() || node.lookupName == "" {
+		return
+	}
+
+	addresses, err := lookupHost(node.lookupName)
+	if err != nil || len(addresses) <= 1 {
+		return
+	}
+
+	clientPolicy := clstr.clientPolicy.Load()
+	for _, address := range addresses {
+		if sameIPLiteral(address, node.host.Name) {
+			continue
+		}
+
+		host := NewHost(address, node.host.Port)
+		host.TLSName = node.host.TLSName
+		nv := nodeValidator{
+			seedOnlyCluster: clientPolicy.SeedOnlyCluster,
+			lookupName:      node.lookupName,
+		}
+		if err := nv.validateNode(clstr, host); err != nil {
+			logger.Logger.Debug("Address %s:%d of %s failed: %s", address, node.host.Port, node.lookupName, err)
+			continue
+		}
+		if nv.name != node.name {
+			logger.Logger.Debug("Address %s of %s is node %s, not node %s", nv.primaryHost, node.lookupName, nv.name, node.name)
+			continue
+		}
+
+		replacement := clstr.createNode(&nv)
+		peers.addNode(node.name, replacement)
+		partMap.InitDoVal(clstr.getPartitions().clone, func(partitions partitionMap) {
+			replacement.refreshPartitions(peers, partitions, true)
+		})
+		if !peers.containsNodeToRemove(node) {
+			peers.addNodesToRemove(node)
+		}
+		logger.Logger.Info("Move node %s %s from %s to %s", node.name, node.lookupName, node.host, replacement.host)
+		return
+	}
+}
+
+func sameIPLiteral(left, right string) bool {
+	if left == right {
+		return true
+	}
+	leftIP := net.ParseIP(left)
+	rightIP := net.ParseIP(right)
+	return leftIP != nil && rightIP != nil && leftIP.Equal(rightIP)
+}
+
 func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
 	node := clstr.findNodeByName(peer.nodeName)
 
@@ -729,22 +790,43 @@ func (clstr *Cluster) getPartitions() partitionMap {
 	return clstr.partitionWriteMap.Get()
 }
 
-// discoverSeeds will lookup the seed hosts and convert seed hosts
-// to IP addresses.
-func discoverSeedIPs(seeds []*Host) (res []*Host) {
+// seedTarget is one address to dial from a seed. lookupName is the original
+// hostname when the seed was not an IP so moveFailedNode can retry other
+// addresses of that name.
+type seedTarget struct {
+	host       *Host
+	lookupName string
+}
+
+func (seed seedTarget) String() string {
+	if seed.host == nil {
+		return ""
+	}
+	return seed.host.String()
+}
+
+// discoverSeedIPs expands each seed to addresses and keeps the hostname
+// beside each IP so those addresses still seed in parallel.
+func discoverSeedIPs(seeds []*Host) []seedTarget {
+	var res []seedTarget
 	for _, seed := range seeds {
-		addresses, err := net.LookupHost(seed.Name)
+		if net.ParseIP(seed.Name) != nil {
+			host := *seed
+			res = append(res, seedTarget{host: &host})
+			continue
+		}
+
+		addresses, err := lookupHost(seed.Name)
 		if err != nil {
 			continue
 		}
 
 		for i := range addresses {
-			h := *seed
-			h.Name = addresses[i]
-			res = append(res, &h)
+			host := *seed
+			host.Name = addresses[i]
+			res = append(res, seedTarget{host: &host, lookupName: seed.Name})
 		}
 	}
-
 	return res
 }
 
@@ -769,12 +851,15 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 	clusterClientPolicy := clstr.clientPolicy.Load()
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for i, seed := range seedArray {
-		go func(index int, seed *Host) {
+		go func(index int, seed seedTarget) {
 			nodesToAdd := make(nodesToAddT, 128)
-			nv := nodeValidator{seedOnlyCluster: clusterClientPolicy.SeedOnlyCluster}
-			err := nv.seedNodes(clstr, seed, nodesToAdd)
+			nv := nodeValidator{
+				seedOnlyCluster: clusterClientPolicy.SeedOnlyCluster,
+				lookupName:      seed.lookupName,
+			}
+			err := nv.seedNodes(clstr, seed.host, nodesToAdd)
 			if err != nil {
-				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+				logger.Logger.Warn("Seed %s failed: %s", seed.host.String(), err.Error())
 				errChan <- err
 				return
 			}
