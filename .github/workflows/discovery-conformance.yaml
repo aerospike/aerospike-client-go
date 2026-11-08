@@ -1,6 +1,7 @@
 name: Discovery conformance
 
-# L0: discovery unit tests. L1: shared fixture set through TestConformance.
+# L0: discovery unit tests, then translate latency without -race.
+# L1: shared fixture set through TestConformance.
 # Neither job needs a live Aerospike cluster or repository secrets.
 
 permissions:
@@ -40,6 +41,11 @@ jobs:
           go test -count=1 -timeout 10m -race ./internal/discovery/...
           go test -count=1 -timeout 15m -race -run TestAerospike \
             -ginkgo.label-filter=discovery -ginkgo.fail-on-empty -ginkgo.succinct .
+
+      - name: Run translate latency
+        env:
+          AEROSPIKE_TEST_SKIP_SUITE_CLIENT: "1"
+        run: go test -count=1 -timeout 5m -run '^TestTranslateLatency$' .
 
   l1:
     name: L1 conformance

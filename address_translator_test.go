@@ -15,7 +15,11 @@
 package aerospike
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -208,3 +212,121 @@ var _ = gg.Describe("Address translators", gg.Label("discovery"), func() {
 		})
 	})
 })
+
+// Translate is in-memory and its p99 stays under 1 ms. Timed outside the
+// discovery Ginkgo suite because that suite runs with -race.
+
+const (
+	translateLatencyWarmup        = 200_000
+	translateLatencyRounds        = 7
+	translateLatencyCallsPerRound = 20_000
+	translateLatencyTarget        = time.Millisecond
+)
+
+var translateLatencyEndpoints = []Endpoint{
+	{NodeName: "BB9A", Host: "10.0.0.1", Port: 3000, SourceList: SourceListStandard},
+	{NodeName: "BB9B", TLSName: "tls1", Host: "10.0.0.2", Port: 3000, SourceList: SourceListStandard},
+	{NodeName: "BB9C", Host: "10.0.0.3", Port: 3000, SourceList: SourceListAlternate},
+	{NodeName: "BB9D", Host: "2001:db8::1", Port: 3000, SourceList: SourceListStandard},
+}
+
+func TestTranslateLatency(t *testing.T) {
+	t.Run("static_map", func(t *testing.T) {
+		measureTranslateLatency(t, "static-map", NewStaticMapAddressTranslator(map[string]string{
+			"10.0.0.1": "192.168.1.1",
+			"10.0.0.2": "192.168.1.2",
+		}), 2)
+	})
+
+	t.Run("port_map", func(t *testing.T) {
+		translator, err := NewPortMapAddressTranslator(map[string]string{
+			"10.0.0.1:3000":      "lb.example.com:30001",
+			"[2001:db8::1]:3000": "lb.example.com:30002",
+			"BB9B":               "lb.example.com:30003",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		measureTranslateLatency(t, "port-map", translator, 3)
+	})
+
+	t.Run("pass_through", func(t *testing.T) {
+		measureTranslateLatency(t, "pass-through", NewPassThroughAddressTranslator(), 4)
+	})
+
+	t.Run("spin_fails", func(t *testing.T) {
+		rounds := make([][]time.Duration, translateLatencyRounds)
+		for i := range rounds {
+			rounds[i] = make([]time.Duration, 100)
+			timeTranslateCalls(spinningAddressTranslator{spin: 2 * time.Millisecond}, rounds[i])
+		}
+		_, err := translateLatencyP99("spin-2ms", rounds)
+		if err == nil {
+			t.Fatal("spin-2ms should exceed 1 ms p99")
+		}
+		if !strings.HasPrefix(err.Error(), "spin-2ms median round p99 ") {
+			t.Fatal(err)
+		}
+	})
+}
+
+func measureTranslateLatency(t *testing.T, name string, translator AddressTranslator, hitsPerCycle int) {
+	t.Helper()
+	hits := timeTranslateCalls(translator, make([]time.Duration, translateLatencyWarmup))
+	rounds := make([][]time.Duration, translateLatencyRounds)
+	for i := range rounds {
+		rounds[i] = make([]time.Duration, translateLatencyCallsPerRound)
+		hits += timeTranslateCalls(translator, rounds[i])
+	}
+	total := translateLatencyWarmup + translateLatencyRounds*translateLatencyCallsPerRound
+	wantHits := total / len(translateLatencyEndpoints) * hitsPerCycle
+	if hits != wantHits {
+		t.Fatalf("%s hits %d, want %d", name, hits, wantHits)
+	}
+	p99, err := translateLatencyP99(name, rounds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("translate() %s: median round p99 %d ns", name, p99)
+}
+
+func timeTranslateCalls(translator AddressTranslator, samples []time.Duration) int {
+	hits := 0
+	for i := range samples {
+		advertised := translateLatencyEndpoints[i%len(translateLatencyEndpoints)]
+		begin := time.Now()
+		_, ok := translator.Translate(advertised)
+		samples[i] = time.Since(begin)
+		if ok {
+			hits++
+		}
+	}
+	return hits
+}
+
+func translateLatencyP99(name string, rounds [][]time.Duration) (time.Duration, error) {
+	p99s := make([]time.Duration, len(rounds))
+	for i, samples := range rounds {
+		sorted := slices.Clone(samples)
+		slices.Sort(sorted)
+		p99s[i] = sorted[len(sorted)*99/100]
+	}
+	listed := fmt.Sprint(p99s)
+	slices.Sort(p99s)
+	p99 := p99s[len(p99s)/2]
+	if p99 >= translateLatencyTarget {
+		return p99, fmt.Errorf("%s median round p99 %d ns, round p99s %s ns", name, p99, listed)
+	}
+	return p99, nil
+}
+
+type spinningAddressTranslator struct {
+	spin time.Duration
+}
+
+func (translator spinningAddressTranslator) Translate(Endpoint) (Host, bool) {
+	end := time.Now().Add(translator.spin)
+	for time.Now().Before(end) {
+	}
+	return Host{}, false
+}
