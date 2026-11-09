@@ -35,18 +35,8 @@ const (
 	l3PerNodeSkip = "per-node pass-through needs multiPodPerHost: false with each kind worker labelled with its own endpoint hostname. The discovery-k8s workflow builds the shared-endpoint cluster"
 )
 
-// TestL3PassThroughSharedEndpoint is the operator's default topology: every
-// worker has the same configured-alternate-access-address, so each pod is
-// advertised as that hostname plus its own Service NodePort.
-//
-// The client seeds at the ingress with pass-through and UseServicesAlternate
-// (no map). It must:
-//   - hold exactly one node per pod
-//   - keep non-seed nodes at hostname:NodePort, where NodePort is the pod
-//     Service the API server reports (fails if the operator stops advertising it)
-//   - own every partition of the namespace on those nodes, each node a master
-//   - serve a MASTER write and read on each node
-//   - reach the seeded node again at the address it advertises
+// Shared-endpoint: pass-through client seeded at ingress holds one node per
+// pod at hostname:NodePort and owns every partition.
 func TestL3PassThroughSharedEndpoint(t *testing.T) {
 	skipUnlessL3(t)
 	cluster := l3FindCluster(t)
@@ -70,13 +60,8 @@ func TestL3PassThroughSharedEndpoint(t *testing.T) {
 	l3AssertRouted(t, pods, expected)
 }
 
-// TestL3PassThroughPerNode is the per-node topology: each kind worker has its
-// own configured-alternate-access-address and runs one pod, so each pod is
-// advertised as its worker's hostname plus the pod's hostPort.
-//
-// It runs only on that cluster shape and skips on the shared-endpoint cluster
-// the discovery-k8s workflow builds. The client must meet the same routing
-// contract as the shared-endpoint test, at worker-hostname:hostPort.
+// Per-node: one pod per worker at worker-hostname:hostPort. Skips on the
+// shared-endpoint cluster the workflow builds.
 func TestL3PassThroughPerNode(t *testing.T) {
 	skipUnlessL3(t)
 	cluster := l3FindCluster(t)
@@ -101,10 +86,8 @@ func skipUnlessL3(t *testing.T) {
 	}
 }
 
-// l3SharedAdvertised is hostname:NodePort for each pod, taken from the API
-// server. Every worker label must be the shared hostname, NodePorts must be
-// unique, and the ports the workflow published must still be in that set.
-func l3SharedAdvertised(t *testing.T, cluster l3Cluster, hostname string, pods []l3Pod) map[string]string {
+// hostname:NodePort per pod. Worker labels must match hostname, NodePorts unique.
+func l3HostnameNodePorts(t *testing.T, cluster l3Cluster, hostname string, pods []l3Pod) map[string]string {
 	t.Helper()
 	port := cluster.servicePort(t)
 	expected := make(map[string]string, len(pods))
@@ -125,17 +108,27 @@ func l3SharedAdvertised(t *testing.T, cluster l3Cluster, hostname string, pods [
 		nodePorts[nodePort] = pod.name
 		expected[pod.name] = net.JoinHostPort(hostname, strconv.Itoa(nodePort))
 	}
+	return expected
+}
+
+// hostname:NodePort per pod, plus the NodePorts the workflow published.
+func l3SharedAdvertised(t *testing.T, cluster l3Cluster, hostname string, pods []l3Pod) map[string]string {
+	t.Helper()
+	expected := l3HostnameNodePorts(t, cluster, hostname, pods)
 	listed := l3CSVPorts(t, "DISCOVERY_SERVICE_NODE_PORTS")
+	live := make(map[int]string, len(expected))
+	for pod, alt := range expected {
+		live[l3ParseHost(t, alt).Port] = pod
+	}
 	for _, published := range listed {
-		if _, ok := nodePorts[published]; !ok {
-			t.Fatalf("workflow NodePort %d is not a pod Service port %v", published, nodePorts)
+		if _, ok := live[published]; !ok {
+			t.Fatalf("workflow NodePort %d is not a pod Service port %v", published, live)
 		}
 	}
 	return expected
 }
 
-// l3PerNodeAdvertised is worker-label:hostPort for each pod. Every pod must sit
-// on its own worker, and every worker must carry its own hostname label.
+// worker-label:hostPort per pod. One pod and one hostname per worker.
 func l3PerNodeAdvertised(t *testing.T, cluster l3Cluster, pods []l3Pod) map[string]string {
 	t.Helper()
 	port := cluster.servicePort(t)
@@ -237,6 +230,9 @@ func l3AssertNodesMatchPods(t *testing.T, client *as.Client, seeds []*as.Host, p
 
 func l3AssertEachNodeServes(t *testing.T, client *as.Client, masters []*as.Node) {
 	t.Helper()
+	if n := l3Unowned(client, masters); n != 0 {
+		t.Fatalf("unowned partitions %d", n)
+	}
 	cluster := client.Cluster()
 	write := as.NewWritePolicy(0, 0)
 	write.ReplicaPolicy = as.MASTER
@@ -302,8 +298,7 @@ func l3AssertReachableAt(t *testing.T, name, advertised string) {
 	}
 }
 
-// l3AssertNoCollisions fails when two pods were translated to one address,
-// which would mean the operator advertised the same hostname:port twice.
+// Fails if two pods were translated to the same address.
 func l3AssertNoCollisions(t *testing.T, logs *l2LogCapture) {
 	t.Helper()
 	if got := logs.containing("to the same address"); len(got) > 0 {
@@ -434,8 +429,11 @@ func l3Seeds(t *testing.T) []*as.Host {
 	if hostname == "" {
 		t.Fatal("DISCOVERY_ENDPOINT_HOSTNAME is not set")
 	}
-	ports := l3CSVPorts(t, "DISCOVERY_INGRESS_PORTS")
-	return []*as.Host{as.NewHost(hostname, ports[0])}
+	if strings.TrimSpace(os.Getenv("DISCOVERY_INGRESS_PORTS")) != "" {
+		return []*as.Host{as.NewHost(hostname, l3CSVPorts(t, "DISCOVERY_INGRESS_PORTS")[0])}
+	}
+	// No ingress: seed at hostname and the cluster service port.
+	return []*as.Host{as.NewHost(hostname, l3FindCluster(t).servicePort(t))}
 }
 
 func l3Client(t *testing.T, policy *as.ClientPolicy, seeds ...*as.Host) *as.Client {

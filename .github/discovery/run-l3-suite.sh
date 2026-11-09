@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Run on the runner after setup-kind-ako. discovery-k8s.yaml injects DISCOVERY_*
-# and AEROSPIKE_ADMIN_PASSWORD. TCP-checks the ingress and service NodePorts,
-# then runs TestL3 with KUBECONFIG set. A cluster that never came up fails here
-# instead of looking like a run whose tests all skipped.
+# Run on the runner after setup-kind-ako and, in the TLS job, enable-l3-tls.sh.
+# discovery-k8s.yaml injects DISCOVERY_* and AEROSPIKE_ADMIN_PASSWORD.
+# TCP-checks the ingress and service NodePorts, then runs TestL3* (skipping
+# TestL3Tls* unless DISCOVERY_TLS_* is set). A cluster that never came up
+# fails here instead of looking like a run whose tests all skipped.
 set -euo pipefail
 
 host="${DISCOVERY_ENDPOINT_HOSTNAME:?DISCOVERY_ENDPOINT_HOSTNAME is required}"
@@ -19,6 +20,10 @@ fail() {
 [[ "$host" =~ ^[A-Za-z0-9.-]+$ ]] || fail "Refusing unexpected endpoint hostname: ${host}"
 [[ "$password" =~ ^[A-Za-z0-9]+$ ]] || fail "Refusing unexpected admin password characters"
 [[ -f "$kubeconfig" ]] || fail "kubeconfig does not exist: ${kubeconfig}"
+if [[ -n "${DISCOVERY_TLS_CA_FILE:-}${DISCOVERY_TLS_NAME:-}" ]]; then
+  [[ -f "${DISCOVERY_TLS_CA_FILE:-}" ]] || fail "DISCOVERY_TLS_CA_FILE does not exist: ${DISCOVERY_TLS_CA_FILE:-}"
+  [[ "${DISCOVERY_TLS_NAME:-}" =~ ^[A-Za-z0-9.-]+$ ]] || fail "Refusing unexpected tls-name: ${DISCOVERY_TLS_NAME:-}"
+fi
 
 check_ports() {
   local label=$1
@@ -42,4 +47,7 @@ check_ports "service node" "$node_ports"
 export KUBECONFIG="$kubeconfig"
 export AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1
 export CGO_ENABLED=0
-exec go test -count=1 -timeout 20m -run '^TestL3' -v .
+if [[ -n "${DISCOVERY_TLS_CA_FILE:-}" ]]; then
+  exec go test -count=1 -timeout 20m -run '^TestL3Tls' -v .
+fi
+exec go test -count=1 -timeout 20m -run '^TestL3' -skip '^TestL3Tls' -v .

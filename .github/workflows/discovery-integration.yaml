@@ -20,6 +20,7 @@ on:
   push:
     branches:
       - stage
+      - CLIENT-5732-dev-pluggable-discovery # TODO: remove post testing
   workflow_dispatch:
 
 jobs:
@@ -43,7 +44,7 @@ jobs:
           set -euo pipefail
           layers='[]'
           if [[ "${ENTERPRISE}" != true ]]; then
-            layers=$(jq -cn '[{layer: "L2 EE", tests: "ee and ee cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"},{layer: "TLS certificate matching", tests: "certificate name matching against Enterprise servers", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3", tests: "kind plus operator shared-endpoint pass-through", reason: "fork pull requests get no FEATURES_CONF"}]')
+            layers=$(jq -cn '[{layer: "L2 EE", tests: "ee and ee cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"},{layer: "TLS certificate matching", tests: "certificate name matching against Enterprise servers", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3", tests: "kind plus operator shared-endpoint pass-through", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3 TLS", tests: "kind plus operator tls-name", reason: "fork pull requests get no FEATURES_CONF"}]')
           fi
           echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
