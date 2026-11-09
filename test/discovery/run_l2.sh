@@ -104,6 +104,7 @@ ENABLE_DNS="${L2_DNS:-}"
 STARTED=()
 STARTED_NETWORKS=()
 CONTROL_PID=""
+CONTROL_EXTRA=""
 TLS_DIR=""
 FEATURES=""
 container_names=""
@@ -379,9 +380,82 @@ assert_unresolved() {
 	echo "Node $1: getent hosts $ACCESS_HOSTNAME exit $rc, not found"
 }
 
+control_start() {
+	local arg="$1" ack="$2" name conf option error="" options=()
+	CONTROL_EXTRA=$((CONTROL_EXTRA + 1))
+	name="$PREFIX-$CONTROL_EXTRA"
+	conf=aerospike.conf
+	for option in $arg; do
+		case "$option" in
+			alternate-port=*)
+				if [ -n "$ACCESS_HOSTNAME" ] && [[ "${option#*=}" =~ ^[0-9]+$ ]]; then
+					conf="$name.conf"
+					render_conf "$conf" "$(alternate_access "$ACCESS_HOSTNAME" "${option#*=}")"$'\n'
+				else
+					error="$option needs a port and L2_PROFILE=pass-through-ports or unresolved-access"
+				fi
+				;;
+			address=*)
+				if [[ "${option#*=}" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+					options+=(--ip "${option#*=}")
+				else
+					error="$option is not an IPv4 address"
+				fi
+				;;
+			*)
+				error="unknown start option $option"
+				;;
+		esac
+	done
+	if [ -n "$error" ]; then
+		printf 'error=%s\n' "$error" > "$ack"
+	elif start_node "$name" "$conf" "${options[@]+"${options[@]}"}" "${node_hosts[@]+"${node_hosts[@]}"}" \
+		2> "$WORK_DIR/control.err"; then
+		printf 'container=%s\naddress=%s\n' "$name" "$(container_address "$name" "$AS_NETWORK")" > "$ack"
+		echo "Control: started $name $arg"
+	else
+		printf 'error=%s\n' "$(tr '\n' ' ' < "$WORK_DIR/control.err")" > "$ack"
+	fi
+}
+
+control_stop() {
+	local arg="$1" ack="$2"
+	if [[ "$arg" == "$PREFIX"-* ]] && docker rm -f "$arg" > /dev/null 2> "$WORK_DIR/control.err"; then
+		printf 'removed=%s\n' "$arg" > "$ack"
+		echo "Control: removed $arg"
+	else
+		printf 'error=cannot remove %s %s\n' "$arg" "$(tr '\n' ' ' < "$WORK_DIR/control.err" 2>/dev/null)" > "$ack"
+	fi
+}
+
+control_status() {
+	local id="$1" arg="$2" ack="$3" state lookup="" lookup_rc="" where=""
+	if [[ "$arg" == "$PREFIX"-* ]] &&
+		state="$(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$arg" 2> "$WORK_DIR/control.err")"; then
+		docker logs "$arg" > "$CONTROL_DIR/$arg.log" 2>&1 || true
+		if [ -n "$ACCESS_HOSTNAME" ]; then
+			lookup_rc=0
+			if [ "${state% *}" = "true" ]; then
+				where=container
+				lookup="$(docker exec "$arg" getent hosts "$ACCESS_HOSTNAME" 2>&1)" || lookup_rc=$?
+			else
+				where=image
+				lookup="$(docker run --rm --name "$PREFIX-lookup-$id" --network "$AS_NETWORK" \
+					"${node_hosts[@]+"${node_hosts[@]}"}" --entrypoint getent "$IMAGE" \
+					hosts "$ACCESS_HOSTNAME" 2>&1)" || lookup_rc=$?
+			fi
+		fi
+		printf 'running=%s\nexit-code=%s\nlog=%s\nlookup-in=%s\nlookup-exit=%s\nlookup=%s\n' \
+			"${state% *}" "${state#* }" "$CONTROL_DIR/$arg.log" "$where" "$lookup_rc" \
+			"$(tr '\n' ' ' <<< "$lookup")" > "$ack"
+	else
+		printf 'error=cannot inspect %s %s\n' "$arg" "$(tr '\n' ' ' < "$WORK_DIR/control.err" 2>/dev/null)" > "$ack"
+	fi
+}
+
 control_loop() {
-	local extra="$NODES" request id action arg name ack conf option error state lookup lookup_rc where
-	local options=()
+	local request id action arg ack
+	CONTROL_EXTRA="$NODES"
 	while true; do
 		for request in "$CONTROL_DIR"/*.request; do
 			[ -e "$request" ] || continue
@@ -392,81 +466,10 @@ control_loop() {
 			rm -f "$request"
 			ack="$CONTROL_DIR/$id.tmp"
 			case "$action" in
-				start)
-					extra=$((extra + 1))
-					name="$PREFIX-$extra"
-					conf=aerospike.conf
-					options=()
-					error=""
-					for option in $arg; do
-						case "$option" in
-							alternate-port=*)
-								if [ -n "$ACCESS_HOSTNAME" ] && [[ "${option#*=}" =~ ^[0-9]+$ ]]; then
-									conf="$name.conf"
-									render_conf "$conf" "$(alternate_access "$ACCESS_HOSTNAME" "${option#*=}")"$'\n'
-								else
-									error="$option needs a port and L2_PROFILE=pass-through-ports or unresolved-access"
-								fi
-								;;
-							address=*)
-								if [[ "${option#*=}" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
-									options+=(--ip "${option#*=}")
-								else
-									error="$option is not an IPv4 address"
-								fi
-								;;
-							*)
-								error="unknown start option $option"
-								;;
-						esac
-					done
-					if [ -n "$error" ]; then
-						printf 'error=%s\n' "$error" > "$ack"
-					elif start_node "$name" "$conf" "${options[@]+"${options[@]}"}" "${node_hosts[@]+"${node_hosts[@]}"}" \
-						2> "$WORK_DIR/control.err"; then
-						printf 'container=%s\naddress=%s\n' "$name" "$(container_address "$name" "$AS_NETWORK")" > "$ack"
-						echo "Control: started $name $arg"
-					else
-						printf 'error=%s\n' "$(tr '\n' ' ' < "$WORK_DIR/control.err")" > "$ack"
-					fi
-					;;
-				stop)
-					if [[ "$arg" == "$PREFIX"-* ]] && docker rm -f "$arg" > /dev/null 2> "$WORK_DIR/control.err"; then
-						printf 'removed=%s\n' "$arg" > "$ack"
-						echo "Control: removed $arg"
-					else
-						printf 'error=cannot remove %s %s\n' "$arg" "$(tr '\n' ' ' < "$WORK_DIR/control.err" 2>/dev/null)" > "$ack"
-					fi
-					;;
-				status)
-					if [[ "$arg" == "$PREFIX"-* ]] &&
-						state="$(docker inspect -f '{{.State.Running}} {{.State.ExitCode}}' "$arg" 2> "$WORK_DIR/control.err")"; then
-						docker logs "$arg" > "$CONTROL_DIR/$arg.log" 2>&1 || true
-						lookup=""
-						lookup_rc=""
-						where=""
-						if [ -n "$ACCESS_HOSTNAME" ]; then
-							lookup_rc=0
-							if [ "${state% *}" = "true" ]; then
-								where=container
-								lookup="$(docker exec "$arg" getent hosts "$ACCESS_HOSTNAME" 2>&1)" || lookup_rc=$?
-							else
-								where=image
-								lookup="$(docker run --rm --name "$PREFIX-lookup-$id" --network "$AS_NETWORK" \
-									"${node_hosts[@]+"${node_hosts[@]}"}" --entrypoint getent "$IMAGE" \
-									hosts "$ACCESS_HOSTNAME" 2>&1)" || lookup_rc=$?
-							fi
-						fi
-						printf 'running=%s\nexit-code=%s\nlog=%s\nlookup-in=%s\nlookup-exit=%s\nlookup=%s\n' \
-							"${state% *}" "${state#* }" "$CONTROL_DIR/$arg.log" "$where" "$lookup_rc" \
-							"$(tr '\n' ' ' <<< "$lookup")" > "$ack"
-					else
-						printf 'error=cannot inspect %s %s\n' "$arg" "$(tr '\n' ' ' < "$WORK_DIR/control.err" 2>/dev/null)" > "$ack"
-					fi
-					;;
-				*)
-					printf 'error=unknown request: %s %s\n' "$action" "$arg" > "$ack"
-					;;
+				start) control_start "$arg" "$ack" ;;
+				stop) control_stop "$arg" "$ack" ;;
+				status) control_status "$id" "$arg" "$ack" ;;
+				*) printf 'error=unknown request: %s %s\n' "$action" "$arg" > "$ack" ;;
 			esac
 			mv "$ack" "$CONTROL_DIR/$id.ack"
 		done
@@ -575,8 +578,31 @@ recreate_nodes_with_access() {
 	fi
 }
 
+node_access_stanza() {
+	local container="$1" port="$2" index="$3"
+	case "$PROFILE" in
+		reachable)
+			if [ "$container" = "$DISCOVERY_REACHABLE_NODE" ]; then
+				printf '        access-address %s\n        access-port %s\n' "$REACHABLE_HOSTNAME" "$port"
+			else
+				alternate_access "$REACHABLE_HOSTNAME" "$port"
+				printf '\n'
+			fi
+			;;
+		pass-through-names)
+			hostnames+=("node-$index.$PASS_THROUGH_DOMAIN")
+			alternate_access "node-$index.$PASS_THROUGH_DOMAIN" "$port"
+			printf '\n'
+			;;
+		pass-through-ports)
+			alternate_access "$PASS_THROUGH_HOSTNAME" "$port"
+			printf '\n'
+			;;
+	esac
+}
+
 overlay_named_hosts() {
-	local proxy_server_address proxy_client_address hostname index=0 container port access
+	local proxy_server_address proxy_client_address hostname index=0 container port
 	proxy_server_address="$(container_address "$PROXY" "$AS_NETWORK")"
 	proxy_client_address="$(container_address "$PROXY" "$CLIENT_NETWORK")"
 	[ -n "$proxy_server_address" ] && [ -n "$proxy_client_address" ] || die "no Toxiproxy address"
@@ -597,23 +623,7 @@ overlay_named_hosts() {
 	for container in "${containers[@]}"; do
 		index=$((index + 1))
 		port="$(listener_port_for "$container")"
-		case "$PROFILE" in
-			reachable)
-				if [ "$container" = "$DISCOVERY_REACHABLE_NODE" ]; then
-					access="        access-address $REACHABLE_HOSTNAME"$'\n'"        access-port $port"$'\n'
-				else
-					access="$(alternate_access "$REACHABLE_HOSTNAME" "$port")"$'\n'
-				fi
-				;;
-			pass-through-names)
-				hostnames+=("node-$index.$PASS_THROUGH_DOMAIN")
-				access="$(alternate_access "node-$index.$PASS_THROUGH_DOMAIN" "$port")"$'\n'
-				;;
-			pass-through-ports)
-				access="$(alternate_access "$PASS_THROUGH_HOSTNAME" "$port")"$'\n'
-				;;
-		esac
-		render_conf "$container.conf" "$access"
+		render_conf "$container.conf" "$(node_access_stanza "$container" "$port" "$index")"
 		echo "Node $container listener $port:"
 		grep -E "access-(address|port)" "$WORK_DIR/conf/$container.conf"
 	done
@@ -711,6 +721,19 @@ disable_listeners() {
 	done
 }
 
+init_run() {
+	trap cleanup EXIT
+	trap 'exit 130' INT TERM
+	rm -rf "$WORK_DIR"
+	mkdir -p "$WORK_DIR/conf" "$WORK_DIR/action" "$WORK_DIR/bin" "$CONTROL_DIR"
+}
+
+set_client_args() {
+	client_args=(--rm --name "$CLIENT" --network "$CLIENT_NETWORK" --workdir "$ROOT_DIR"
+		-v "$ROOT_DIR:$ROOT_DIR" -v "$WORK_DIR/l2.test:$ROOT_DIR/l2.test:ro"
+		-e AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1)
+}
+
 run_suite() {
 	local log="$WORK_DIR/l2.log" rc
 	[ "$SUBSET" = "ee" ] && client_args+=(-v "$TLS_DIR:/aerospike-tls:ro" -e "AEROSPIKE_CA_CERT=/aerospike-tls/ca.crt")
@@ -758,10 +781,7 @@ main() {
 	configure_subset
 	configure_profile
 	require_prereqs
-	trap cleanup EXIT
-	trap 'exit 130' INT TERM
-	rm -rf "$WORK_DIR"
-	mkdir -p "$WORK_DIR/conf" "$WORK_DIR/action" "$WORK_DIR/bin" "$CONTROL_DIR"
+	init_run
 	compile_l2_test
 	fetch_topology_action
 	write_curl_shim
@@ -769,9 +789,7 @@ main() {
 	start_cluster
 	setup_proxy_topology
 	export_discovery_env
-	client_args=(--rm --name "$CLIENT" --network "$CLIENT_NETWORK" --workdir "$ROOT_DIR"
-		-v "$ROOT_DIR:$ROOT_DIR" -v "$WORK_DIR/l2.test:$ROOT_DIR/l2.test:ro"
-		-e AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1)
+	set_client_args
 	apply_profile
 	start_node_control
 	start_dns
