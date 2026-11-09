@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - stage
+      - CLIENT-5732-dev-pluggable-discovery # TODO: remove post testing
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
