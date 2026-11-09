@@ -84,6 +84,31 @@ func PartitionMasters(client *Client, namespace string) []*Node {
 	return masters
 }
 
+// Whether nodeName is in any replica list of namespace.
+func PartitionContains(client *Client, namespace, nodeName string) bool {
+	p := client.cluster.getPartitions()[namespace]
+	if p == nil {
+		return false
+	}
+	for _, replicas := range p.Replicas {
+		for _, node := range replicas {
+			if node != nil && node.GetName() == nodeName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Cumulative command errors and retries, including hosts tend has dropped.
+func ClusterCommandCounts(client *Client) (errors, retries int) {
+	for _, stats := range client.cluster.statsCopy() {
+		errors += stats.TransactionErrorCount.Get()
+		retries += stats.TransactionRetryCount.Get()
+	}
+	return
+}
+
 func NewWriteCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
