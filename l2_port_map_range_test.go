@@ -130,6 +130,8 @@ func TestL2PortMapRangeNodeOutsideRangeDecidedByOnMiss(t *testing.T) {
 			t.Fatalf("%q not in miss warning: %s", part, message)
 		}
 	}
+	// Stop the strict tend so it cannot log into the pass-through capture.
+	client.Close()
 
 	passThrough := l2Policy()
 	passThrough.AddressTranslator = translator
