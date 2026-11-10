@@ -1,4 +1,4 @@
-//go:build ((unix && !aix) || windows) && !app_engine
+//go:build (linux || darwin || windows) && !app_engine
 
 // Copyright 2014-2026 Aerospike, Inc.
 //
@@ -248,6 +248,9 @@ func TestUnreadBytesOnPlainConnectionCountAsClosed(t *testing.T) {
 	}
 
 	// The probe only peeks: the byte is still there to read.
+	if err := conn.conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	unread := make([]byte, 1)
 	if _, err := conn.conn.Read(unread); err != nil || unread[0] != 0x7f {
 		t.Fatalf("read after probe got %#x, err %v; want 0x7f", unread[0], err)
@@ -269,7 +272,7 @@ func TestTLSConnectionWithPendingRecordStaysOpenUntilReset(t *testing.T) {
 	if _, err := tlsServerSide.Write([]byte("ping")); err != nil {
 		t.Fatalf("server write: %v", err)
 	}
-	if !becomesTrue(func() bool { return conn.peerProbe.peerClosed(false) }) {
+	if !becomesTrue(func() bool { return conn.peerProbe.peek() == peekFoundBytes }) {
 		t.Fatal("the TLS record did not reach the client socket")
 	}
 	if conn.closedByPeer() {
@@ -481,12 +484,12 @@ func (cmd *stalePoolWriteCommand) prepareRetry(ifc command, isTimeout bool) bool
 	return true
 }
 
-func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
-	server := newLivenessServer(t)
+// newLivenessNode returns a node with an empty pool that dials the server.
+func newLivenessNode(t *testing.T, server *livenessServer) *Node {
+	t.Helper()
 
-	clientPolicy := NewClientPolicy()
 	cluster := &Cluster{clientPolicy: &atomic.Pointer[ClientPolicy]{}}
-	cluster.clientPolicy.Store(clientPolicy)
+	cluster.clientPolicy.Store(NewClientPolicy())
 	node := &Node{
 		cluster:     cluster,
 		name:        "stale-pool",
@@ -499,6 +502,73 @@ func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 			conn.Close()
 		}
 	})
+	return node
+}
+
+// pooledConnectionResetByServer dials a node connection that the server resets at once.
+func pooledConnectionResetByServer(t *testing.T, node *Node, server *livenessServer) *Connection {
+	t.Helper()
+
+	conn, err := node.newConnection(true)
+	if err != nil {
+		t.Fatalf("newConnection: %v", err)
+	}
+	resetByPeer(t, server.nextAccepted(t))
+	if !becomesTrue(conn.closedByPeer) {
+		t.Fatal("the reset did not reach the connection")
+	}
+	return conn
+}
+
+func TestCheckoutReturnsTheLiveConnectionAndClosesTheDeadOnes(t *testing.T) {
+	server := newLivenessServer(t)
+	node := newLivenessNode(t, server)
+
+	liveConnection, err := node.newConnection(true)
+	if err != nil {
+		t.Fatalf("newConnection: %v", err)
+	}
+	liveServerSide := server.nextAccepted(t)
+	t.Cleanup(func() { _ = liveServerSide.Close() })
+	deadConnections := []*Connection{
+		pooledConnectionResetByServer(t, node, server),
+		pooledConnectionResetByServer(t, node, server),
+	}
+
+	for _, conn := range append([]*Connection{liveConnection}, deadConnections...) {
+		if !node.putConnectionWithHint(conn, 0) {
+			t.Fatal("pool rejected the connection")
+		}
+	}
+
+	checkedOut, err := node.getConnectionWithHint(0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if checkedOut != liveConnection {
+		t.Fatal("checkout returned a connection the server had reset")
+	}
+	if !liveConnection.IsConnected() {
+		t.Fatal("checkout closed the live connection")
+	}
+
+	// Only dead connections are left, so the next checkout finds none to use.
+	if _, err := node.getConnectionWithHint(0, 0, 0, 0); !errors.Is(err, ErrConnectionPoolEmpty) {
+		t.Fatalf("checkout from a pool of dead connections got err %v, want pool empty", err)
+	}
+	for _, conn := range deadConnections {
+		if conn.IsConnected() {
+			t.Error("a reset pooled connection was not closed")
+		}
+	}
+	if closed := node.stats.ConnectionsClosed.Get(); closed != len(deadConnections) {
+		t.Errorf("node closed %d connections, want %d", closed, len(deadConnections))
+	}
+}
+
+func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
+	server := newLivenessServer(t)
+	node := newLivenessNode(t, server)
 
 	key, err := NewKey("test", "stale-pool", 1)
 	if err != nil {
@@ -509,17 +579,9 @@ func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 	const stalePooled = 3
 	staleConnections := make([]*Connection, 0, stalePooled)
 	for range stalePooled {
-		conn, err := node.newConnection(true)
-		if err != nil {
-			t.Fatalf("newConnection: %v", err)
-		}
-		resetByPeer(t, server.nextAccepted(t))
-		staleConnections = append(staleConnections, conn)
+		staleConnections = append(staleConnections, pooledConnectionResetByServer(t, node, server))
 	}
 	for _, conn := range staleConnections {
-		if !becomesTrue(conn.closedByPeer) {
-			t.Fatal("the reset did not reach the pooled connection")
-		}
 		if !node.putConnectionWithHint(conn, key.digest[0]) {
 			t.Fatal("pool rejected the connection")
 		}
@@ -574,5 +636,20 @@ func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 	// An empty pool can start more than one replacement before the first is ready.
 	if pooled := node.connections.LenAll(); pooled < 1 {
 		t.Error("the replacement connection was not returned to the pool")
+	}
+
+	// The healthy replacement is reused, not discarded.
+	cmd.commandSentCounter = 0
+	if err := cmd.executeAt(cmd, policy.GetBasePolicy(), time.Now().Add(policy.TotalTimeout), -1); err != nil {
+		t.Fatalf("second write failed: %v", err)
+	}
+	if cmd.commandSentCounter != 1 {
+		t.Errorf("second write used %d attempts, want 1", cmd.commandSentCounter)
+	}
+	if served := server.commandsServed.Load(); served != 2 {
+		t.Errorf("server received %d commands after the second write, want 2", served)
+	}
+	if closed := node.stats.ConnectionsClosed.Get(); closed != stalePooled {
+		t.Errorf("node closed %d connections after the second write, want still %d", closed, stalePooled)
 	}
 }

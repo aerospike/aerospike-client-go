@@ -102,13 +102,20 @@ type Connection struct {
 
 	// finds out at pool checkout if the peer closed the connection
 	peerProbe *socketProbe
-	// TLS records can arrive while the connection is idle
-	overTLS bool
 
 	// Used to track the last time the connection was used. This is used to determine
 	// if the connection is idle/timeout and should be closed.
 	salvageConnection bool
 }
+
+// peekOutcome is what a peek at a pooled connection's socket finds.
+type peekOutcome uint8
+
+const (
+	peekFoundNothing peekOutcome = iota
+	peekFoundBytes
+	peekFoundClosed
+)
 
 // makes sure that the connection is closed eventually, even if it is not consumed
 func connectionFinalizer(c *Connection) {
@@ -227,7 +234,6 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 	}
 
 	conn.conn = sconn
-	conn.overTLS = true
 	return conn, nil
 }
 
@@ -317,7 +323,15 @@ func (ctn *Connection) IsConnected() bool {
 // closedByPeer returns true if the peer closed or reset the connection.
 // Unread bytes on a plain connection also count as closed.
 func (ctn *Connection) closedByPeer() bool {
-	return ctn.peerProbe.peerClosed(ctn.overTLS)
+	switch ctn.peerProbe.peek() {
+	case peekFoundNothing:
+		return false
+	case peekFoundBytes:
+		// TLS records can arrive while the connection is idle
+		_, overTLS := ctn.conn.(*tls.Conn)
+		return !overTLS
+	}
+	return true
 }
 
 // updateDeadline sets connection timeout for both read and write operations.

@@ -1,4 +1,4 @@
-//go:build (!unix && !windows) || aix || app_engine
+//go:build (!linux && !darwin && !windows) || app_engine
 
 // Copyright 2014-2026 Aerospike, Inc.
 //
@@ -18,13 +18,13 @@ package aerospike
 
 import "net"
 
-// socketProbe is not supported on this platform. Every socket is reported open.
+// socketProbe is not supported in this build. Every socket is reported open.
 type socketProbe struct{}
 
 func newSocketProbe(conn net.Conn) *socketProbe {
 	return nil
 }
 
-func (probe *socketProbe) peerClosed(pendingBytesAllowed bool) bool {
-	return false
+func (probe *socketProbe) peek() peekOutcome {
+	return peekFoundNothing
 }
