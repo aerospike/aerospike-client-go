@@ -169,7 +169,9 @@ func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool 
 				if _, err := conn.RequestInfo("build"); err == nil {
 					// return to the pool
 					conn.refresh()
-					h.Offer(conn)
+					if !h.Offer(conn) {
+						conn.Close()
+					}
 				} else {
 					// drop on error
 					conn.Close()
