@@ -46,6 +46,8 @@ func TestL2SourcePortExhaustionSurfacesErrorAndRecovers(t *testing.T) {
 	policy := l2PortMapPolicy(t, l2PortMapByEndpoint(host, nodes))
 	policy.ConnectionQueueSize = 4 * threads
 	client := newL2Client(t, policy, as.NewHost(host, nodes[0].port))
+	// transaction-error-count only counts while metrics are enabled.
+	client.EnableMetrics(nil)
 	waitL2Cluster(t, client, l2NodeNames(nodes))
 
 	write := as.NewWritePolicy(0, 0)

@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 const l2PortMapRangeBlocker = " needs DISCOVERY_PORT_MAP_RANGE, DISCOVERY_PORT_MAP_PORT_BASE and DISCOVERY_CONTROL_DIR, nodes on a fixed subnet with a listener per address of a range (run_l2.sh L2_PROFILE=port-map-range)"
@@ -135,8 +136,15 @@ func TestL2PortMapRangeNodeOutsideRangeDecidedByOnMiss(t *testing.T) {
 	if passThrough.TranslationOnMiss != as.TranslationMissPassThrough {
 		t.Fatalf("default TranslationOnMiss is %v, want pass_through", passThrough.TranslationOnMiss)
 	}
+	// Every tend spends Timeout/2 dialing the unreachable advertised address,
+	// so the constructor cannot see two equal tends within Timeout.
+	passThrough.FailIfNotConnected = false
 	logs = captureL2Logs(t)
-	client = newL2Client(t, passThrough, as.NewHost(host, first.port))
+	client, err = as.NewClientWithPolicyAndHost(passThrough, as.NewHost(host, first.port))
+	if err != nil && !err.Matches(types.TIMEOUT) {
+		t.Fatal(err)
+	}
+	t.Cleanup(client.Close)
 	tried := "Add node `" + advertised + "`"
 	if !waitL2(l2Poll, func() bool {
 		if got := slices.Sorted(slices.Values(client.GetNodeNames())); !slices.Equal(got, names) {
