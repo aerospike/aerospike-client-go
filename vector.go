@@ -280,6 +280,11 @@ func (vector *Vector) Bytes() []byte {
 	return serialized
 }
 
+// AppendBytes appends the serialized vector, including its header, to dst.
+func (vector *Vector) AppendBytes(dst []byte) []byte {
+	return append(dst, vector.wire...)
+}
+
 // Equal reports whether both vectors have identical serialized bytes: the
 // same element type, dimensions and element bit patterns. Floats compare by
 // bits, so -0.0 does not equal 0.0 and NaNs are equal only when their bit

@@ -276,6 +276,22 @@ var _ = gg.Describe("Vector encoding", func() {
 		gm.Expect(value).To(gm.Equal(VectorValue{vector: vector}))
 	})
 
+	gg.It("appends its serialized bytes to a caller's buffer without allocating", func() {
+		vector := mustVector(NewVectorFloat32(make([]float32, 768)))
+		serialized := vector.Bytes()
+
+		prefix := []byte{0xde, 0xad}
+		appended := vector.AppendBytes(append([]byte{}, prefix...))
+		gm.Expect(appended).To(gm.Equal(append(append([]byte{}, prefix...), serialized...)))
+
+		buffer := make([]byte, 0, len(serialized))
+		allocations := testing.AllocsPerRun(100, func() { buffer = vector.AppendBytes(buffer[:0]) })
+		gm.Expect(allocations).To(gm.BeZero())
+
+		buffer[len(buffer)-1] ^= 0xff
+		gm.Expect(vector.Bytes()).To(gm.Equal(serialized))
+	})
+
 	gg.It("packs a list element as msgpack str tagged with the vector particle type", func() {
 		vector := mustVector(NewVectorFloat32([]float32{1, -2}))
 		wire := vector.Bytes()
