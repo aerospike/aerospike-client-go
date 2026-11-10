@@ -36,6 +36,11 @@ jobs:
         shell: bash
         run: go test -count=1 -v -run "${LIVENESS_TESTS}" .
 
+      - name: Peek without non-blocking mode (experiment)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: go test -count=3 -v -run TestPeekWithoutNonBlockingMode .
+
       - name: Probe tests under the race detector
         shell: bash
         run: go test -race -count=20 -run "${LIVENESS_TESTS}" .
