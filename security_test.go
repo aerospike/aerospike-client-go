@@ -38,13 +38,14 @@ var _ = gg.Describe("Security tests", func() {
 			gg.Skip("Security Tests are not supported in the Community Edition, or when security is not enabled for the Enterprise Edition.")
 		}
 
-		client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+		client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 	})
 
 	gg.AfterEach(func() {
 		if securityEnabled() {
-			dropUser(nil, "test_user")
+			// Best-effort: not every It creates test_user (e.g. "Must Query all users").
+			_ = client.DropUser(nil, "test_user")
 			time.Sleep(time.Second)
 		}
 	})
@@ -226,7 +227,8 @@ var _ = gg.Describe("Security tests", func() {
 			clientPolicy.TlsConfig = tlsConfig
 			clientPolicy.User = "test_user"
 			clientPolicy.Password = "test"
-			new_client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+			clientPolicy.UseServicesAlternate = *UseServicesAlternate
+			new_client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			defer new_client.Close()
 

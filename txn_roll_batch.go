@@ -1,4 +1,4 @@
-// Copyright 2014-2024 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ func newBatchTxnRollCommand(
 		records: records,
 		attr:    attr,
 	}
+	res.usageSkip = true
 	return res
 }
 
@@ -93,7 +94,7 @@ func (cmd *batchTxnRollCommand) parseRecordResults(ifc command, receiveSize int)
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
@@ -130,7 +131,7 @@ func (cmd *batchTxnRollCommand) parseRecordResults(ifc command, receiveSize int)
 		if resultCode == types.OK {
 			record.ResultCode = resultCode
 		} else {
-			record.setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			record.setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 		}
 	}
 
@@ -225,8 +226,8 @@ func (cmd *batchTxnRollCommand) getNamespace() *string {
 }
 
 func (cmd *batchTxnRollCommand) nsIter(yield func(string, uint64) bool) {
-	for _, key := range cmd.keys {
-		if !yield(key.namespace, 1) {
+	for _, offset := range cmd.batch.offsets {
+		if !yield(cmd.keys[offset].namespace, 1) {
 			return
 		}
 	}

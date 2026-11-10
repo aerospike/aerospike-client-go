@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -235,7 +235,7 @@ func (nd *Node) refreshSessionToken() (err Error) {
 			// force new connections to use default creds until a new valid session token is acquired
 			nd.resetSessionInfo()
 			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
+			conn.closeOnError()
 			return err
 		}
 
@@ -480,7 +480,9 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	cc := nd.connectionCount.IncrementAndGet()
 	if clusterClientPolicy.LimitConnectionsToQueueSize && cc > clusterClientPolicy.ConnectionQueueSize {
 		nd.connectionCount.DecrementAndGet()
-		nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
+		if nd.metricsEnabled() {
+			nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
+		}
 
 		return nil, ErrTooManyConnectionsForNode.err()
 	}
@@ -499,11 +501,13 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
+	connStart := time.Now()
 	conn, err := NewConnection(clusterClientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
 		nd.stats.ConnectionsFailed.IncrementAndGet()
+		nd.recordNewConnectionFailure(err)
 		return nil, err
 	}
 	conn.node = nd
@@ -516,16 +520,53 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 			nd.incrErrorCount()
 		}
 		nd.stats.ConnectionsFailed.IncrementAndGet()
+		// auth.failure is auth result codes only; network/TLS during login → open/tls.
+		if isConnectionAuthFailure(err) {
+			nd.recordConnectionAuthFailure()
+		} else {
+			nd.recordNewConnectionFailure(err)
+		}
 
 		// Socket not authenticated. Do not put back into pool.
-		conn.Close()
+		conn.closeOnError()
 		return nil, err
 	}
 
-	nd.stats.ConnectionsSuccessful.IncrementAndGet()
+	if nd.metricsEnabled() {
+		nd.stats.ConnectionsSuccessful.IncrementAndGet()
+	}
+	if nd.cluster != nil && nd.cluster.operationalEnabled.Load() {
+		if policy := nd.stats.getMetricPolicy(); policy != nil {
+			elapsed := policy.elapsedUnits(time.Since(connStart))
+			nd.stats.addConnLatency(elapsed)
+		}
+	}
 	conn.setIdleTimeout(clusterClientPolicy.IdleTimeout)
 
 	return conn, nil
+}
+
+// recordNewConnectionFailure records a pool open/TLS failure on this Node.
+// open.failure rolls up TLS. Not sampler-gated; still behind operational.
+func (nd *Node) recordNewConnectionFailure(err Error) {
+	if nd == nil || nd.cluster == nil || !nd.cluster.operationalEnabled.Load() {
+		return
+	}
+	if isTLSHandshakeFailure(err) {
+		nd.stats.ConnectionTlsHandshakeFailure.IncrementAndGet()
+		nd.stats.ConnectionOpenFailure.IncrementAndGet() // rollup
+		return
+	}
+	nd.stats.ConnectionOpenFailure.IncrementAndGet()
+}
+
+// recordConnectionAuthFailure records auth failure on this Node; open.failure rolls up.
+func (nd *Node) recordConnectionAuthFailure() {
+	if nd == nil || nd.cluster == nil || !nd.cluster.operationalEnabled.Load() {
+		return
+	}
+	nd.stats.ConnectionAuthFailure.IncrementAndGet()
+	nd.stats.ConnectionOpenFailure.IncrementAndGet() // rollup
 }
 
 func (nd *Node) newTendConnection() (*Connection, Error) {
@@ -570,7 +611,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 			break
 		}
 
-		conn.Close()
+		conn.closeOnError()
 		conn = nil
 	}
 
@@ -589,7 +630,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
 		// Do not put back into pool for other types of errors.
-		conn.Close()
+		conn.closeOnError()
 		return nil, err
 	}
 
@@ -603,9 +644,12 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 // closed and discarded.
 func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) bool {
 	conn.refresh()
-	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
-		nd.stats.ConnectionsPoolOverflow.IncrementAndGet()
-		conn.Close()
+	if !nd.active.Get() {
+		conn.closeNodeRemoved()
+		return false
+	}
+	if !nd.connections.Offer(conn, hint) {
+		conn.closePoolShrink()
 		return false
 	}
 	return true
@@ -620,7 +664,12 @@ func (nd *Node) PutConnection(conn *Connection) {
 
 // InvalidateConnection closes and discards a connection from the pool.
 func (nd *Node) InvalidateConnection(conn *Connection) {
-	conn.Close()
+	conn.closeOnError()
+}
+
+// metricsEnabled reports whether Tier 0 / master metrics collection is on.
+func (nd *Node) metricsEnabled() bool {
+	return nd != nil && nd.cluster != nil && nd.cluster.metricsEnabled.Load()
 }
 
 // GetHost retrieves host for the node.
@@ -681,13 +730,13 @@ func (nd *Node) String() string {
 
 func (nd *Node) closeConnections() {
 	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
-		conn.Close()
+		conn.closeNodeRemoved()
 	}
 
 	// close the tend connection
 	nd.tendConn.Do(func(conn *Connection) {
 		if conn != nil {
-			conn.Close()
+			conn.closeNodeRemoved()
 		}
 	})
 }
@@ -811,7 +860,7 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 	if errCall := nd.usingTendConn(timeout, func(conn *Connection) Error {
 		response, err = conn.RequestInfo(name...)
 		if err != nil {
-			conn.Close()
+			conn.closeOnError()
 		}
 		return err
 	}); errCall != nil {
@@ -827,7 +876,7 @@ func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *in
 	if errCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		response, err = newInfo(conn, name...)
 		if err != nil {
-			conn.Close()
+			conn.closeOnError()
 		}
 		return err
 	}); errCall != nil {
@@ -930,9 +979,8 @@ func (nd *Node) WarmUp(count int) (int, Error) {
 
 			if nd.putConnectionWithHint(conn, 0) {
 				cnt.IncrementAndGet()
-			} else {
-				conn.Close()
 			}
+			// else: putConnectionWithHint already closed the connection with the right reason.
 
 			return nil
 		})

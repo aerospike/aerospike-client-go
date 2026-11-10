@@ -79,7 +79,7 @@ func BenchmarkApplyTransactionMetrics(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			applyTransactionErrorMetrics(node)
+			applyTransactionErrorMetrics(node, false)
 		}
 	})
 
@@ -88,7 +88,7 @@ func BenchmarkApplyTransactionMetrics(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			applyTransactionErrorMetrics(node)
+			applyTransactionErrorMetrics(node, true)
 		}
 	})
 }
@@ -115,7 +115,7 @@ func BenchmarkApplyTransactionMetricsParallel(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				applyTransactionErrorMetrics(node)
+				applyTransactionErrorMetrics(node, false)
 			}
 		})
 	})
@@ -126,7 +126,7 @@ func BenchmarkApplyTransactionMetricsParallel(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				applyTransactionErrorMetrics(node)
+				applyTransactionErrorMetrics(node, true)
 			}
 		})
 	})

@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,10 +31,12 @@ func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy,
 	// Statement does contain a taskId however we cannot rely on it since the statement might be reused.
 	// If TaskId is 0, set it to a new random value and return the same statement. Cannot modify the original
 	// statement since user might want to reuse it.
-	return &serverCommand{
+	cmd := &serverCommand{
 		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil),
 		taskId:       taskId,
 	}
+	cmd.usageBackground = true
+	return cmd
 }
 
 func (cmd *serverCommand) writeBuffer(ifc command) (err Error) {
@@ -55,7 +57,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}

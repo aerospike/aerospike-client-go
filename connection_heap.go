@@ -50,7 +50,8 @@ func (h *singleConnectionHeap) cleanup() {
 
 	for i := range h.data {
 		if h.data[i] != nil {
-			h.data[i].Close()
+			// cleanup is only used from Node.Close after pool drain.
+			h.data[i].closeNodeRemoved()
 		}
 
 		h.data[i] = nil
@@ -131,10 +132,7 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 		h.tail = (h.tail + 1) % h.size
 		h.data[h.tail] = nil
 		h.full = false
-		if conn.node != nil {
-			conn.node.stats.ConnectionsIdleDropped.IncrementAndGet()
-		}
-		conn.Close()
+		conn.closeIdle()
 
 		return true
 	}
@@ -172,7 +170,7 @@ func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool 
 					h.Offer(conn)
 				} else {
 					// drop on error
-					conn.Close()
+					conn.closeOnError()
 				}
 			}()
 
