@@ -571,7 +571,8 @@ func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 	if failed := node.stats.ConnectionsFailed.Get(); failed != 0 {
 		t.Errorf("node counted %d failed connections, want 0", failed)
 	}
-	if pooled := node.connections.LenAll(); pooled != 1 {
-		t.Errorf("pool holds %d connections after the write, want the 1 replacement", pooled)
+	// An empty pool can start more than one replacement before the first is ready.
+	if pooled := node.connections.LenAll(); pooled < 1 {
+		t.Error("the replacement connection was not returned to the pool")
 	}
 }
