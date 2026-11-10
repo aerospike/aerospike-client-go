@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 
@@ -41,7 +41,7 @@ jobs:
 
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@239670d50ed072bfce8b9ab1765227a53429d664 # v2.20.1
+        uses: vladopajic/go-test-coverage@def194de52e1f1a32b000fab870ffa05a66c4258 # v2.22.0
         continue-on-error: true
         with:
           config: ./.testcoverage.yml
