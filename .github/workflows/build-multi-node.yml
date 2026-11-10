@@ -5,10 +5,10 @@ on:
     branches: [stage]
   workflow_dispatch:
     inputs:
-      aerospike_version:
-        description: "Aerospike version to test against"
+      aerospike_versions:
+        description: "JSON of servers to test against (empty uses AEROSPIKE_VERSIONS)"
         required: false
-        default: "8.1.1.0"
+        default: ""
       nodes:
         description: "Number of cluster nodes"
         required: false
@@ -29,7 +29,11 @@ permissions:
 
 env:
   # defaults to use against workflow triggered through cron
-  AEROSPIKE_VERSION: 8.1.1.0
+  AEROSPIKE_VERSIONS: |
+    {
+      "stable": { "version": "8.1.1.0" },
+      "latest": { "version": "8.2.0.0" }
+    }
   NODES: 3
   RUNNER_VERSION: ubuntu-24.04
   MODES: AP,SC
@@ -56,16 +60,15 @@ jobs:
       - id: create-server-matrix
         uses: ./.github/actions/make-matrix
         with:
-          default_json: |
-            {
-              "stable": { "version": "${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}" }
-            }
+          default_json: ${{ inputs.aerospike_versions || env.AEROSPIKE_VERSIONS }}
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: ${{ github.event_name == 'workflow_dispatch' && inputs.modes || env.MODES }}
 
       - name: debug - print input variables
+        env:
+          SERVER_MATRIX: ${{ steps.create-server-matrix.outputs.matrix }}
         run: |
-          echo "Aerospike version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}"
+          echo "Aerospike versions: $(echo "${SERVER_MATRIX}" | jq -r '[.[].version] | unique | join(", ")')"
           echo "Nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}"
           echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
           echo "Consistency Mode: ${{ github.event_name == 'workflow_dispatch' && inputs.modes || env.MODES }}"

@@ -82,7 +82,17 @@ func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
 		} else {
 			ops = []*Operation{GetOp()}
 		}
-		res, err := client.Operate(cmd.policy.toWritePolicy(), br.Key, ops...)
+		writePolicy := cmd.policy.toWritePolicy()
+		if br.Policy != nil {
+			rowPolicy := client.getUsableBatchReadPolicy(br.Policy)
+			if rowPolicy.FilterExpression != nil {
+				writePolicy.FilterExpression = rowPolicy.FilterExpression
+			}
+			writePolicy.ReadModeAP = rowPolicy.ReadModeAP
+			writePolicy.ReadModeSC = rowPolicy.ReadModeSC
+			writePolicy.ReadTouchTTLPercent = rowPolicy.ReadTouchTTLPercent
+		}
+		res, err := client.Operate(writePolicy, br.Key, ops...)
 		br.setRecord(res)
 		if err != nil {
 			br.setRawError(err)
