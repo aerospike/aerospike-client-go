@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -177,6 +178,121 @@ var _ = gg.Describe("Metrics sampling integration", func() {
 		gm.Expect(snap.CPUPercent).To(gm.BeNumerically("<", 95),
 			"idle process CPU should not look like total-including-idle (~100%%)")
 	})
+
+	gg.It("FILE exporter writes under ReportDir while commands run", func() {
+		dir, err := os.MkdirTemp("", "as-metrics-file-*")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer os.RemoveAll(dir)
+
+		p := as.DefaultMetricsPolicy()
+		p.Interval = 50 * time.Millisecond
+		p.Exporter = as.MetricsExporterFile
+		p.ReportDir = dir
+		client.EnableMetrics(p)
+
+		key, err := as.NewKey(*namespace, "metricsSet", fmt.Sprintf("m-file-%d", time.Now().UnixNano()))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(client.Put(nil, key, as.BinMap{"a": 1})).ToNot(gm.HaveOccurred())
+
+		gm.Eventually(func() int {
+			ents, e := os.ReadDir(dir)
+			if e != nil {
+				return 0
+			}
+			return len(ents)
+		}, "2s", "50ms").Should(gm.BeNumerically(">=", 1))
+	})
+
+	gg.It("DisableMetrics freezes command.count on subsequent Gets", func() {
+		client.DisableMetrics()
+		before := client.MetricsSnapshot()
+		key, err := as.NewKey(*namespace, "metricsSet", fmt.Sprintf("m-off-%d", time.Now().UnixNano()))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		_, _ = client.Get(nil, key)
+		after := client.MetricsSnapshot()
+		gm.Expect(after.CommandCount).To(gm.Equal(before.CommandCount))
+		gm.Expect(after.MetricsEnabled).To(gm.BeFalse())
+	})
+
+	gg.It("latency sum is present when read count advances", func() {
+		// Millisecond unit truncates sub-ms RTTs to 0 (count advances, sum stays 0).
+		// Use microseconds so latency sum is observable on a fast local Get.
+		p := as.DefaultMetricsPolicy()
+		p.LatencyUnit = as.LatencyMicroseconds
+		p.Exporter = as.MetricsExporterNone
+		client.EnableMetrics(p)
+
+		key, err := as.NewKey(*namespace, "metricsSet", fmt.Sprintf("m-sum-%d", time.Now().UnixNano()))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(client.Put(nil, key, as.BinMap{"a": 1})).ToNot(gm.HaveOccurred())
+		before := client.MetricsSnapshot()
+		_, err = client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		after := client.MetricsSnapshot()
+
+		delta := latencyCount(after, as.LatencyRead) - latencyCount(before, as.LatencyRead)
+		gm.Expect(delta).To(gm.BeNumerically(">=", 1))
+		gm.Expect(latencySum(after, as.LatencyRead)).To(gm.BeNumerically(">", latencySum(before, as.LatencyRead)))
+	})
+
+	gg.It("usage feature.api.blocking advances on Get when usage enabled", func() {
+		p := as.DefaultMetricsPolicy()
+		p.UsageEnabled = true
+		p.Exporter = as.MetricsExporterNone
+		client.EnableMetrics(p)
+
+		before := client.MetricsSnapshot()
+		key, err := as.NewKey(*namespace, "metricsSet", fmt.Sprintf("m-usage-%d", time.Now().UnixNano()))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		_, _ = client.Get(nil, key)
+		after := client.MetricsSnapshot()
+		gm.Expect(after.Usage).NotTo(gm.BeNil())
+		gm.Expect(before.Usage).NotTo(gm.BeNil())
+		gm.Expect(after.Usage.Blocking - before.Usage.Blocking).To(gm.BeNumerically(">=", 1))
+		gm.Expect(after.Usage.ShapePoint - before.Usage.ShapePoint).To(gm.BeNumerically(">=", 1))
+	})
+
+	// Sampler behavior remains visible across successive short-interval exports.
+	gg.It("FILE exports stay flat under sampler never then advance at full rate", func() {
+		dir, err := os.MkdirTemp("", "as-metrics-f4-*")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer os.RemoveAll(dir)
+
+		never := as.DefaultMetricsPolicy()
+		never.SetSamplerNever()
+		never.Interval = 50 * time.Millisecond
+		never.Exporter = as.MetricsExporterFile
+		never.ReportDir = dir
+		client.EnableMetrics(never)
+
+		gm.Eventually(func() int {
+			ents, e := os.ReadDir(dir)
+			if e != nil {
+				return 0
+			}
+			return len(ents)
+		}, "2s", "50ms").Should(gm.BeNumerically(">=", 1))
+
+		before := client.MetricsSnapshot().CommandCount
+		key, err := as.NewKey(*namespace, "metricsSet", fmt.Sprintf("m-f4-%d", time.Now().UnixNano()))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for i := 0; i < 5; i++ {
+			_, _ = client.Get(nil, key)
+		}
+		time.Sleep(150 * time.Millisecond)
+		gm.Expect(client.MetricsSnapshot().CommandCount).To(gm.Equal(before))
+
+		full := as.DefaultMetricsPolicy()
+		full.Interval = 50 * time.Millisecond
+		full.Exporter = as.MetricsExporterFile
+		full.ReportDir = dir
+		client.EnableMetrics(full)
+		mid := client.MetricsSnapshot().CommandCount
+		_, _ = client.Get(nil, key)
+		_, _ = client.Get(nil, key)
+		time.Sleep(150 * time.Millisecond)
+		gm.Expect(client.MetricsSnapshot().CommandCount).To(gm.BeNumerically(">=", mid+2))
+	})
 })
 
 func latencyCount(snap *as.MetricsSnapshot, lt as.LatencyType) uint64 {
@@ -186,6 +302,18 @@ func latencyCount(snap *as.MetricsSnapshot, lt as.LatencyType) uint64 {
 	for _, lat := range snap.Latencies {
 		if lat.Type == lt {
 			return lat.Count
+		}
+	}
+	return 0
+}
+
+func latencySum(snap *as.MetricsSnapshot, lt as.LatencyType) float64 {
+	if snap == nil {
+		return 0
+	}
+	for _, lat := range snap.Latencies {
+		if lat.Type == lt {
+			return lat.Sum
 		}
 	}
 	return 0

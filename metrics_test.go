@@ -157,6 +157,142 @@ func TestFileMetricsExporterWritesSnakeCaseHeader(t *testing.T) {
 	}
 }
 
+// FILE + ReportDir starts the export loop; file grows across ≥2 ticks.
+func TestEnableMetricsFileExporterWritesPeriodically(t *testing.T) {
+	dir := t.TempDir()
+	clstr := newTestCluster()
+	p := DefaultMetricsPolicy()
+	p.Interval = 40 * time.Millisecond
+	p.Exporter = MetricsExporterFile
+	p.ReportDir = dir
+	clstr.EnableMetrics(p)
+	defer clstr.DisableMetrics()
+
+	var firstPath string
+	var firstSize int64
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) >= 1 {
+			firstPath = filepath.Join(dir, entries[0].Name())
+			body, err := os.ReadFile(firstPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(body), " header(4)") {
+				t.Fatalf("expected v3 header in periodic file, got:\n%s", body)
+			}
+			firstSize = int64(len(body))
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expected a metrics file within 2s of EnableMetrics(FILE)")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// A later tick must append (byte size grows) or rotate a new file.
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) > 1 {
+			return
+		}
+		info, err := os.Stat(firstPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Size() > firstSize {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("expected file growth across ≥2 export ticks; size stayed %d", firstSize)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// NONE must not install the file writer even if ReportDir is set.
+func TestEnableMetricsNoneDoesNotCreateMetricsFile(t *testing.T) {
+	dir := t.TempDir()
+	clstr := newTestCluster()
+	p := DefaultMetricsPolicy()
+	p.Interval = 40 * time.Millisecond
+	p.Exporter = MetricsExporterNone
+	p.ReportDir = dir
+	clstr.EnableMetrics(p)
+	defer clstr.DisableMetrics()
+
+	time.Sleep(250 * time.Millisecond)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("NONE must not write metrics files, got %d entries", len(entries))
+	}
+}
+
+// Unwritable report path must not panic; Export records an error.
+func TestFileMetricsExporterUnwritableDir(t *testing.T) {
+	base := t.TempDir()
+	blocker := filepath.Join(base, "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := NewFileMetricsExporter(blocker)
+	e.Export(&MetricsSnapshot{
+		Timestamp:      time.Now(),
+		ClusterName:    "c1",
+		ClientType:     "go",
+		ClientVersion:  "test",
+		AppID:          "not-set",
+		LatencyColumns: 7,
+		LatencyShift:   1,
+	})
+	if e.LastExportError() == nil {
+		t.Fatal("expected LastExportError when ReportDir is not a writable directory")
+	}
+}
+
+// Policy labels appear in the file cluster line.
+func TestFileMetricsExporterWritesLabels(t *testing.T) {
+	dir := t.TempDir()
+	e := NewFileMetricsExporter(dir)
+	e.Export(&MetricsSnapshot{
+		Timestamp:      time.Now(),
+		ClusterName:    "c1",
+		ClientType:     "go",
+		ClientVersion:  "test",
+		AppID:          "not-set",
+		Labels:         map[string]string{"region": "us-west", "env": "ci"},
+		LatencyColumns: 7,
+		LatencyShift:   1,
+	})
+	e.Close()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, entries[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(body)
+	if !strings.Contains(s, "region") || !strings.Contains(s, "us-west") {
+		t.Fatalf("expected region label in file, got:\n%s", s)
+	}
+	if !strings.Contains(s, "env") || !strings.Contains(s, "ci") {
+		t.Fatalf("expected env label in file, got:\n%s", s)
+	}
+}
+
 func TestFileMetricsExporterAppendsUsageFeatureOnClusterLine(t *testing.T) {
 	dir := t.TempDir()
 	e := NewFileMetricsExporter(dir)
@@ -409,5 +545,274 @@ func TestMaybeBatchPartialFailure(t *testing.T) {
 	maybeBatchPartialFailure(clstr, types.SERVER_ERROR)
 	if clstr.batchPartialFailure.Get() != 2 {
 		t.Fatalf("expected 2 partial failures, got %d", clstr.batchPartialFailure.Get())
+	}
+}
+
+// DisableMetrics stops periodic Export.
+func TestDisableMetricsStopsPeriodicExport(t *testing.T) {
+	clstr := newTestCluster()
+	rec := &recordingExporter{}
+	p := DefaultMetricsPolicy()
+	p.Interval = 40 * time.Millisecond
+	p.Exporter = MetricsExporterCustom
+	p.AddExporter(rec)
+	clstr.EnableMetrics(p)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		rec.mu.Lock()
+		n := rec.count
+		rec.mu.Unlock()
+		if n >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expected at least one Export before disable")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	clstr.DisableMetrics()
+	rec.mu.Lock()
+	afterDisable := rec.count
+	rec.mu.Unlock()
+	time.Sleep(200 * time.Millisecond)
+	rec.mu.Lock()
+	later := rec.count
+	rec.mu.Unlock()
+	if later != afterDisable {
+		t.Fatalf("Export must stop after DisableMetrics: %d → %d", afterDisable, later)
+	}
+	if clstr.MetricsEnabled() || clstr.decideOperationalSample() {
+		t.Fatal("collection and sampler must be off after DisableMetrics")
+	}
+}
+
+// Latency sum must be present when count > 0.
+func TestClusterLatencySumPresentWhenCountPositive(t *testing.T) {
+	clstr := newTestCluster()
+	clstr.metricsEnabled.Store(true)
+	clstr.operationalEnabled.Store(true)
+	clstr.metricsPolicy.Set(DefaultMetricsPolicy())
+	clstr.addClusterLatency(LatencyRead, 5*time.Millisecond)
+
+	snap := clstr.buildMetricsSnapshot(false)
+	var found bool
+	for _, lat := range snap.Latencies {
+		if lat.Type != LatencyRead {
+			continue
+		}
+		found = true
+		if lat.Count < 1 {
+			t.Fatalf("expected read count ≥ 1, got %d", lat.Count)
+		}
+		if lat.Sum <= 0 {
+			t.Fatalf("sum must be present when count > 0, got sum=%v count=%d", lat.Sum, lat.Count)
+		}
+	}
+	if !found {
+		t.Fatal("expected LatencyRead in cluster latencies")
+	}
+}
+
+// Usage feature.api.* / shape are not sampler-gated.
+func TestRecordUsageIncrementsFeatureAPI(t *testing.T) {
+	clstr := newTestCluster()
+	clstr.metricsEnabled.Store(true)
+	clstr.usageEnabled.Store(true)
+	clstr.recordUsage(ttGet, false, nil)
+	clstr.recordUsage(ttBatchRead, false, nil)
+
+	snap := clstr.buildMetricsSnapshot(false)
+	if snap.Usage == nil {
+		t.Fatal("expected usage snapshot when usage enabled")
+	}
+	if snap.Usage.Blocking != 2 || snap.Usage.ShapePoint != 1 || snap.Usage.ShapeBatch != 1 {
+		t.Fatalf("usage counters: blocking=%d point=%d batch=%d",
+			snap.Usage.Blocking, snap.Usage.ShapePoint, snap.Usage.ShapeBatch)
+	}
+}
+
+// Errors per failed attempt; latency/bytes on success only; command.count once.
+func TestErrorLatencyAndCommandCountSemantics(t *testing.T) {
+	clstr := newTestCluster()
+	clstr.metricsEnabled.Store(true)
+	clstr.operationalEnabled.Store(true)
+	clstr.metricsPolicy.Set(DefaultMetricsPolicy())
+
+	ns := newNodeStats(DefaultMetricsPolicy())
+	// Two failed attempts (e.g. timeout then retry), then success path records latency/bytes once.
+	ns.addSharedError("test", types.TIMEOUT, true)
+	ns.addSharedError("test", types.TIMEOUT, true)
+	op := ns.getOrCreateNsOp("test")
+	if op.ClientTimeouts.Get() != 2 {
+		t.Fatalf("errors must increment per failed attempt, got client_timeouts=%d", op.ClientTimeouts.Get())
+	}
+	if op.Latencies[LatencyRead].Clone().Count != 0 || op.BytesIn.Get() != 0 {
+		t.Fatal("latency/bytes must stay 0 until success")
+	}
+
+	ns.addSharedLatency("test", LatencyRead, 3)
+	ns.addSharedBytes("test", 10, 4)
+	c := op.Latencies[LatencyRead].Clone()
+	if c.Count != 1 || c.Sum <= 0 || op.BytesIn.Get() != 10 || op.BytesOut.Get() != 4 {
+		t.Fatalf("success records one latency sample and bytes, got count=%d sum=%v in=%d out=%d",
+			c.Count, c.Sum, op.BytesIn.Get(), op.BytesOut.Get())
+	}
+
+	// One sampled call → command.count once; one retry → command.retries once.
+	clstr.recordCommandCount()
+	clstr.recordCommandRetry()
+	if clstr.commandCount.Get() != 1 || clstr.commandRetries.Get() != 1 {
+		t.Fatalf("command.count=%d retries=%d", clstr.commandCount.Get(), clstr.commandRetries.Get())
+	}
+}
+
+// Export must not reset cumulative counters.
+func TestExportDoesNotResetCommandCount(t *testing.T) {
+	clstr := newTestCluster()
+	rec := &recordingExporter{}
+	p := DefaultMetricsPolicy()
+	p.Interval = time.Hour // avoid timer noise; we call fanOutExport directly
+	p.Exporter = MetricsExporterCustom
+	p.AddExporter(rec)
+	clstr.EnableMetrics(p)
+	defer clstr.DisableMetrics()
+
+	clstr.commandCount.Set(42)
+	snap := clstr.buildMetricsSnapshot(true)
+	if !clstr.fanOutExport(snap) {
+		t.Fatal("expected successful export")
+	}
+	if clstr.commandCount.Get() != 42 {
+		t.Fatalf("Export must not reset command.count, got %d", clstr.commandCount.Get())
+	}
+	snap2 := clstr.buildMetricsSnapshot(false)
+	if snap2.CommandCount != 42 {
+		t.Fatalf("on-demand snapshot must still see 42, got %d", snap2.CommandCount)
+	}
+}
+
+// File rotate: soft size limit opens a new metrics-*.log (bypass SetReportSizeLimit floor for the test).
+// maxSize must exceed one header line — otherwise openNewFile→writeLine recurses forever
+// (production SetReportSizeLimit floors at 1MB, so this only matters in tests).
+func TestFileMetricsExporterRotatesAtSizeLimit(t *testing.T) {
+	dir := t.TempDir()
+	e := NewFileMetricsExporter(dir)
+	headerLen := len(formatMetricsFileHeader(7, 1, LatencyMilliseconds)) + 1
+	e.maxSize = int64(headerLen + 80) // room for header + one short cluster line, then rotate
+	snap := &MetricsSnapshot{
+		Timestamp:      time.Now(),
+		ClusterName:    "c1",
+		ClientType:     "go",
+		ClientVersion:  "test",
+		AppID:          "not-set",
+		LatencyColumns: 7,
+		LatencyShift:   1,
+	}
+	for i := 0; i < 10; i++ {
+		snap.Timestamp = time.Now()
+		snap.CommandCount = int64(i)
+		e.Export(snap)
+		if e.LastExportError() != nil {
+			t.Fatalf("export %d: %v", i, e.LastExportError())
+		}
+	}
+	e.Close()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) < 2 {
+		t.Fatalf("expected rotate to create ≥2 files, got %d", len(entries))
+	}
+}
+
+// Disable closes the client-owned file writer; re-enable reopens on the next Export.
+func TestDisableMetricsClosesFileWriterReopensOnEnable(t *testing.T) {
+	dir := t.TempDir()
+	clstr := newTestCluster()
+	p := DefaultMetricsPolicy()
+	p.Interval = 40 * time.Millisecond
+	p.Exporter = MetricsExporterFile
+	p.ReportDir = dir
+	clstr.EnableMetrics(p)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expected initial metrics file")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	fe := clstr.fileExporter
+	if fe == nil || !fe.open {
+		t.Fatal("expected open file exporter while enabled")
+	}
+
+	clstr.DisableMetrics()
+	if fe.open || fe.file != nil {
+		t.Fatal("DisableMetrics must close the file writer")
+	}
+
+	entriesAfterDisable, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nAfterDisable := len(entriesAfterDisable)
+
+	clstr.EnableMetrics(p)
+	defer clstr.DisableMetrics()
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		if clstr.fileExporter != nil && clstr.fileExporter.open {
+			break
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// New file or reopen that appends both count as reopen.
+		if len(entries) > nAfterDisable || (clstr.fileExporter != nil && clstr.fileExporter.open) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expected file writer to reopen after re-enable")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if clstr.fileExporter == nil || !clstr.fileExporter.open {
+		t.Fatal("file exporter must be open after re-enable Export")
+	}
+}
+
+// Conn latency is operational but not sampler-gated.
+func TestConnLatencyNotSamplerGated(t *testing.T) {
+	clstr := newTestCluster()
+	p := DefaultMetricsPolicy()
+	p.SetSamplerNever()
+	clstr.EnableMetrics(p)
+	defer clstr.DisableMetrics()
+
+	if clstr.decideOperationalSample() {
+		t.Fatal("sampler never must not sample commands")
+	}
+	if !clstr.operationalEnabled.Load() {
+		t.Fatal("operational must remain on")
+	}
+
+	nd := &Node{cluster: clstr}
+	nd.stats = *newNodeStats(p)
+	nd.stats.addConnLatency(p.elapsedUnits(3 * time.Millisecond))
+	snap := nd.stats.snapshotConnLatency()
+	if snap.Count != 1 || snap.Sum <= 0 {
+		t.Fatalf("conn latency must record while sampler is never: count=%d sum=%v", snap.Count, snap.Sum)
 	}
 }

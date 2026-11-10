@@ -188,7 +188,7 @@ func isConnectionAuthFailure(err Error) bool {
 }
 
 // resetMetricsSinceEnable zeros enable-scoped counters/histograms so snapshots
-// report cumulative values since the current EnableMetrics (collection spec).
+// report cumulative values since the current EnableMetrics.
 // Called only on the metrics-off → metrics-on edge.
 func (clstr *Cluster) resetMetricsSinceEnable() {
 	if clstr == nil {

@@ -117,7 +117,7 @@ type MetricsSnapshot struct {
 	// connections_recovering — Go has no deque, only the live count.
 	RecoverQueueSize int `json:"recover_queue_size"`
 	InvalidNodeCount int `json:"invalid_node_count"`
-	// DelayQueueTimeoutCount is omitted: native track has no async delay queue
+	// DelayQueueTimeoutCount is omitted: this client has no async delay queue
 	// (do not emit empty placeholders for async/event-loop fields).
 	OpenConnections int64 `json:"open_connections"`
 

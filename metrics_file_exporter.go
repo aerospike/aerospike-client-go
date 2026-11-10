@@ -196,7 +196,7 @@ func (e *FileMetricsExporter) SetReportSizeLimit(limit int64) {
 func formatMetricsFileHeader(columns, shift int, unit LatencyUnit) string {
 	var b strings.Builder
 	b.WriteString(time.Now().Format("2006-01-02 15:04:05.000"))
-	// header(4): snake_case v3; drops async delay_queue_timeout_count (native track
+	// header(4): snake_case v3; drops async delay_queue_timeout_count (this client
 	// omits async placeholders). recover_queue_size is the live TimeoutDelay salvage gauge.
 	b.WriteString(" header(4)")
 	b.WriteString(" cluster[name,client_type,client_version,app_id,label[],cpu,mem,recover_queue_size,invalid_node_count,command_count,command_retries,batch_partial_failure,validation_open_failure,validation_tls_handshake_failure,validation_auth_failure,latency[],feature[],node[]]")

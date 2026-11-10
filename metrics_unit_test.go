@@ -131,21 +131,37 @@ func TestDecideOperationalSample(t *testing.T) {
 		t.Fatal("full-rate must sample")
 	}
 
-	// Spec uses next_random_uint64; expect ~30% hits at range=10 threshold=3.
+	// ~10% sample rate: range=10, threshold=1 → band [8%, 12%].
+	p = DefaultMetricsPolicy()
+	p.SamplerRange = 10
+	p.SamplerThreshold = 1
+	clstr.metricsPolicy.Set(p)
+	const n = 10_000
+	var hits10 int
+	for i := 0; i < n; i++ {
+		if clstr.decideOperationalSample() {
+			hits10++
+		}
+	}
+	rate10 := float64(hits10) / float64(n)
+	if rate10 < 0.08 || rate10 > 0.12 {
+		t.Fatalf("expected ~0.10 sample rate, got %.3f (%d/%d)", rate10, hits10, n)
+	}
+
+	// Extra non-10% band: ~30% at range=10 threshold=3.
 	p = DefaultMetricsPolicy()
 	p.SamplerRange = 10
 	p.SamplerThreshold = 3
 	clstr.metricsPolicy.Set(p)
-	const n = 10_000
-	var hits int
+	var hits30 int
 	for i := 0; i < n; i++ {
 		if clstr.decideOperationalSample() {
-			hits++
+			hits30++
 		}
 	}
-	rate := float64(hits) / float64(n)
-	if rate < 0.25 || rate > 0.35 {
-		t.Fatalf("expected ~0.30 sample rate, got %.3f (%d/%d)", rate, hits, n)
+	rate30 := float64(hits30) / float64(n)
+	if rate30 < 0.25 || rate30 > 0.35 {
+		t.Fatalf("expected ~0.30 sample rate, got %.3f (%d/%d)", rate30, hits30, n)
 	}
 }
 
@@ -628,5 +644,168 @@ func TestFileMetricsExporterBracketBalance(t *testing.T) {
 		if opens != closes {
 			t.Fatalf("unbalanced brackets opens=%d closes=%d line=%s", opens, closes, line)
 		}
+	}
+}
+
+// One failing exporter must not skip the remaining exporters.
+func TestFanOutExportContinuesAfterOneFailure(t *testing.T) {
+	clstr := &Cluster{}
+	ok := &recordingExporter{}
+	failing := &failNExporter{failLeft: 100}
+	ra := &registeredExporter{exporter: ok}
+	rb := &registeredExporter{exporter: failing}
+	clstr.exporters = []*registeredExporter{rb, ra} // failing first
+	snap := &MetricsSnapshot{}
+
+	clstr.fanOutExport(snap)
+
+	ok.mu.Lock()
+	n := ok.count
+	ok.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("successful exporter must still run after a sibling failure, got %d", n)
+	}
+	if failing.calls != 1 {
+		t.Fatalf("failing exporter should have been attempted once, calls=%d", failing.calls)
+	}
+}
+
+// SetSamplerProbability(0.10) hit rate in [8%, 12%] over large N.
+func TestDecideOperationalSampleProbabilityTenPercent(t *testing.T) {
+	clstr := &Cluster{}
+	clstr.reshapeClusterLatencies(DefaultMetricsPolicy())
+	clstr.operationalEnabled.Store(true)
+	p := DefaultMetricsPolicy()
+	p.SetSamplerProbability(0.10)
+	clstr.metricsPolicy.Set(p)
+
+	const n = 10_000
+	var hits int
+	for i := 0; i < n; i++ {
+		if clstr.decideOperationalSample() {
+			hits++
+		}
+	}
+	rate := float64(hits) / float64(n)
+	if rate < 0.08 || rate > 0.12 {
+		t.Fatalf("expected ~0.10 from SetSamplerProbability(0.10), got %.3f (%d/%d)", rate, hits, n)
+	}
+}
+
+// holdExporter blocks inside Export until release is closed (watchdog tests).
+type holdExporter struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (e *holdExporter) Export(*MetricsSnapshot) {
+	e.once.Do(func() { close(e.entered) })
+	<-e.release
+}
+
+// Export overrun past the watchdog counts as failure (custom exporters only).
+func TestExportWithWatchdogTimeout(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	exp := &holdExporter{entered: entered, release: release}
+
+	done := make(chan exportWatchdogResult, 1)
+	go func() {
+		done <- exportWithWatchdog(exp, &MetricsSnapshot{}, 40*time.Millisecond)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Export never started")
+	}
+
+	select {
+	case r := <-done:
+		if r != exportTimedOut {
+			t.Fatalf("expected exportTimedOut, got %v", r)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("watchdog did not fire")
+	}
+	close(release) // let the orphaned Export goroutine exit
+}
+
+func TestExportWithWatchdogOK(t *testing.T) {
+	rec := &recordingExporter{}
+	if got := exportWithWatchdog(rec, &MetricsSnapshot{}, time.Second); got != exportOK {
+		t.Fatalf("expected exportOK, got %v", got)
+	}
+	rec.mu.Lock()
+	n := rec.count
+	rec.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("expected one Export, got %d", n)
+	}
+}
+
+func TestExportWithWatchdogPanic(t *testing.T) {
+	failing := &failNExporter{failLeft: 1}
+	if got := exportWithWatchdog(failing, &MetricsSnapshot{}, time.Second); got != exportFailed {
+		t.Fatalf("expected exportFailed on panic, got %v", got)
+	}
+}
+
+// Non-file callExporter maps watchdog failure to false (feeds suspend path).
+func TestCallExporterNonFileTimeoutReturnsFalse(t *testing.T) {
+	// callExporter uses the production 10s watchdog; exercise the same failure
+	// mapping with exportWithWatchdog + the callExporter panic/timeout branches
+	// by using a short-limit helper path equivalent: timed-out Export is !ok.
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	exp := &holdExporter{entered: entered, release: release}
+
+	okCh := make(chan bool, 1)
+	go func() {
+		// Mirror callExporter's non-file branch with a test-scale deadline.
+		switch exportWithWatchdog(exp, &MetricsSnapshot{}, 40*time.Millisecond) {
+		case exportOK:
+			okCh <- true
+		default:
+			okCh <- false
+		}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Export never started")
+	}
+	select {
+	case ok := <-okCh:
+		if ok {
+			t.Fatal("timeout must count as Export failure")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("watchdog did not fire")
+	}
+	close(release)
+}
+
+func TestCallExporterNonFilePanicReturnsFalse(t *testing.T) {
+	if callExporter(&failNExporter{failLeft: 1}, &MetricsSnapshot{}, false) {
+		t.Fatal("panic during custom Export must return false")
+	}
+}
+
+// Client vs server TIMEOUT land on different namespace split counters.
+func TestSharedErrorClientVsServerTimeoutSplit(t *testing.T) {
+	ns := newNodeStats(DefaultMetricsPolicy())
+	ns.addSharedError("test", types.TIMEOUT, true)
+	ns.addSharedError("test", types.TIMEOUT, false)
+	op := ns.getOrCreateNsOp("test")
+	if op.ClientTimeouts.Get() != 1 {
+		t.Fatalf("client timeout: got %d", op.ClientTimeouts.Get())
+	}
+	if op.ServerTimeouts.Get() != 1 {
+		t.Fatalf("server timeout: got %d", op.ServerTimeouts.Get())
+	}
+	if op.Errors.Get() != 0 {
+		t.Fatalf("TIMEOUT must not also increment undifferentiated errors, got %d", op.Errors.Get())
 	}
 }
