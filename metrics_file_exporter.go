@@ -94,6 +94,13 @@ func (e *FileMetricsExporter) LastExportError() error {
 	return e.lastErr
 }
 
+// isOpen reports whether a metrics file is currently open for writing.
+func (e *FileMetricsExporter) isOpen() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.open && e.file != nil
+}
+
 // Close flushes and closes the current file. Called when metrics are disabled
 // or the cluster is closed. The next Export after re-enable reopens a new file.
 func (e *FileMetricsExporter) Close() {

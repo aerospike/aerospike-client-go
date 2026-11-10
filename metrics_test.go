@@ -753,12 +753,12 @@ func TestDisableMetricsClosesFileWriterReopensOnEnable(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	fe := clstr.fileExporter
-	if fe == nil || !fe.open {
+	if fe == nil || !fe.isOpen() {
 		t.Fatal("expected open file exporter while enabled")
 	}
 
 	clstr.DisableMetrics()
-	if fe.open || fe.file != nil {
+	if fe.isOpen() {
 		t.Fatal("DisableMetrics must close the file writer")
 	}
 
@@ -772,7 +772,7 @@ func TestDisableMetricsClosesFileWriterReopensOnEnable(t *testing.T) {
 	defer clstr.DisableMetrics()
 	deadline = time.Now().Add(2 * time.Second)
 	for {
-		if clstr.fileExporter != nil && clstr.fileExporter.open {
+		if clstr.fileExporter != nil && clstr.fileExporter.isOpen() {
 			break
 		}
 		entries, err := os.ReadDir(dir)
@@ -780,7 +780,7 @@ func TestDisableMetricsClosesFileWriterReopensOnEnable(t *testing.T) {
 			t.Fatal(err)
 		}
 		// New file or reopen that appends both count as reopen.
-		if len(entries) > nAfterDisable || (clstr.fileExporter != nil && clstr.fileExporter.open) {
+		if len(entries) > nAfterDisable || (clstr.fileExporter != nil && clstr.fileExporter.isOpen()) {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -788,7 +788,7 @@ func TestDisableMetricsClosesFileWriterReopensOnEnable(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if clstr.fileExporter == nil || !clstr.fileExporter.open {
+	if clstr.fileExporter == nil || !clstr.fileExporter.isOpen() {
 		t.Fatal("file exporter must be open after re-enable Export")
 	}
 }

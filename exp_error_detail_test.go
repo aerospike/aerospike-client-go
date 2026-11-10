@@ -763,7 +763,11 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		bp := as.NewBatchPolicy()
 		bp.ErrorDetailVerbosity = 3
 
-		// A one-row batch is sent as a single-record command.
+		// A one-row batch normally uses the point Operate fast path. With
+		// metrics enabled (suite default via EnableMetrics(nil)), the
+		// batchExecute child keeps the wire batch RPC for correct latency
+		// attribution, so the server still reports a batch-request filter
+		// build failure.
 		badPolicy := as.NewBatchReadPolicy()
 		badPolicy.FilterExpression = buildErrorExp()
 		recs := []*as.BatchRead{as.NewBatchRead(badPolicy, stdKey, nil)}
@@ -772,7 +776,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 
 		bad := recs[0].BatchRecord
 		gm.Expect(bad.ResultCode).To(gm.Equal(types.PARAMETER_ERROR), "Unexpected row result code")
-		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in request"))
+		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in batch request"))
 
 		t := bad.ExpTrace
 		gm.Expect(t).NotTo(gm.BeNil(), "Expected a build trace on the failing row")
