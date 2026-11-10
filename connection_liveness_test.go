@@ -45,7 +45,7 @@ type livenessServer struct {
 	commandsServed atomic.Int64
 }
 
-func newLivenessServer(t *testing.T) *livenessServer {
+func newLivenessServer(t testing.TB) *livenessServer {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -119,7 +119,7 @@ func (server *livenessServer) connectTLS(t *testing.T) (*Connection, *net.TCPCon
 	return result.conn, serverSide, tlsServerSide
 }
 
-func (server *livenessServer) nextAccepted(t *testing.T) *net.TCPConn {
+func (server *livenessServer) nextAccepted(t testing.TB) *net.TCPConn {
 	t.Helper()
 
 	select {
@@ -485,7 +485,7 @@ func (cmd *stalePoolWriteCommand) prepareRetry(ifc command, isTimeout bool) bool
 }
 
 // newLivenessNode returns a node with an empty pool that dials the server.
-func newLivenessNode(t *testing.T, server *livenessServer) *Node {
+func newLivenessNode(t testing.TB, server *livenessServer) *Node {
 	t.Helper()
 
 	cluster := &Cluster{clientPolicy: &atomic.Pointer[ClientPolicy]{}}
@@ -566,6 +566,99 @@ func TestCheckoutReturnsTheLiveConnectionAndClosesTheDeadOnes(t *testing.T) {
 	}
 }
 
+func newStalePoolWriteCommand(t testing.TB, node *Node, policy *WritePolicy, key *Key) *stalePoolWriteCommand {
+	t.Helper()
+
+	bwc, err := newBaseWriteCommand(nil, policy, key)
+	if err != nil {
+		t.Fatalf("newBaseWriteCommand: %v", err)
+	}
+	return &stalePoolWriteCommand{
+		writeCommand: writeCommand{
+			baseWriteCommand: bwc,
+			binMap:           BinMap{"bin": "value"},
+			operation:        _WRITE,
+		},
+		targetNode: node,
+	}
+}
+
+// pooledConnectionForBenchmark puts one live connection in the node's pool.
+// Without the probe, checkout behaves as it did before the probe existed.
+func pooledConnectionForBenchmark(b *testing.B, node *Node, server *livenessServer, withProbe bool) {
+	b.Helper()
+
+	conn, err := node.newConnection(true)
+	if err != nil {
+		b.Fatalf("newConnection: %v", err)
+	}
+	go server.serveWrites(server.nextAccepted(b))
+	if !withProbe {
+		conn.peerProbe = nil
+	}
+	if !node.putConnectionWithHint(conn, 0) {
+		b.Fatal("pool rejected the connection")
+	}
+}
+
+var probeBenchmarkVariants = []struct {
+	name      string
+	withProbe bool
+}{
+	{"without_probe", false},
+	{"with_probe", true},
+}
+
+// BenchmarkCheckout takes a connection from the pool and puts it back.
+func BenchmarkCheckout(b *testing.B) {
+	for _, variant := range probeBenchmarkVariants {
+		b.Run(variant.name, func(b *testing.B) {
+			server := newLivenessServer(b)
+			node := newLivenessNode(b, server)
+			pooledConnectionForBenchmark(b, node, server, variant.withProbe)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				conn, err := node.getConnectionWithHint(0, 0, 0, 0)
+				if err != nil {
+					b.Fatalf("checkout: %v", err)
+				}
+				node.putConnectionWithHint(conn, 0)
+			}
+		})
+	}
+}
+
+// BenchmarkWriteCommand runs a write command against a loopback server, checkout included.
+func BenchmarkWriteCommand(b *testing.B) {
+	key, err := NewKey("test", "stale-pool", 1)
+	if err != nil {
+		b.Fatalf("NewKey: %v", err)
+	}
+
+	for _, variant := range probeBenchmarkVariants {
+		b.Run(variant.name, func(b *testing.B) {
+			server := newLivenessServer(b)
+			node := newLivenessNode(b, server)
+			pooledConnectionForBenchmark(b, node, server, variant.withProbe)
+
+			policy := NewWritePolicy(0, 0)
+			policy.TotalTimeout = 0
+			cmd := newStalePoolWriteCommand(b, node, policy, key)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				cmd.commandSentCounter = 0
+				if err := cmd.executeAt(cmd, policy.GetBasePolicy(), time.Time{}, -1); err != nil {
+					b.Fatalf("write: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 	server := newLivenessServer(t)
 	node := newLivenessNode(t, server)
@@ -599,18 +692,7 @@ func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 	policy := NewWritePolicy(0, 0)
 	policy.MaxRetries = 0
 	policy.TotalTimeout = 10 * time.Second
-	bwc, err := newBaseWriteCommand(nil, policy, key)
-	if err != nil {
-		t.Fatalf("newBaseWriteCommand: %v", err)
-	}
-	cmd := &stalePoolWriteCommand{
-		writeCommand: writeCommand{
-			baseWriteCommand: bwc,
-			binMap:           BinMap{"bin": "value"},
-			operation:        _WRITE,
-		},
-		targetNode: node,
-	}
+	cmd := newStalePoolWriteCommand(t, node, policy, key)
 
 	if err := cmd.executeAt(cmd, policy.GetBasePolicy(), time.Now().Add(policy.TotalTimeout), -1); err != nil {
 		t.Fatalf("write failed on a pool of reset connections: %v", err)

@@ -42,4 +42,12 @@ jobs:
 
       - name: Probe cost
         shell: bash
-        run: go test -count=1 -run '^$' -bench BenchmarkLivenessProbe -benchtime 2s .
+        run: |
+          set -o pipefail
+          go test -count=6 -run '^$' -bench 'BenchmarkLivenessProbe|BenchmarkCheckout|BenchmarkWriteCommand' -benchtime 2s . | tee probe-cost.txt
+          {
+            echo "### Probe cost on ${{ matrix.os }}"
+            echo '```'
+            grep -E '^(goos|goarch|cpu|Benchmark)' probe-cost.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
