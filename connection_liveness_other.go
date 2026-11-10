@@ -1,4 +1,4 @@
-//go:build !unix || aix || app_engine
+//go:build (!unix && !windows) || aix || app_engine
 
 // Copyright 2014-2026 Aerospike, Inc.
 //

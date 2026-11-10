@@ -1,0 +1,45 @@
+name: Connection liveness probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - connection_liveness*.go
+      - .github/workflows/connection-liveness.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    env:
+      AEROSPIKE_TEST_SKIP_SUITE_CLIENT: "1"
+      CGO_ENABLED: "1"
+      LIVENESS_TESTS: TestIdleConnectionIsNotReportedClosed|TestConnectionClosedByPeerIsDetected|TestUnreadBytesOnPlainConnectionCountAsClosed|TestTLSConnectionWithPendingRecordStaysOpenUntilReset|TestProbedConnection|TestLivenessProbeAllocations|TestAbandonedConnectionIsStillClosedByGarbageCollector|TestExecuteAtUsesNoRetryForDeadPooledConnections
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Probe tests
+        shell: bash
+        run: go test -count=1 -v -run "${LIVENESS_TESTS}" .
+
+      - name: Probe tests under the race detector
+        shell: bash
+        run: go test -race -count=20 -run "${LIVENESS_TESTS}" .
+
+      - name: Probe cost
+        shell: bash
+        run: go test -count=1 -run '^$' -bench BenchmarkLivenessProbe -benchtime 2s .

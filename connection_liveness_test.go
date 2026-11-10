@@ -1,4 +1,4 @@
-//go:build unix && !aix && !app_engine
+//go:build ((unix && !aix) || windows) && !app_engine
 
 // Copyright 2014-2026 Aerospike, Inc.
 //
@@ -17,6 +17,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -24,6 +25,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/binary"
+	"errors"
 	"io"
 	"math/big"
 	"net"
@@ -289,18 +291,119 @@ func TestTLSConnectionWithPendingRecordStaysOpenUntilReset(t *testing.T) {
 	}
 }
 
-func TestLivenessProbeDoesNotAllocate(t *testing.T) {
+func TestProbedConnectionStillWaitsForDataAndTimesOut(t *testing.T) {
+	server := newLivenessServer(t)
+	conn, serverSide := server.connect(t)
+
+	if conn.closedByPeer() {
+		t.Fatal("an open idle connection was reported closed")
+	}
+
+	// A read with nothing to read yet waits for the data.
+	sendDelay := 100 * time.Millisecond
+	go func() {
+		time.Sleep(sendDelay)
+		_, _ = serverSide.Write([]byte("late"))
+	}()
+	if err := conn.conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	readStart := time.Now()
+	received := make([]byte, 4)
+	if _, err := io.ReadFull(conn.conn, received); err != nil || string(received) != "late" {
+		t.Fatalf("delayed read got %q, err %v; want \"late\"", received, err)
+	}
+	if waited := time.Since(readStart); waited < sendDelay/2 {
+		t.Fatalf("read returned after %s, before the data was sent", waited)
+	}
+
+	// A read with nothing to read ends at its deadline with a timeout.
+	if conn.closedByPeer() {
+		t.Fatal("an open idle connection was reported closed")
+	}
+	if err := conn.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	_, err := conn.conn.Read(received)
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("read without data got err %v, want a timeout", err)
+	}
+	if conn.closedByPeer() {
+		t.Fatal("the connection was reported closed after a read timeout")
+	}
+}
+
+func TestProbedConnectionCarriesRoundTripsAndLargePayloads(t *testing.T) {
+	server := newLivenessServer(t)
+	conn, serverSide := server.connect(t)
+	go func() { _, _ = io.Copy(serverSide, serverSide) }()
+
+	if err := conn.conn.SetDeadline(time.Now().Add(time.Minute)); err != nil {
+		t.Fatalf("SetDeadline: %v", err)
+	}
+
+	request := make([]byte, 64)
+	response := make([]byte, len(request))
+	for roundTrip := range 2000 {
+		if conn.closedByPeer() {
+			t.Fatalf("round trip %d: an open connection was reported closed", roundTrip)
+		}
+		binary.BigEndian.PutUint64(request, uint64(roundTrip))
+		if _, err := conn.conn.Write(request); err != nil {
+			t.Fatalf("round trip %d: write: %v", roundTrip, err)
+		}
+		if _, err := io.ReadFull(conn.conn, response); err != nil {
+			t.Fatalf("round trip %d: read: %v", roundTrip, err)
+		}
+		if !bytes.Equal(request, response) {
+			t.Fatalf("round trip %d: response differs from request", roundTrip)
+		}
+	}
+
+	payload := make([]byte, 4<<20)
+	if _, err := rand.Read(payload); err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	writeErr := make(chan error, 1)
+	go func() {
+		_, err := conn.conn.Write(payload)
+		writeErr <- err
+	}()
+	echoed := make([]byte, len(payload))
+	if _, err := io.ReadFull(conn.conn, echoed); err != nil {
+		t.Fatalf("large read: %v", err)
+	}
+	if err := <-writeErr; err != nil {
+		t.Fatalf("large write: %v", err)
+	}
+	if !bytes.Equal(payload, echoed) {
+		t.Fatal("large payload was not echoed back intact")
+	}
+	if conn.closedByPeer() {
+		t.Fatal("the connection was reported closed after the large payload")
+	}
+}
+
+func TestLivenessProbeAllocations(t *testing.T) {
 	server := newLivenessServer(t)
 	conn, _ := server.connect(t)
+
+	// On Windows the "nothing to read" error of the peek is boxed by the syscall package.
+	allowed := 0.0
+	if runtime.GOOS == "windows" {
+		allowed = 1
+	}
 
 	allocations := testing.AllocsPerRun(1000, func() {
 		if conn.closedByPeer() {
 			t.Fatal("an open idle connection was reported closed")
 		}
 	})
-	if allocations != 0 {
-		t.Fatalf("probe allocated %v objects per call, want 0", allocations)
+	if allocations > allowed {
+		t.Fatalf("probe allocated %v objects per call, want at most %v", allocations, allowed)
 	}
+	t.Logf("probe allocated %v objects per call", allocations)
 }
 
 func BenchmarkLivenessProbe(b *testing.B) {
