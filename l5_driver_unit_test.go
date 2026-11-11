@@ -166,8 +166,21 @@ func TestL5OutputPrintsReadyBeforeHeldLines(t *testing.T) {
 	if lines[0]["contract"] != float64(l5Contract) || lines[0]["client"] != "go" || lines[0]["t"] != float64(9) {
 		t.Fatalf("ready = %#v", lines[0])
 	}
-	if lines[1]["t"] != float64(3) || lines[1]["message"] != "early" {
+	if lines[1]["t"] != float64(9) || lines[1]["message"] != "early" {
 		t.Fatalf("held log = %#v", lines[1])
+	}
+}
+
+func TestL5OutputDoesNotMoveTBackwards(t *testing.T) {
+	var buf bytes.Buffer
+	out := &l5Output{stdout: &buf}
+	out.open(l5Ready{Type: "ready", T: 1, Contract: l5Contract, Client: "go", ClientVersion: "v", Shape: "pass-through"})
+	buf.Reset()
+	out.write(l5LogLine{Type: "log", T: 15550, Level: "WARN", Message: "refresh failed"})
+	out.write(l5Message{Type: "error", T: 14631, Message: "late poll"})
+	lines := l5Decode(t, &buf)
+	if len(lines) != 2 || lines[0]["t"] != float64(15550) || lines[1]["t"] != float64(15550) {
+		t.Fatalf("lines = %#v", lines)
 	}
 }
 
