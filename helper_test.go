@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"net"
+	"testing"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -71,6 +73,36 @@ func ConfiguredAsStrongConsistency(client *Client, namespace string) bool {
 	}
 
 	return p.SCMode
+}
+
+// TendConnectionIPv4 is the IPv4 of the node's open tend connection.
+// Empty when that connection is closed. The L5 driver reports this as the
+// snapshot address, and leaves GetHost().Name as the advertised hostname.
+func TendConnectionIPv4(node *Node) string {
+	if node == nil {
+		return ""
+	}
+	address := ""
+	node.tendConn.Do(func(conn *Connection) {
+		if conn != nil && conn.IsConnected() {
+			address = dottedIPv4(conn.conn.RemoteAddr())
+		}
+	})
+	return address
+}
+
+// dottedIPv4 returns the dotted IPv4 form, unwrapping an IPv4-mapped IPv6
+// address. A native IPv6 address and a missing address are empty.
+func dottedIPv4(addr net.Addr) string {
+	tcp, ok := addr.(*net.TCPAddr)
+	if !ok || tcp == nil || tcp.IP == nil {
+		return ""
+	}
+	ip := tcp.IP.To4()
+	if ip == nil {
+		return ""
+	}
+	return ip.String()
 }
 
 // PartitionMasters returns the master node of each partition of namespace in
@@ -221,4 +253,54 @@ func (txr *TxnRoll) RollRecords() []*BatchRecord {
 // with MRT_COMMITTED.
 func (txr *TxnRoll) AlreadyCommitted() bool {
 	return txr.alreadyCommitted
+}
+
+func TestL5TendConnectionIPv4ReadsTheTendSocket(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, acceptErr := ln.Accept()
+		if acceptErr == nil {
+			accepted <- conn
+		}
+	}()
+	client, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	server := <-accepted
+	defer server.Close()
+
+	node := &Node{}
+	if err := node.tendConn.Update(func(slot **Connection) error {
+		*slot = &Connection{conn: client}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := TendConnectionIPv4(node)
+	want := server.LocalAddr().(*net.TCPAddr).IP.To4().String()
+	if got != want {
+		t.Fatalf("address = %q, want %q", got, want)
+	}
+	if TendConnectionIPv4(nil) != "" {
+		t.Fatal("nil node reported an address")
+	}
+}
+
+func TestL5DottedIPv4UnwrapsAMappedAddress(t *testing.T) {
+	if got := dottedIPv4(&net.TCPAddr{IP: net.ParseIP("::ffff:10.1.2.3"), Port: 3000}); got != "10.1.2.3" {
+		t.Fatalf("mapped = %q", got)
+	}
+	if got := dottedIPv4(&net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 3000}); got != "" {
+		t.Fatalf("ipv6 = %q", got)
+	}
+	if got := dottedIPv4(nil); got != "" {
+		t.Fatalf("nil = %q", got)
+	}
 }

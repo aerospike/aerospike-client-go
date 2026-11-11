@@ -199,7 +199,7 @@ func TestL5MessagesHaveTheContractFields(t *testing.T) {
 		l5Ready{Type: "ready", T: 1, Contract: l5Contract, EpochMs: 2, Client: "go", ClientVersion: "(devel)", Shape: "pass-through"},
 		l5Snapshot{
 			Type: "snapshot", T: 1, Reason: "heartbeat",
-			Nodes:   []l5NodeView{{Name: "n", Host: "10.0.0.1", Port: 3000, Address: "10.0.0.1", Active: true, Reachable: &reachable}},
+			Nodes:   []l5NodeView{{Name: "n", Host: "db.l5.aerospike.internal", Port: 3000, Address: "10.73.0.138", Active: true, Reachable: &reachable}},
 			Unowned: 1, Owners: map[string]int{"n": 4095}, LongestUnownedMs: 15,
 			Succeeded: 2, Failed: 1, MaxLatencyMs: 4, LastError: &lastError,
 		},
@@ -250,7 +250,7 @@ func TestL5MessagesHaveTheContractFields(t *testing.T) {
 					t.Errorf("node missing %s", field)
 				}
 			}
-			if node["reachable"] != false || node["port"] != float64(3000) || node["address"] != "10.0.0.1" {
+			if node["reachable"] != false || node["port"] != float64(3000) || node["host"] != "db.l5.aerospike.internal" || node["address"] != "10.73.0.138" {
 				t.Fatalf("node = %#v", node)
 			}
 		}
@@ -426,6 +426,18 @@ func TestL5LatencyIgnoresAttemptsStartedBeforeReset(t *testing.T) {
 	latency.record(10*int64(time.Millisecond), 14*int64(time.Millisecond))
 	if latency.ms() != 4 {
 		t.Fatalf("max after reset = %d", latency.ms())
+	}
+}
+
+func TestL5PeerAddressKeepsTheLastIPv4(t *testing.T) {
+	node := &as.Node{}
+	routing := &l5Routing{peerIP: map[*as.Node]string{}}
+	if got := routing.peerAddress(node, "db.l5.aerospike.internal"); got != "db.l5.aerospike.internal" {
+		t.Fatalf("before a connection, address = %s", got)
+	}
+	routing.peerIP[node] = "10.73.0.138"
+	if got := routing.peerAddress(node, "db.l5.aerospike.internal"); got != "10.73.0.138" {
+		t.Fatalf("address = %s", got)
 	}
 }
 

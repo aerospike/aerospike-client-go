@@ -407,13 +407,17 @@ type l5Routing struct {
 	seen   bool
 	last   string
 	next   int64
+	peerIP map[*as.Node]string
 	stopCh chan struct{}
 	done   chan struct{}
 	once   sync.Once
 }
 
 func newL5Routing(driver *l5Driver) *l5Routing {
-	return &l5Routing{driver: driver, gap: l5Gap{since: -1}, stopCh: make(chan struct{}), done: make(chan struct{})}
+	return &l5Routing{
+		driver: driver, gap: l5Gap{since: -1}, peerIP: map[*as.Node]string{},
+		stopCh: make(chan struct{}), done: make(chan struct{}),
+	}
 }
 
 func (r *l5Routing) loop() {
@@ -490,7 +494,7 @@ func (r *l5Routing) snapshot(reason string, t int64, nodes []*as.Node, masters [
 	for _, node := range nodes {
 		host, port := l5Connected(node)
 		views = append(views, l5NodeView{
-			Name: node.GetName(), Host: host, Port: port, Address: host,
+			Name: node.GetName(), Host: host, Port: port, Address: r.peerAddress(node, host),
 			Active: node.IsActive(), Reachable: r.driver.reachOf(node),
 		})
 	}
@@ -517,15 +521,29 @@ func (d *l5Driver) reachOf(node *as.Node) *bool {
 	return &reachable
 }
 
-// l5Connected is the address the node is using. After validation that is the
-// IP alias the client connected to, which rows.py accepts as an address the
-// endpoint name resolves to.
+// l5Connected is the host and port the client stored for the node. On a
+// pass-through cluster that host is the advertised name, not the IP the
+// socket connected to.
 func l5Connected(node *as.Node) (string, int) {
 	host := node.GetHost()
 	if host == nil {
 		return "", 0
 	}
 	return host.Name, host.Port
+}
+
+// peerAddress is the IPv4 of the node's live tend connection. W-5 passes it to
+// endpoint-zone. A missed read keeps the previous IP so a tend blip does not
+// report the hostname. Only the routing goroutine calls this.
+func (r *l5Routing) peerAddress(node *as.Node, host string) string {
+	if ip := as.TendConnectionIPv4(node); ip != "" {
+		r.peerIP[node] = ip
+		return ip
+	}
+	if ip := r.peerIP[node]; ip != "" {
+		return ip
+	}
+	return host
 }
 
 // l5Gap is the longest stretch since reset with unowned partitions, including
