@@ -23,11 +23,23 @@ on:
       profile:
         description: >-
           A discovery-l2-topology profile: default, reachable, pass-through-names,
-          pass-through-ports, port-map-range, cn-only, low-mtu, port-range or
-          idle-reset
+          pass-through-ports, port-map-range, cn-only, low-mtu, port-range,
+          idle-reset or unresolved-access
         type: string
         required: false
         default: default
+      unresolvable-hostnames:
+        description: >-
+          Map no advertised hostname in the servers on reachable and the pass-through profiles.
+          Needs a server that does not resolve its access addresses.
+        type: boolean
+        required: false
+        default: false
+      verbatim-access-address:
+        description: Whether the server advertises access-address hostnames verbatim, for unresolved-access
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   id-token: write
@@ -59,7 +71,7 @@ jobs:
 
       - name: Setup L2 topology
         id: l2
-        uses: aerospike/aerospike-client-conformance/.github/actions/discovery-l2-topology@faa1474b97c83beb7c353bdca62733e6ad8ff1d4 # main
+        uses: aerospike/aerospike-client-conformance/.github/actions/discovery-l2-topology@83959d02eb6bca719d71ba70e72648c528847b69 # main
         with:
           profile: ${{ inputs.profile }}
           subset: ${{ inputs.subset }}
@@ -71,6 +83,8 @@ jobs:
           features-content: ${{ inputs.subset == 'ee' && secrets.FEATURES_CONF || '' }}
           oidc-provider: ${{ vars.OIDC_PROVIDER }}
           oidc-audience: ${{ vars.OIDC_AUDIENCE }}
+          unresolvable-hostnames: ${{ inputs.unresolvable-hostnames }}
+          verbatim-access-address: ${{ inputs.verbatim-access-address }}
 
       - name: Build DNS zone
         id: zone
@@ -116,17 +130,23 @@ jobs:
           DISCOVERY_DNS_SERVER: ${{ steps.dns.outputs.server-address }}
         run: |
           set -euo pipefail
+          require_setting() {
+            grep -q "^$1=." "${ENV_FILE}" || { echo "::error::$2"; exit 1; }
+          }
           # The default profile runs N-4 and N-11, which must fail here rather than skip.
           if [[ "${PROFILE}" == "default" ]]; then
             [[ -n "${DISCOVERY_DNS_SERVER}" ]] ||
               { echo "::error::the default profile has no DNS server for N-4"; exit 1; }
-            grep -q '^DISCOVERY_CONTROL_DIR=.' "${ENV_FILE}" ||
-              { echo "::error::the default profile has no node control for N-11"; exit 1; }
+            require_setting DISCOVERY_CONTROL_DIR "the default profile has no node control for N-11"
+          fi
+          # unresolved-access tests skip unless these are set; fail here rather than go green.
+          if [[ "${PROFILE}" == "unresolved-access" ]]; then
+            require_setting DISCOVERY_UNRESOLVED_HOSTNAME "the unresolved-access profile has no DISCOVERY_UNRESOLVED_HOSTNAME"
+            require_setting DISCOVERY_CONTROL_DIR "the unresolved-access profile has no node control"
           fi
           # A requested TLS listener that never appeared must fail here, not skip N-6.
           if [[ -n "${TLS_LISTEN_PORT_BASE}" ]]; then
-            grep -q '^DISCOVERY_TLS_ENDPOINT_PORTS=.' "${ENV_FILE}" ||
-              { echo "::error::tls-listen-port-base is set but the topology has no TLS listeners"; exit 1; }
+            require_setting DISCOVERY_TLS_ENDPOINT_PORTS "tls-listen-port-base is set but the topology has no TLS listeners"
             [[ -n "${TLS_CERT_DIR}" ]] ||
               { echo "::error::tls-listen-port-base is set but the topology has no TLS certificate"; exit 1; }
           fi
