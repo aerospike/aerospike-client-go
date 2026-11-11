@@ -3,6 +3,9 @@ name: Build and test against multi-node cluster
 on:
   pull_request:
     branches: [stage]
+  push:
+    branches:
+      - CLIENT-5732-dev-pluggable-discovery # TODO: remove post testing
   workflow_dispatch:
     inputs:
       aerospike_version:
