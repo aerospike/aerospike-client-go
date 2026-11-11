@@ -51,7 +51,7 @@
 #   port-range          Toxiproxy source ports 40000 40009. F-3
 #   idle-reset          default topology plus DISCOVERY_IDLE_RESET. F-1
 #   cn-only             ee only. Certificate is CN, no SAN. N-17
-#   unresolved-access   no access-address, node control. Later tests, not CI
+#   unresolved-access   no access-address, node control. TG-18 (CI l2-ce-unresolved-access)
 #
 # On ee, every profile except cn-only uses a SAN-only certificate (aerospike-tls
 # as dNSName, CN does not match).

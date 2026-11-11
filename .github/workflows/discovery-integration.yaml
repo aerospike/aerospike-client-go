@@ -78,6 +78,40 @@ jobs:
       profile: ${{ matrix.profile }}
     secrets: inherit
 
+  # The dev build advertises access addresses verbatim. Move to a release tag once one carries the fix.
+  l2-ce-unresolvable:
+    name: L2 discovery (ce, pass-through-ports, unresolvable hostnames)
+    uses: ./.github/workflows/discovery-l2.yaml
+    with:
+      subset: ce
+      server-container-repo: database-docker-dev-local/aerospike-server
+      server-tag: 8.2.1.0-35_20261103T045846Z
+      profile: pass-through-ports
+      unresolvable-hostnames: true
+    secrets: inherit
+
+  # The released server resolves access addresses at startup; the dev build above does not.
+  l2-ce-unresolved-access:
+    name: L2 discovery (ce, unresolved-access${{ matrix.verbatim && ', verbatim access address' || '' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - server-container-repo: database-docker-virtual/aerospike-server
+            server-tag: 8.2.0.1
+            verbatim: false
+          - server-container-repo: database-docker-dev-local/aerospike-server
+            server-tag: 8.2.1.0-35_20261103T045846Z
+            verbatim: true
+    uses: ./.github/workflows/discovery-l2.yaml
+    with:
+      subset: ce
+      server-container-repo: ${{ matrix.server-container-repo }}
+      server-tag: ${{ matrix.server-tag }}
+      profile: unresolved-access
+      verbatim-access-address: ${{ matrix.verbatim }}
+    secrets: inherit
+
   l2-ee:
     name: L2 discovery (ee${{ matrix.profile != 'default' && format(', {0}', matrix.profile) || '' }})
     needs: gate
