@@ -50,7 +50,7 @@ type l3Scale struct {
 func l3RequireScaleCluster(t *testing.T) *l3Scale {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("DISCOVERY_KUBECONFIG")) == "" {
-		t.Fatal(l3ScaleNoKubeconfig)
+		t.Skip(l3ScaleNoKubeconfig)
 	}
 	cluster := l3FindCluster(t)
 	if !cluster.multiPodPerHost(t) {

@@ -160,7 +160,7 @@ func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *test
 func l3RequireTlsCluster(t *testing.T) {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("DISCOVERY_KUBECONFIG")) == "" {
-		t.Fatal(l3TlsNoKubeconfig)
+		t.Skip(l3TlsNoKubeconfig)
 	}
 	if strings.TrimSpace(os.Getenv("DISCOVERY_TLS_CA_FILE")) == "" || strings.TrimSpace(os.Getenv("DISCOVERY_TLS_NAME")) == "" {
 		t.Fatal(l3TlsProfile)
