@@ -79,8 +79,6 @@ jobs:
     timeout-minutes: 30
     needs: make-matrix
     runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
-    env:
-      AEROSPIKE_TEST_EXPECT_NODES: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
     permissions:
       id-token: write
       actions: write 
@@ -107,6 +105,8 @@ jobs:
           oidc-audience: ${{ vars.OIDC_AUDIENCE }}
 
       - name: Check cluster size from one node
+        env:
+          AEROSPIKE_TEST_EXPECT_NODES: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
         run: |
           asinfo() {
             docker run --rm --network aerospike-net \
@@ -149,7 +149,11 @@ jobs:
         run: |
           echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
       - name: Run the tests
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env:
+          GOPROXY: off
+          GOSUMDB: off
+          GOFLAGS: -mod=vendor
+          AEROSPIKE_TEST_EXPECT_NODES: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
