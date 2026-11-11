@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"reflect"
 	buildinfo "runtime/debug"
 	"slices"
 	"strconv"
@@ -1076,8 +1077,9 @@ func (c l5Clock) nano() int64 { return time.Since(c.start).Nanoseconds() }
 type l5Output struct {
 	mu     sync.Mutex
 	stdout io.Writer
-	held   [][]byte
+	held   []any
 	opened bool
+	last   int64
 }
 
 func captureL5Stdout() *l5Output {
@@ -1089,33 +1091,74 @@ func captureL5Stdout() *l5Output {
 func (o *l5Output) write(v any) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	line := l5JSON(v)
 	if !o.opened {
-		o.held = append(o.held, line)
+		o.held = append(o.held, v)
 		return
 	}
-	o.print(line)
+	o.emit(v)
 }
 
 func (o *l5Output) writeNow(v any) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.print(l5JSON(v))
+	o.emit(v)
 }
 
 func (o *l5Output) open(ready any) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.print(l5JSON(ready))
+	o.emit(ready)
 	for _, line := range o.held {
-		o.print(line)
+		o.emit(line)
 	}
 	o.held = nil
 	o.opened = true
 }
 
-func (o *l5Output) print(line []byte) {
-	_, _ = o.stdout.Write(append(line, '\n'))
+// emit publishes v. rows.py rejects a line whose t is lower than the line
+// before it. A routing poll takes t at the start and a tend warning can be
+// published while that poll is still working, so a late line keeps the
+// previous t instead of moving the clock backwards.
+func (o *l5Output) emit(v any) {
+	t := l5MessageTime(v)
+	if t < o.last {
+		t = o.last
+		v = l5WithTime(v, t)
+	}
+	o.last = t
+	_, _ = o.stdout.Write(append(l5JSON(v), '\n'))
+}
+
+func l5MessageTime(v any) int64 {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return 0
+	}
+	field := rv.FieldByName("T")
+	if !field.IsValid() || field.Kind() != reflect.Int64 {
+		return 0
+	}
+	return field.Int()
+}
+
+func l5WithTime(v any, t int64) any {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return v
+	}
+	copied := reflect.New(rv.Type()).Elem()
+	copied.Set(rv)
+	field := copied.FieldByName("T")
+	if field.IsValid() && field.Kind() == reflect.Int64 && field.CanSet() {
+		field.SetInt(t)
+	}
+	return copied.Interface()
 }
 
 func l5JSON(v any) []byte {
