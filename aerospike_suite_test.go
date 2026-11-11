@@ -127,6 +127,7 @@ func initTestVars() {
 	}
 
 	printConnectedNodes(client)
+	expectDiscoveredNodes(client)
 
 	defaultBatchPolicy := newSuiteBatchPolicy()
 	defaultWritePolicy := as.NewWritePolicy(0, 0)
@@ -175,6 +176,20 @@ func printConnectedNodes(client *as.Client) {
 	for _, node := range client.GetNodes() {
 		h := node.GetHost()
 		fmt.Printf("Node: %s, Host: %s, Port: %d\n", node.GetName(), h.Name, h.Port)
+	}
+}
+
+func expectDiscoveredNodes(client *as.Client) {
+	want := strings.TrimSpace(os.Getenv("AEROSPIKE_TEST_EXPECT_NODES"))
+	if want == "" {
+		return
+	}
+	n, err := strconv.Atoi(want)
+	if err != nil || n < 1 {
+		log.Fatalf("AEROSPIKE_TEST_EXPECT_NODES=%q, want a positive integer", want)
+	}
+	if got := len(client.GetNodes()); got != n {
+		log.Fatalf("client discovered %d nodes, want %d", got, n)
 	}
 }
 

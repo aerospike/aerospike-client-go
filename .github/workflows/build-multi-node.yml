@@ -79,6 +79,8 @@ jobs:
     timeout-minutes: 30
     needs: make-matrix
     runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
+    env:
+      AEROSPIKE_TEST_EXPECT_NODES: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
     permissions:
       id-token: write
       actions: write 
@@ -104,6 +106,26 @@ jobs:
           oidc-provider: ${{ vars.OIDC_PROVIDER }}
           oidc-audience: ${{ vars.OIDC_AUDIENCE }}
 
+      - name: Check cluster size from one node
+        run: |
+          asinfo() {
+            docker run --rm --network aerospike-net \
+              aerospike.jfrog.io/database-docker-virtual/aerospike-tools:12.1.1_2 \
+              asinfo -h aerospike-1 -p 3000 "$@"
+          }
+          size=""
+          for _ in $(seq 30); do
+            size=$(asinfo -v cluster-size | tr -d '\r\n')
+            [[ "$size" == "$AEROSPIKE_TEST_EXPECT_NODES" ]] && break
+            sleep 1
+          done
+          if [[ "$size" != "$AEROSPIKE_TEST_EXPECT_NODES" ]]; then
+            echo "Error: aerospike-1 cluster-size=$size, want $AEROSPIKE_TEST_EXPECT_NODES" >&2
+            docker logs --tail 30 aerospike-1 >&2
+            exit 1
+          fi
+          echo "aerospike-1 cluster-size=$size services=$(asinfo -v services)"
+
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -128,7 +150,7 @@ jobs:
           echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100,127.0.0.1:3101,127.0.0.1:3102
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
