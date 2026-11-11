@@ -113,18 +113,20 @@ jobs:
               aerospike.jfrog.io/database-docker-virtual/aerospike-tools:12.1.1_2 \
               asinfo -h aerospike-1 -p 3000 "$@"
           }
-          size=""
+          key=""
           for _ in $(seq 30); do
-            size=$(asinfo -v cluster-size | tr -d '\r\n')
-            [[ "$size" == "$AEROSPIKE_TEST_EXPECT_NODES" ]] && break
+            key=$(asinfo -v "cluster-stable:size=${AEROSPIKE_TEST_EXPECT_NODES};ignore-migrations=false" | tr -d '\r\n')
+            if [[ -n "$key" && "$key" != ERROR* ]]; then
+              break
+            fi
             sleep 1
           done
-          if [[ "$size" != "$AEROSPIKE_TEST_EXPECT_NODES" ]]; then
-            echo "Error: aerospike-1 cluster-size=$size, want $AEROSPIKE_TEST_EXPECT_NODES" >&2
+          if [[ -z "$key" || "$key" == ERROR* ]]; then
+            echo "Error: aerospike-1 not stable at size $AEROSPIKE_TEST_EXPECT_NODES: $key" >&2
             docker logs --tail 30 aerospike-1 >&2
             exit 1
           fi
-          echo "aerospike-1 cluster-size=$size services=$(asinfo -v services)"
+          echo "aerospike-1 cluster-stable size=$AEROSPIKE_TEST_EXPECT_NODES key=$key services=$(asinfo -v services)"
 
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
