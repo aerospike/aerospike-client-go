@@ -156,7 +156,7 @@ jobs:
           GOSUMDB: off
           GOFLAGS: -mod=vendor
           AEROSPIKE_TEST_EXPECT_NODES: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -tags=multinode -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
