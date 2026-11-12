@@ -807,14 +807,14 @@ var _ = gg.Describe("Query Top-K", func() {
 	// the score and id bins.
 	rankByScore := func() *as.Statement {
 		statement := as.NewStatement(ns, set, "score", "id")
-		gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+		statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
 		return statement
 	}
 
 	// topTen returns a statement for the 10 highest scores.
 	topTen := func() *as.Statement {
 		statement := rankByScore()
-		gm.Expect(statement.SetTopK(10)).To(gm.Succeed())
+		statement.SetTopK(10)
 		return statement
 	}
 
@@ -831,18 +831,33 @@ var _ = gg.Describe("Query Top-K", func() {
 	}
 
 	gg.Context("invalid requests", func() {
-		gg.It("refuses SetTopK before SetOrderBy", func() {
-			expectParameterError(as.NewStatement(ns, set).SetTopK(10), "SetTopK requires SetOrderBy")
+		gg.It("refuses SetTopK without SetOrderBy", func() {
+			statement := as.NewStatement(ns, set, "score", "id")
+			statement.SetTopK(10)
+
+			_, err := client.Query(nil, statement)
+			expectParameterError(err, "SetTopK requires SetOrderBy")
 		})
 
-		gg.It("refuses ThenOrderBy before SetOrderBy", func() {
-			expectParameterError(as.NewStatement(ns, set).ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc), "ThenOrderBy requires SetOrderBy")
+		gg.It("refuses ThenOrderBy before SetOrderBy, with or without SetTopK", func() {
+			statement := as.NewStatement(ns, set, "score", "id")
+			statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderAsc)
+
+			_, err := client.Query(nil, statement)
+			expectParameterError(err, "ThenOrderBy requires SetOrderBy")
+
+			statement.SetTopK(10)
+			_, err = client.Query(nil, statement)
+			expectParameterError(err, "ThenOrderBy requires SetOrderBy")
 		})
 
 		gg.It("refuses a third order-by bin", func() {
 			statement := topTen()
-			gm.Expect(statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
-			expectParameterError(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc), "order-by names more than 2 bins")
+			statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderAsc)
+			statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
+
+			_, err := client.Query(nil, statement)
+			expectParameterError(err, "order-by names more than 2 bins")
 		})
 
 		invalid := []struct {
@@ -979,6 +994,14 @@ var _ = gg.Describe("Query Top-K", func() {
 			_, err = client.ExecuteUDF(nil, topTen(), "pkg", "fn")
 			expectParameterError(err, "only supported by Query, QueryPartitions and QueryNode")
 		})
+
+		gg.It("are refused for a statement with only a ThenOrderBy", func() {
+			statement := as.NewStatement(ns, set)
+			statement.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+
+			_, err := client.QueryExecute(nil, nil, statement, as.PutOp(as.NewBin("seen", 1)))
+			expectParameterError(err, "only supported by Query, QueryPartitions and QueryNode")
+		})
 	})
 
 	gg.Context("on a cluster where a node lacks Top-K support", func() {
@@ -1074,8 +1097,8 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		topK := func(direction as.OrderDirection, k int) *as.Statement {
 			statement := as.NewStatement(ns, set, "score", "id")
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, direction)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+			statement.SetOrderBy("score", as.BinDataTypeInteger, direction)
+			statement.SetTopK(k)
 			return statement
 		}
 
@@ -1165,8 +1188,8 @@ var _ = gg.Describe("Query Top-K", func() {
 					as.GetBinOp("id"),
 					as.ExpReadOp("dist", as.ExpVectorDistance(metric, mustVector(as.NewVectorFloat32(query)), as.ExpVectorBin("emb")), as.ExpReadFlagEvalNoFail),
 				}
-				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)).To(gm.Succeed())
-				gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+				statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)
+				statement.SetTopK(k)
 				return queryIDs(statement)
 			}
 
@@ -1185,8 +1208,8 @@ var _ = gg.Describe("Query Top-K", func() {
 
 			for _, newStatement := range []func() *as.Statement{byBinName, byOperation} {
 				statement := newStatement()
-				gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-				gm.Expect(statement.SetTopK(len(scores))).To(gm.Succeed())
+				statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+				statement.SetTopK(len(scores))
 
 				recordset, err := client.Query(nil, statement)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1219,8 +1242,8 @@ var _ = gg.Describe("Query Top-K", func() {
 				statement.Operations = []*as.Operation{
 					as.ExpReadOp("dist", as.ExpVectorDistance(as.VectorEuclideanSquared, mustVector(as.NewVectorFloat32([]float32{0, 9})), as.ExpVectorBin("emb")), flags),
 				}
-				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, as.OrderAsc)).To(gm.Succeed())
-				gm.Expect(statement.SetTopK(1000)).To(gm.Succeed())
+				statement.SetOrderBy("dist", as.BinDataTypeDouble, as.OrderAsc)
+				statement.SetTopK(1000)
 
 				recordset, err := client.Query(nil, statement)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1399,8 +1422,8 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		rank := func(orderType as.BinDataType, direction as.OrderDirection, k int) []int {
 			statement := as.NewStatement(ns, set, "v", "id")
-			gm.Expect(statement.SetOrderBy("v", orderType, direction)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+			statement.SetOrderBy("v", orderType, direction)
+			statement.SetTopK(k)
 			return queryIDs(statement)
 		}
 
@@ -1481,9 +1504,9 @@ var _ = gg.Describe("Query Top-K", func() {
 			}
 
 			statement := as.NewStatement(ns, set, "score", "tag", "id")
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.ThenOrderBy("tag", as.BinDataTypeBytes, as.OrderAsc)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(4)).To(gm.Succeed())
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.ThenOrderBy("tag", as.BinDataTypeBytes, as.OrderAsc)
+			statement.SetTopK(4)
 
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{2, 1, 0, 3}))
 		})
@@ -1499,26 +1522,26 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		gg.It("keep the limit when SetOrderBy is called again", func() {
 			statement := topTen()
-			gm.Expect(statement.SetTopK(1)).To(gm.Succeed())
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
+			statement.SetTopK(1)
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)
 
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{0}))
 		})
 
 		gg.It("replace the limit when SetTopK is called again", func() {
 			statement := topTen()
-			gm.Expect(statement.SetTopK(2)).To(gm.Succeed())
+			statement.SetTopK(2)
 
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{1, 2}))
 		})
 
 		gg.It("replace both order-by bins when SetOrderBy is called again", func() {
 			statement := topTen()
-			gm.Expect(statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
+			statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderAsc)
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)
 
 			// With the second bin gone, a later ThenOrderBy on it is no repeat.
-			gm.Expect(statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+			statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderDesc)
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{0, 2, 1}))
 		})
 	})
@@ -1672,9 +1695,9 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		scoreThenTime := func(k int) *as.Statement {
 			statement := as.NewStatement(ns, set, "score", "ts", "id")
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
+			statement.SetTopK(k)
 			return statement
 		}
 
@@ -1685,44 +1708,47 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		gg.It("ranks the same when SetTopK comes before ThenOrderBy", func() {
 			statement := as.NewStatement(ns, set, "score", "ts", "id")
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(2)).To(gm.Succeed())
-			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.SetTopK(2)
+			statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
 
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{1, 0}))
 		})
 
 		gg.It("ranks by the last SetOrderBy and the ThenOrderBy after it", func() {
 			statement := as.NewStatement(ns, set, "score", "ts", "id")
-			gm.Expect(statement.SetOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
-			gm.Expect(statement.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(len(records))).To(gm.Succeed())
+			statement.SetOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
+			statement.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
+			statement.SetTopK(len(records))
 
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{1, 0, 3, 2, 4, 6, 5}))
 		})
 
-		gg.It("ranks by SetOrderBy alone after a refused ThenOrderBy", func() {
+		gg.It("ranks the same when SetTopK comes before SetOrderBy", func() {
 			statement := as.NewStatement(ns, set, "score", "ts", "id")
-			gm.Expect(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)).ToNot(gm.Succeed())
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(len(records))).To(gm.Succeed())
+			statement.SetTopK(len(records))
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
 
-			// Without ts, the ties on score 90 and the records with no score come in digest order.
-			ids := queryIDs(statement)
-			gm.Expect(ids[:3]).To(gm.ConsistOf(0, 1, 3))
-			gm.Expect(ids[3:5]).To(gm.Equal([]int{2, 4}))
-			gm.Expect(ids[5:]).To(gm.ConsistOf(5, 6))
-			for _, tie := range [][2]int{{0, 1}, {1, 2}, {5, 6}} {
-				gm.Expect(bytes.Compare(keyByID[ids[tie[0]]].Digest(), keyByID[ids[tie[1]]].Digest())).To(gm.Equal(-1))
-			}
+			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{1, 0, 3, 2, 4, 6, 5}))
+		})
+
+		gg.It("refuses a query whose ThenOrderBy came before SetOrderBy", func() {
+			statement := as.NewStatement(ns, set, "score", "ts", "id")
+			statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.SetTopK(len(records))
+
+			_, err := client.Query(nil, statement)
+			expectParameterError(err, "ThenOrderBy requires SetOrderBy")
 		})
 
 		gg.It("ranks by the new order-by bin alone and uses the last limit after both are set again", func() {
 			statement := scoreThenTime(2)
-			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
-			gm.Expect(statement.SetTopK(3)).To(gm.Succeed())
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.SetTopK(3)
 
 			ids := queryIDs(statement)
 			gm.Expect(ids).To(gm.HaveLen(3))
@@ -1757,7 +1783,7 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		gg.It("is sent on every Top-K record and moves forward when the record is rewritten", func() {
 			statement := rankByScore()
-			gm.Expect(statement.SetTopK(len(keys))).To(gm.Succeed())
+			statement.SetTopK(len(keys))
 
 			before := lastUpdateTimes(statement)
 			for digest, lastUpdateTime := range before {

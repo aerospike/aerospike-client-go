@@ -269,9 +269,7 @@ func TestTopKMergerRanking(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			statement := NewStatement("test", "topk")
 			testCase.orderBy(statement)
-			if err := statement.SetTopK(10); err != nil {
-				t.Fatal(err)
-			}
+			statement.SetTopK(10)
 			merger := newTopKMerger(statement)
 
 			for _, record := range testCase.records {
@@ -322,9 +320,7 @@ func TestTopKMerger(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			statement := NewStatement("test", "topk")
 			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-			if err := statement.SetTopK(testCase.k); err != nil {
-				t.Fatal(err)
-			}
+			statement.SetTopK(testCase.k)
 			merger := newTopKMerger(statement)
 
 			for _, record := range testCase.records {
@@ -352,9 +348,7 @@ func TestTopKMerger(t *testing.T) {
 
 		statement := NewStatement("test", "topk")
 		statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-		if err := statement.SetTopK(k); err != nil {
-			t.Fatal(err)
-		}
+		statement.SetTopK(k)
 
 		// Scores repeat, so the digest decides some ties.
 		results := make([]*Result, count)
@@ -449,9 +443,7 @@ func TestTopKMergerLastUpdateTime(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			statement := NewStatement("test", "topk")
 			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-			if err := statement.SetTopK(testCase.k); err != nil {
-				t.Fatal(err)
-			}
+			statement.SetTopK(testCase.k)
 			merger := newTopKMerger(statement)
 
 			for _, record := range testCase.records {
@@ -614,9 +606,7 @@ func TestTopKWireFields(t *testing.T) {
 	ts := []byte{1, 0, 0, 2, 't', 's'}
 	orderByField := func(t *testing.T, statement *Statement) []byte {
 		t.Helper()
-		if err := statement.SetTopK(10); err != nil {
-			t.Fatal(err)
-		}
+		statement.SetTopK(10)
 		return queryFields(t, statement, true)[ORDER_BY]
 	}
 
@@ -645,9 +635,7 @@ func TestTopKWireFields(t *testing.T) {
 
 	t.Run("a refused ThenOrderBy leaves no key behind", func(t *testing.T) {
 		statement := NewStatement("test", "topk")
-		if err := statement.ThenOrderBy("ts", BinDataTypeInteger, OrderAsc); err == nil {
-			t.Fatal("ThenOrderBy before SetOrderBy succeeded")
-		}
+		statement.ThenOrderBy("ts", BinDataTypeInteger, OrderAsc)
 		statement.SetOrderBy("price", BinDataTypeInteger, OrderDesc)
 
 		if got := orderByField(t, statement); !reflect.DeepEqual(got, price) {

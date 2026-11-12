@@ -49,18 +49,10 @@ func runQueryTopK() error {
 	}
 
 	statement := as.NewStatement(ns, set, "topkbin", "topkid")
-	if err := statement.SetFilter(as.NewRangeFilter("topkbin", 1, 1000)); err != nil {
-		return err
-	}
-	if err := statement.SetOrderBy("topkbin", as.BinDataTypeInteger, as.OrderDesc); err != nil {
-		return err
-	}
-	if err := statement.ThenOrderBy("topkid", as.BinDataTypeInteger, as.OrderAsc); err != nil {
-		return err
-	}
-	if err := statement.SetTopK(topK); err != nil {
-		return err
-	}
+	statement.SetFilter(as.NewRangeFilter("topkbin", 1, 1000))
+	statement.SetOrderBy("topkbin", as.BinDataTypeInteger, as.OrderDesc)
+	statement.ThenOrderBy("topkid", as.BinDataTypeInteger, as.OrderAsc)
+	statement.SetTopK(topK)
 
 	recordset, err := client.Query(nil, statement)
 	if err != nil {

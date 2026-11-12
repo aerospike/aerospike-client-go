@@ -247,18 +247,10 @@ func countQuery(filter *as.Filter) (int, error) {
 // bin, lowest first. Each record is returned as its two values.
 func queryTopKPairs(bin, tieBin string, k int) ([][2]int, error) {
 	statement := as.NewStatement(namespace, set, bin, tieBin)
-	if err := statement.SetFilter(as.NewRangeFilter(bin, 1, 1000)); err != nil {
-		return nil, err
-	}
-	if err := statement.SetOrderBy(bin, as.BinDataTypeInteger, as.OrderDesc); err != nil {
-		return nil, err
-	}
-	if err := statement.ThenOrderBy(tieBin, as.BinDataTypeInteger, as.OrderAsc); err != nil {
-		return nil, err
-	}
-	if err := statement.SetTopK(k); err != nil {
-		return nil, err
-	}
+	statement.SetFilter(as.NewRangeFilter(bin, 1, 1000))
+	statement.SetOrderBy(bin, as.BinDataTypeInteger, as.OrderDesc)
+	statement.ThenOrderBy(tieBin, as.BinDataTypeInteger, as.OrderAsc)
+	statement.SetTopK(k)
 	recordset, err := client.Query(nil, statement)
 	if err != nil {
 		return nil, err
@@ -480,12 +472,8 @@ func queryNearestIDs(distance as.VectorDistanceMetric, query []float32, directio
 			as.ExpReadFlagDefault),
 		as.GetBinOp("id"),
 	}
-	if err := statement.SetOrderBy("dist", as.BinDataTypeDouble, direction); err != nil {
-		return nil, err
-	}
-	if err := statement.SetTopK(k); err != nil {
-		return nil, err
-	}
+	statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)
+	statement.SetTopK(k)
 	recordset, err := client.Query(nil, statement)
 	if err != nil {
 		return nil, err

@@ -59,14 +59,19 @@ type orderByValue struct {
 }
 
 func newTopKMerger(statement *Statement) *topKMerger {
-	return &topKMerger{
-		orderBy:        statement.orderBy,
-		thenOrderBy:    statement.thenOrderBy,
-		hasThenOrderBy: statement.hasThenOrderBy,
-		limit:          statement.topK,
-		heap:           make([]*topKEntry, 0, statement.topK+1),
-		byDigest:       make(map[[20]byte]*topKEntry, statement.topK+1),
+	merger := &topKMerger{
+		limit:    statement.topK,
+		heap:     make([]*topKEntry, 0, statement.topK+1),
+		byDigest: make(map[[20]byte]*topKEntry, statement.topK+1),
 	}
+	if statement.hasOrderBy() {
+		merger.orderBy = statement.orderByKeys[0]
+	}
+	if statement.hasThenOrderBy() {
+		merger.thenOrderBy = statement.orderByKeys[1]
+		merger.hasThenOrderBy = true
+	}
+	return merger
 }
 
 //-------------------------------------------------------

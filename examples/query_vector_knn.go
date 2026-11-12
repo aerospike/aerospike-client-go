@@ -73,12 +73,8 @@ func queryNearest(distance as.VectorDistanceMetric, query []float32, direction a
 			as.ExpReadFlagDefault),
 		as.GetBinOp("id"),
 	}
-	if err := statement.SetOrderBy("dist", as.BinDataTypeDouble, direction); err != nil {
-		return err
-	}
-	if err := statement.SetTopK(knnTopK); err != nil {
-		return err
-	}
+	statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)
+	statement.SetTopK(knnTopK)
 
 	recordset, err := client.Query(nil, statement)
 	if err != nil {
