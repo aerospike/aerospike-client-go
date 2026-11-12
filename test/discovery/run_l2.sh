@@ -590,7 +590,6 @@ node_access_stanza() {
 			fi
 			;;
 		pass-through-names)
-			hostnames+=("node-$index.$PASS_THROUGH_DOMAIN")
 			alternate_access "node-$index.$PASS_THROUGH_DOMAIN" "$port"
 			printf '\n'
 			;;
@@ -623,6 +622,7 @@ overlay_named_hosts() {
 	for container in "${containers[@]}"; do
 		index=$((index + 1))
 		port="$(listener_port_for "$container")"
+		[ "$PROFILE" = "pass-through-names" ] && hostnames+=("node-$index.$PASS_THROUGH_DOMAIN")
 		render_conf "$container.conf" "$(node_access_stanza "$container" "$port" "$index")"
 		echo "Node $container listener $port:"
 		grep -E "access-(address|port)" "$WORK_DIR/conf/$container.conf"
