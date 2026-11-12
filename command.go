@@ -2738,9 +2738,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	// Estimate Top-K order-by and limit fields.
 	orderBySize := 0
 	if sendTopK {
-		orderBySize = statement.orderBy.wireSize()
-		if statement.hasThenOrderBy {
-			orderBySize += statement.thenOrderBy.wireSize()
+		for _, key := range statement.orderByKeys {
+			orderBySize += key.wireSize()
 		}
 		cmd.dataOffset += orderBySize + int(_FIELD_HEADER_SIZE)
 		fieldCount++
@@ -2956,9 +2955,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	// limit.
 	if sendTopK {
 		cmd.writeFieldHeader(orderBySize, ORDER_BY)
-		cmd.writeOrderBySpec(statement.orderBy)
-		if statement.hasThenOrderBy {
-			cmd.writeOrderBySpec(statement.thenOrderBy)
+		for _, key := range statement.orderByKeys {
+			cmd.writeOrderBySpec(key)
 		}
 		if statement.hasTopK() {
 			cmd.writeFieldInt32(int32(statement.topK), TOP_K)

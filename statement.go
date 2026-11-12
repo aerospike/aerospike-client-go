@@ -62,13 +62,11 @@ type Statement struct {
 	// determines if the query should return data
 	ReturnData bool
 
-	// orderBy is the Top-K order-by bin set by SetOrderBy.
-	orderBy    orderBySpec
-	orderBySet bool
-	// thenOrderBy is the optional second order-by bin set by ThenOrderBy,
-	// used only for records that tie on orderBy.
-	thenOrderBy    orderBySpec
-	hasThenOrderBy bool
+	// orderByKeys holds the Top-K order-by bins in rank order and the second
+	// breaks ties on the first.
+	orderByKeys []orderBySpec
+	// orderByErrorMessage is why a ThenOrderBy call was refused and the query reports it.
+	orderByErrorMessage string
 	// topK specifies the maximum number of results to return.
 	topK int
 	// topKSet indicates whether the Top-K limit was explicitly set.
@@ -158,73 +156,60 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 	stmt.ReturnData = returnData
 }
 
-// SetOrderBy sets the bin a Top-K query ranks records by. SetTopK sets how
-// many records to return. Records that tie are ordered by the ThenOrderBy
-// bin, if set, then by digest.
+// SetOrderBy sets the bin a Top-K query ranks records by. Ties are broken by
+// the ThenOrderBy bin, if set, then by digest. Calling it again replaces both
+// order-by bins and keeps k. Without SetTopK, the server rejects the query.
 //
-// Calling SetOrderBy again replaces both order-by bins and keeps k. Without
-// SetTopK, the server rejects the query.
+// The query must return the bin: list it in BinNames, produce it with exactly
+// one of the Operations (for example an ExpReadOp computing a vector
+// distance), or set neither. A record whose ExpReadOp can't compute the bin
+// is left out, or ranks last with ExpReadFlagEvalNoFail.
 //
-// The bin must be returned by the query: listed in BinNames, written by
-// exactly one of the Operations (for example an ExpReadOp projecting a vector
-// distance), or neither set. If an ExpReadOp can't compute the bin for a
-// record, the record is left out; with ExpReadFlagEvalNoFail it ranks last.
-//
-// Every node in the cluster must support Top-K; otherwise the query returns a
-// PARAMETER_ERROR before anything is sent.
-func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
-	stmt.orderBy = orderBySpec{binName, orderType, direction}
-	stmt.orderBySet = true
-	stmt.thenOrderBy = orderBySpec{}
-	stmt.hasThenOrderBy = false
-	return nil
+// Every node must support Top-K otherwise the query returns a PARAMETER_ERROR
+// before anything is sent.
+func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) {
+	stmt.orderByKeys = []orderBySpec{{binName, orderType, direction}}
 }
 
-// ThenOrderBy sets a second Top-K order-by bin, used only to order records
-// that tie on the SetOrderBy bin.
+// ThenOrderBy sets a second Top-K order-by bin that breaks ties on the
+// SetOrderBy bin. It must name a different bin that the query returns.
 //
-// Call it once, after SetOrderBy; otherwise it returns a PARAMETER_ERROR.
-// Calling SetOrderBy again removes it. The bin must be returned by the query,
-// as for SetOrderBy.
-func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
-	if !stmt.orderBySet {
-		return newError(types.PARAMETER_ERROR, "ThenOrderBy requires SetOrderBy to be called first")
+// Call it once, after SetOrderBy; otherwise the query returns a
+// PARAMETER_ERROR, even if SetOrderBy is called later. SetOrderBy removes it.
+func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direction OrderDirection) {
+	if stmt.orderByErrorMessage != "" {
+		return
 	}
-	if stmt.hasThenOrderBy {
-		return newError(types.PARAMETER_ERROR, "order-by names more than 2 bins")
+	switch len(stmt.orderByKeys) {
+	case 0:
+		stmt.orderByErrorMessage = "ThenOrderBy requires SetOrderBy to be called first"
+	case 1:
+		stmt.orderByKeys = append(stmt.orderByKeys, orderBySpec{binName, orderType, direction})
+	default:
+		stmt.orderByErrorMessage = "order-by names more than 2 bins"
 	}
-	stmt.thenOrderBy = orderBySpec{binName, orderType, direction}
-	stmt.hasThenOrderBy = true
-	return nil
 }
 
-// SetTopK limits the query to the k best records by the order-by bins,
-// returned best first. Call it after SetOrderBy. k must be in [1, 1000].
-// Calling SetTopK again replaces k.
+// SetTopK returns only the k best records by the order-by bins, best first.
+// k must be in [1, 1000], and SetOrderBy must be called before or after
+// SetTopK; otherwise the query returns a PARAMETER_ERROR. Calling it again
+// replaces k.
 //
-// Supported by Query, QueryPartitions and QueryNode only. Requires every node
-// in the cluster to support Top-K, IncludeBinData=true and MaxRecords=0.
-// QueryNode ranks only its own records.
+// Only Query, QueryPartitions and QueryNode support Top-K; QueryNode ranks
+// only its own records. Every node must support Top-K, IncludeBinData must
+// be true and MaxRecords 0. A PartitionFilter that resumes an earlier query
+// is refused with a PARAMETER_ERROR.
 //
-// Results are returned after nodes finish scanning. For large scans, set
-// TotalTimeout above the scan duration and leave SocketTimeout at 0. A
-// timed-out attempt restarts the scan on each node.
+// Records arrive only after every node finishes its scan. For large scans,
+// set TotalTimeout above the scan duration and leave SocketTimeout at 0. A
+// timed-out attempt restarts that node's scan.
 //
-// Top-K is single-shot and always runs as a long query. QueryPartitions
-// returns a PARAMETER_ERROR for a PartitionFilter that carries resume points
-// from an earlier query; use a fresh one.
-//
-// Each node limits the memory its Top-K queries hold. When a node is at that
-// limit, a new Top-K query fails with FAIL_FORBIDDEN. Retry it later. A
-// running Top-K query can also fail with FAIL_FORBIDDEN when a node runs
-// short of that memory.
-func (stmt *Statement) SetTopK(k int) Error {
-	if !stmt.hasOrderBy() {
-		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
-	}
+// A node at its Top-K memory limit refuses a new query with FAIL_FORBIDDEN;
+// retry it later. A running query can also fail with FAIL_FORBIDDEN when a
+// node runs short of that memory.
+func (stmt *Statement) SetTopK(k int) {
 	stmt.topK = k
 	stmt.topKSet = true
-	return nil
 }
 
 // hasTopK reports whether the statement is a Top-K query.
@@ -234,13 +219,18 @@ func (stmt *Statement) hasTopK() bool {
 
 // hasOrderBy reports whether SetOrderBy was called.
 func (stmt *Statement) hasOrderBy() bool {
-	return stmt.orderBySet
+	return len(stmt.orderByKeys) > 0
+}
+
+// hasThenOrderBy reports whether a second order-by bin is set.
+func (stmt *Statement) hasThenOrderBy() bool {
+	return len(stmt.orderByKeys) == 2
 }
 
 // rejectTopK refuses a statement with Top-K settings on a command that does
 // not support them.
 func (stmt *Statement) rejectTopK() Error {
-	if stmt.hasTopK() || stmt.hasOrderBy() {
+	if stmt.hasTopK() || stmt.hasOrderBy() || stmt.orderByErrorMessage != "" {
 		return newError(types.PARAMETER_ERROR, "Top-K is only supported by Query, QueryPartitions and QueryNode")
 	}
 	return nil
@@ -249,20 +239,23 @@ func (stmt *Statement) rejectTopK() Error {
 // validateTopK checks a Top-K statement against the query policy before any
 // node is contacted. An order-by without SetTopK is left to the server.
 func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
+	if stmt.orderByErrorMessage != "" {
+		return newError(types.PARAMETER_ERROR, stmt.orderByErrorMessage)
+	}
 	if !stmt.hasTopK() {
 		return nil
 	}
-
-	if err := stmt.validateOrderBy(stmt.orderBy); err != nil {
-		return err
+	if !stmt.hasOrderBy() {
+		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
 	}
-	if stmt.hasThenOrderBy {
-		if err := stmt.validateOrderBy(stmt.thenOrderBy); err != nil {
+
+	for _, key := range stmt.orderByKeys {
+		if err := stmt.validateOrderBy(key); err != nil {
 			return err
 		}
-		if stmt.thenOrderBy.binName == stmt.orderBy.binName {
-			return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by names bin '%s' more than once", stmt.orderBy.binName))
-		}
+	}
+	if stmt.hasThenOrderBy() && stmt.orderByKeys[1].binName == stmt.orderByKeys[0].binName {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by names bin '%s' more than once", stmt.orderByKeys[0].binName))
 	}
 
 	if stmt.topK < 1 || stmt.topK > maxTopK {

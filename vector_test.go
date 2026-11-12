@@ -651,8 +651,8 @@ var _ = gg.Describe("Vector Test", func() {
 				topDot := func() any {
 					statement := as.NewStatement(ns, set)
 					statement.Operations = []*as.Operation{as.ExpReadOp("dot", dotProduct, as.ExpReadFlagDefault)}
-					gm.Expect(statement.SetOrderBy("dot", as.BinDataTypeDouble, as.OrderDesc)).To(gm.Succeed())
-					gm.Expect(statement.SetTopK(1)).To(gm.Succeed())
+					statement.SetOrderBy("dot", as.BinDataTypeDouble, as.OrderDesc)
+					statement.SetTopK(1)
 					recordset, err := client.Query(nil, statement)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					var dots []any
@@ -792,8 +792,8 @@ var _ = gg.Describe("Vector Test", func() {
 						as.GetBinOp("id"),
 						as.ExpReadOp("d", as.ExpVectorDistance(as.VectorEuclideanSquared, query, as.ExpVectorBin(binName)), flags),
 					}
-					gm.Expect(statement.SetOrderBy("d", as.BinDataTypeDouble, direction)).To(gm.Succeed())
-					gm.Expect(statement.SetTopK(10)).To(gm.Succeed())
+					statement.SetOrderBy("d", as.BinDataTypeDouble, direction)
+					statement.SetTopK(10)
 					recordset, err := client.Query(nil, statement)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					var ids []int
