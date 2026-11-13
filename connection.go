@@ -33,6 +33,9 @@ import (
 
 const _BUFF_ADJUST_INTERVAL = 5 * time.Second
 
+// pooled connections used more recently than this are not probed at checkout
+const _PEER_PROBE_MIN_IDLE = 10 * time.Millisecond
+
 var (
 	// DefaultBufferSize specifies the initial size of the connection buffer when it is created.
 	// If not big enough (as big as the average record), it will be reallocated to size again
@@ -318,6 +321,11 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 // IsConnected returns true if the connection is not closed yet.
 func (ctn *Connection) IsConnected() bool {
 	return ctn.conn != nil
+}
+
+// usedWithin returns true if the connection was refreshed less than d ago.
+func (ctn *Connection) usedWithin(d time.Duration) bool {
+	return time.Now().Before(ctn.idleDeadline.Add(d - ctn.idleTimeout))
 }
 
 // closedByPeer returns true if the peer closed or reset the connection.

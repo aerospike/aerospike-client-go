@@ -429,6 +429,11 @@ func newLivenessNode(t *testing.T, server *livenessServer) *Node {
 	return node
 }
 
+// backdateLastUse makes a pooled connection old enough to be probed at checkout.
+func backdateLastUse(conn *Connection) {
+	conn.idleDeadline = conn.idleDeadline.Add(-_PEER_PROBE_MIN_IDLE)
+}
+
 // pooledConnectionResetByServer dials a node connection that the server resets at once.
 func pooledConnectionResetByServer(t *testing.T, node *Node, server *livenessServer) *Connection {
 	t.Helper()
@@ -463,6 +468,7 @@ func TestCheckoutReturnsTheLiveConnectionAndClosesTheDeadOnes(t *testing.T) {
 		if !node.putConnectionWithHint(conn, 0) {
 			t.Fatal("pool rejected the connection")
 		}
+		backdateLastUse(conn)
 	}
 
 	checkedOut, err := node.getConnectionWithHint(0, 0, 0, 0)
@@ -487,6 +493,24 @@ func TestCheckoutReturnsTheLiveConnectionAndClosesTheDeadOnes(t *testing.T) {
 	}
 	if closed := node.stats.ConnectionsClosed.Get(); closed != len(deadConnections) {
 		t.Errorf("node closed %d connections, want %d", closed, len(deadConnections))
+	}
+}
+
+func TestCheckoutDoesNotProbeRecentlyUsedConnections(t *testing.T) {
+	server := newLivenessServer(t)
+	node := newLivenessNode(t, server)
+
+	conn := pooledConnectionResetByServer(t, node, server)
+	if !node.putConnectionWithHint(conn, 0) {
+		t.Fatal("pool rejected the connection")
+	}
+
+	checkedOut, err := node.getConnectionWithHint(0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if checkedOut != conn {
+		t.Fatal("checkout probed a connection used within the probe threshold")
 	}
 }
 
@@ -526,6 +550,7 @@ func TestExecuteAtUsesNoRetryForDeadPooledConnections(t *testing.T) {
 		if !node.putConnectionWithHint(conn, key.digest[0]) {
 			t.Fatal("pool rejected the connection")
 		}
+		backdateLastUse(conn)
 	}
 	if pooled := node.connections.LenAll(); pooled != stalePooled {
 		t.Fatalf("pool holds %d connections, want %d", pooled, stalePooled)
