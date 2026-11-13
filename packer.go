@@ -121,9 +121,6 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	// (canonicalPackBuffer); all other paths keep the order-free fast loop.
 	if !isCanonicalPack(cmd) || len(theMap) < 2 {
 		for k, v := range theMap {
-			if _, isVector := k.(VectorValue); isVector {
-				return 0, errVectorMapKey()
-			}
 			n, err = packObject(cmd, k, true)
 			if err != nil {
 				return 0, err
@@ -140,9 +137,6 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 
 	for _, k := range canonicalKeyOrder(theMap) {
-		if _, isVector := k.(VectorValue); isVector {
-			return 0, errVectorMapKey()
-		}
 		n, err = packObject(cmd, k, true)
 		if err != nil {
 			return 0, err
@@ -557,6 +551,9 @@ func isVectorValue(value Value) bool {
 func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	switch v := obj.(type) {
 	case Value:
+		if mapKey && isVectorValue(v) {
+			return 0, errVectorMapKey()
+		}
 		return v.pack(cmd)
 	case []Value:
 		return ValueArray(v).pack(cmd)
