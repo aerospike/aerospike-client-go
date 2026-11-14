@@ -373,9 +373,7 @@ func TestTopKMerger(t *testing.T) {
 		for _, k := range []int{1, 10, 250, 2000} {
 			statement := NewStatement("test", "topk")
 			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
-			if err := statement.SetTopK(k); err != nil {
-				t.Fatal(err)
-			}
+			statement.SetTopK(k)
 
 			for round := range 3 {
 				merger := newTopKMerger(statement)
