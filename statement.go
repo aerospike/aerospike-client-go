@@ -17,6 +17,8 @@ package aerospike
 import (
 	"fmt"
 	"math/rand"
+	"slices"
+	"strings"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -59,6 +61,55 @@ type Statement struct {
 
 	// determines if the query should return data
 	ReturnData bool
+
+	// orderByKeys holds the Top-K order-by bins in rank order and the second
+	// breaks ties on the first.
+	orderByKeys []orderBySpec
+	// orderByErrorMessage is why a ThenOrderBy call was refused and the query reports it.
+	orderByErrorMessage string
+	// topK specifies the maximum number of results to return.
+	topK int
+	// topKSet indicates whether the Top-K limit was explicitly set.
+	topKSet bool
+}
+
+// BinDataType is the particle type a Top-K order-by bin is compared as.
+// A record whose bin is missing or has another type ranks last.
+type BinDataType byte
+
+const (
+	// BinDataTypeInteger compares the bin as an integer.
+	BinDataTypeInteger BinDataType = 1
+	// BinDataTypeDouble compares the bin as a float. NaN ranks above every
+	// number, and -0.0 equals 0.0.
+	BinDataTypeDouble BinDataType = 2
+	// BinDataTypeBytes compares the bin as a blob, byte by byte. On a common
+	// prefix, the shorter blob comes first.
+	BinDataTypeBytes BinDataType = 4
+)
+
+// OrderDirection is the sort direction of a Top-K order-by bin.
+type OrderDirection byte
+
+const (
+	// OrderAsc ranks the smallest value first.
+	OrderAsc OrderDirection = 0
+	// OrderDesc ranks the largest value first.
+	OrderDesc OrderDirection = 1
+)
+
+// maxTopK is the largest k a Top-K query accepts.
+const maxTopK = 1000
+
+type orderBySpec struct {
+	binName   string
+	orderType BinDataType
+	direction OrderDirection
+}
+
+// wireSize returns the spec's size in bytes in the ORDER_BY field.
+func (spec *orderBySpec) wireSize() int {
+	return 4 + len(spec.binName)
 }
 
 // NewStatement initializes a new Statement instance.
@@ -103,6 +154,184 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 	stmt.functionName = functionName
 	stmt.functionArgs = functionArgs
 	stmt.ReturnData = returnData
+}
+
+// SetOrderBy sets the bin a Top-K query ranks records by. Ties are broken by
+// the ThenOrderBy bin, if set, then by digest. Calling it again replaces both
+// order-by bins and keeps k. Without SetTopK, the server rejects the query.
+//
+// The query must return the bin: list it in BinNames, produce it with exactly
+// one of the Operations (for example an ExpReadOp computing a vector
+// distance), or set neither. A record whose ExpReadOp can't compute the bin
+// is left out, or ranks last with ExpReadFlagEvalNoFail.
+//
+// Every node must support Top-K otherwise the query returns a PARAMETER_ERROR
+// before anything is sent.
+func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) {
+	stmt.orderByKeys = []orderBySpec{{binName, orderType, direction}}
+}
+
+// ThenOrderBy sets a second Top-K order-by bin that breaks ties on the
+// SetOrderBy bin. It must name a different bin that the query returns.
+//
+// Call it once, after SetOrderBy; otherwise the query returns a
+// PARAMETER_ERROR, even if SetOrderBy is called later. SetOrderBy removes it.
+func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direction OrderDirection) {
+	if stmt.orderByErrorMessage != "" {
+		return
+	}
+	switch len(stmt.orderByKeys) {
+	case 0:
+		stmt.orderByErrorMessage = "ThenOrderBy requires SetOrderBy to be called first"
+	case 1:
+		stmt.orderByKeys = append(stmt.orderByKeys, orderBySpec{binName, orderType, direction})
+	default:
+		stmt.orderByErrorMessage = "order-by names more than 2 bins"
+	}
+}
+
+// SetTopK returns only the k best records by the order-by bins, best first.
+// k must be in [1, 1000], and SetOrderBy must be called before or after
+// SetTopK; otherwise the query returns a PARAMETER_ERROR. Calling it again
+// replaces k.
+//
+// Only Query, QueryPartitions and QueryNode support Top-K; QueryNode ranks
+// only its own records. Every node must support Top-K, IncludeBinData must
+// be true and MaxRecords 0. A PartitionFilter that resumes an earlier query
+// is refused with a PARAMETER_ERROR.
+//
+// Records arrive only after every node finishes its scan. For large scans,
+// set TotalTimeout above the scan duration and leave SocketTimeout at 0. A
+// timed-out attempt restarts that node's scan.
+//
+// A node at its Top-K memory limit refuses a new query with FAIL_FORBIDDEN;
+// retry it later. A running query can also fail with FAIL_FORBIDDEN when a
+// node runs short of that memory.
+func (stmt *Statement) SetTopK(k int) {
+	stmt.topK = k
+	stmt.topKSet = true
+}
+
+// hasTopK reports whether the statement is a Top-K query.
+func (stmt *Statement) hasTopK() bool {
+	return stmt.topKSet
+}
+
+// hasOrderBy reports whether SetOrderBy was called.
+func (stmt *Statement) hasOrderBy() bool {
+	return len(stmt.orderByKeys) > 0
+}
+
+// hasThenOrderBy reports whether a second order-by bin is set.
+func (stmt *Statement) hasThenOrderBy() bool {
+	return len(stmt.orderByKeys) == 2
+}
+
+// rejectTopK refuses a statement with Top-K settings on a command that does
+// not support them.
+func (stmt *Statement) rejectTopK() Error {
+	if stmt.hasTopK() || stmt.hasOrderBy() || stmt.orderByErrorMessage != "" {
+		return newError(types.PARAMETER_ERROR, "Top-K is only supported by Query, QueryPartitions and QueryNode")
+	}
+	return nil
+}
+
+// validateTopK checks a Top-K statement against the query policy before any
+// node is contacted. An order-by without SetTopK is left to the server.
+func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
+	if stmt.orderByErrorMessage != "" {
+		return newError(types.PARAMETER_ERROR, stmt.orderByErrorMessage)
+	}
+	if !stmt.hasTopK() {
+		return nil
+	}
+	if !stmt.hasOrderBy() {
+		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
+	}
+
+	for _, key := range stmt.orderByKeys {
+		if err := stmt.validateOrderBy(key); err != nil {
+			return err
+		}
+	}
+	if stmt.hasThenOrderBy() && stmt.orderByKeys[1].binName == stmt.orderByKeys[0].binName {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by names bin '%s' more than once", stmt.orderByKeys[0].binName))
+	}
+
+	if stmt.topK < 1 || stmt.topK > maxTopK {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("top-k limit %d out of range - must be 1 to %d", stmt.topK, maxTopK))
+	}
+	if stmt.functionName != "" {
+		return newError(types.PARAMETER_ERROR, "top-k/order-by only valid on foreground (basic) queries")
+	}
+	if policy.MaxRecords != 0 {
+		return newError(types.PARAMETER_ERROR, "top-k incompatible with max-records/sample-max")
+	}
+	if !policy.IncludeBinData {
+		return newError(types.PARAMETER_ERROR, "top-k incompatible with no-bin-data (metadata-only) queries")
+	}
+	return nil
+}
+
+// validateTopKCluster refuses a statement with Top-K settings before anything
+// is sent when any node in the cluster lacks Top-K support.
+func (stmt *Statement) validateTopKCluster(cluster *Cluster) Error {
+	if stmt.hasOrderBy() && !cluster.supportsQueryOrderBy.Get() {
+		return newError(types.PARAMETER_ERROR, "orderBy/topK is not supported by all nodes in the cluster")
+	}
+	return nil
+}
+
+// validateOrderBy checks one order-by bin of a Top-K statement.
+func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
+	if len(spec.binName) == 0 || len(spec.binName) > maxBinNameLength {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin name length %d invalid - must be 1 to %d", len(spec.binName), maxBinNameLength))
+	}
+	if strings.IndexByte(spec.binName, 0) >= 0 {
+		return newError(types.PARAMETER_ERROR, "order-by bin name is not a valid bin name")
+	}
+	if spec.orderType != BinDataTypeInteger && spec.orderType != BinDataTypeDouble && spec.orderType != BinDataTypeBytes {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by type %d invalid - must be 1 (integer), 2 (double) or 4 (bytes)", spec.orderType))
+	}
+	if spec.direction != OrderAsc && spec.direction != OrderDesc {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by direction %d invalid - must be 0 (ascending) or 1 (descending)", spec.direction))
+	}
+	if !stmt.hasProjectedBin(spec.binName) {
+		if len(stmt.Operations) > 0 {
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin '%s' is not produced by any of the query's read ops", spec.binName))
+		}
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin '%s' is not in the query's bin list - add it to the bins selected", spec.binName))
+	}
+	if stmt.operationsReturning(spec.binName) > 1 {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("orderBy bin '%s' is produced by more than one operation", spec.binName))
+	}
+	return nil
+}
+
+// operationsReturning counts the operations that return binName.
+func (stmt *Statement) operationsReturning(binName string) int {
+	count := 0
+	for _, op := range stmt.Operations {
+		if op.binName == binName {
+			count++
+		}
+	}
+	return count
+}
+
+// hasProjectedBin reports whether the query returns binName. With no BinNames
+// or Operations the whole record is returned, so every bin counts as projected.
+// When Operations are set they decide the returned bins and BinNames is ignored.
+func (stmt *Statement) hasProjectedBin(binName string) bool {
+	if len(stmt.Operations) > 0 {
+		return slices.ContainsFunc(stmt.Operations, func(operation *Operation) bool {
+			return operation.binName == binName
+		})
+	}
+	if len(stmt.BinNames) > 0 {
+		return slices.Contains(stmt.BinNames, binName)
+	}
+	return true
 }
 
 // IsScan determines is the Statement is a full namespace/set scan or a selective Query.

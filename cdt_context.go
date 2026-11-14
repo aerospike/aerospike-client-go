@@ -120,6 +120,11 @@ func (ctx *CDTContext) pack(cmd BufferEx) (int, Error) {
 		if err != nil {
 			return size, err
 		}
+		if expBuf.packedVector {
+			if err = markVector(cmd); err != nil {
+				return size, err
+			}
+		}
 		expBytes := expBuf.Bytes()
 
 		// Pack the expression bytes as a byte array and not as a blob!!

@@ -32,6 +32,8 @@ var UseNativeBoolTypeInReflection = false
 
 var aerospikeTag = "as"
 
+var vectorType = reflect.TypeOf(Vector{})
+
 const (
 	aerospikeMetaTag    = "asm"
 	aerospikeMetaTagGen = "gen"
@@ -40,6 +42,7 @@ const (
 
 // This method is copied verbatim from https://golang.org/src/encoding/json/encode.go
 // to ensure compatibility with the json package.
+// The Vector case is the one addition: an unset Vector has no bytes to store.
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
@@ -54,6 +57,11 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.Float() == 0
 	case reflect.Interface, reflect.Ptr:
 		return v.IsNil()
+	case reflect.Struct:
+		if v.Type() == vectorType {
+			vector := v.Interface().(Vector)
+			return len(vector.wire) == 0
+		}
 	}
 
 	return false
@@ -86,6 +94,11 @@ func valueToInterface(f reflect.Value) any {
 	case reflect.Struct:
 		if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
 			return f.Interface().(time.Time).UTC().UnixNano()
+		}
+		// Vector has only unexported fields so store it natively, not as a map.
+		if f.Type() == vectorType {
+			vector := f.Interface().(Vector)
+			return &vector
 		}
 		return structToMap(f)
 	case reflect.Bool:

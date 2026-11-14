@@ -21,12 +21,23 @@ import (
 func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, recordset *Recordset) {
 	defer recordset.signalEnd()
 
+	var merger *topKMerger
+
+	if statement.hasTopK() {
+		merger = newTopKMerger(statement)
+	}
+
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
 	var errs Error
 	for {
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
+		if err == nil {
+			// A node can lose Top-K support while the query runs, so each
+			// round checks again instead of sending Top-K to that node.
+			err = statement.validateTopKCluster(clnt.cluster)
+		}
 		if err != nil {
 			errs = chainErrors(err, errs)
 			recordset.sendError(errs)
@@ -43,6 +54,8 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 			weg := newWeightedErrGroup(maxConcurrentNodes)
 			for _, nodePartition := range list {
 				cmd := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
+				cmd.sendTopK = statement.hasOrderBy()
+				cmd.topKMerger = merger
 				weg.execute(cmd)
 			}
 			errs = chainErrors(weg.wait(), errs)
@@ -55,6 +68,8 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 			if errs != nil {
 				tracker.partitionError()
 				recordset.sendError(errs)
+			} else if merger != nil {
+				sendTopKResults(recordset, merger.results())
 			}
 			return
 		}
@@ -71,4 +86,16 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		recordset.resetTaskID()
 	}
 
+}
+
+// sendTopKResults sends the ranked records, best first, until the recordset
+// is closed.
+func sendTopKResults(recordset *Recordset, results []*Result) {
+	for _, result := range results {
+		select {
+		case recordset.records <- result:
+		case <-recordset.cancelled:
+			return
+		}
+	}
 }

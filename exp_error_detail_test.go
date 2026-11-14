@@ -447,14 +447,33 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		gm.Expect(rec.Bins["result"]).To(gm.Equal(11))
 	})
 
-	gg.It("exp read invalid flags stages no details", func() {
-		// A write-only policy flag on a read op is rejected structurally
-		// before any expression is built: rc 4 with NO error details staged.
-		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR,
-			as.ExpReadOp("result", as.ExpNumAdd(as.ExpIntBin(binInt), as.ExpIntVal(1)),
-				as.ExpReadFlags(as.ExpWriteFlagCreateOnly)))
+	// A write-only flag on a read op is rejected before any expression is
+	// built. From 8.2.1 the server names the flags in the message; earlier
+	// servers send no details.
+	invalidReadFlagsOp := func() *as.Operation {
+		return as.ExpReadOp("result", as.ExpNumAdd(as.ExpIntBin(binInt), as.ExpIntVal(1)),
+			as.ExpReadFlags(as.ExpWriteFlagCreateOnly))
+	}
+	messageNamesFlagsVersion := &version.Version{Major: 8, Minor: 2, Patch: 1, Build: 0}
+
+	gg.It("exp read invalid flags stages no details before 8.2.1", func() {
+		if !serverVersion.IsSmaller(messageNamesFlagsVersion) {
+			gg.Skip("servers from 8.2.1 name the flags; got " + serverVersion.String())
+		}
+		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR, invalidReadFlagsOp())
 
 		assertNoDetails(ae, types.PARAMETER_ERROR)
+	})
+
+	gg.It("exp read invalid flags names the flags from 8.2.1", func() {
+		if serverVersion.IsSmaller(messageNamesFlagsVersion) {
+			gg.Skip("servers before 8.2.1 send no message; got " + serverVersion.String())
+		}
+		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR, invalidReadFlagsOp())
+
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
+		gm.Expect(ae.ExpTrace).To(gm.BeNil())
+		assertMessageContains(ae, "expression op flags 0x1 invalid for a read")
 	})
 
 	gg.It("exp read eval fault div by zero surfaces an eval trace", func() {
