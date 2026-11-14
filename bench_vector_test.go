@@ -136,6 +136,125 @@ func Benchmark_Vector_DistanceExpressionPack(b *testing.B) {
 	}
 }
 
+// benchmarkDimensionSweep covers a small, a common and a large embedding size.
+var benchmarkDimensionSweep = []int{128, 768, 1536}
+
+func benchmarkVectorOfDimensions(b *testing.B, dimensions int) *Vector {
+	elements := make([]float32, dimensions)
+	for index := range elements {
+		elements[index] = rand.Float32()
+	}
+	vector, err := NewVectorFloat32(elements)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return vector
+}
+
+func Benchmark_Vector_NewFloat32_Dims(b *testing.B) {
+	for _, dimensions := range benchmarkDimensionSweep {
+		b.Run(fmt.Sprintf("dims=%d", dimensions), func(b *testing.B) {
+			elements, err := benchmarkVectorOfDimensions(b, dimensions).Float32()
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(len(elements) * 4))
+			for range b.N {
+				if _, err := NewVectorFloat32(elements); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func Benchmark_Vector_Pack_Dims(b *testing.B) {
+	packBuffer := &benchBuffer{dataBuffer: make([]byte, 1024*1024)}
+	for _, dimensions := range benchmarkDimensionSweep {
+		b.Run(fmt.Sprintf("dims=%d", dimensions), func(b *testing.B) {
+			value := NewVectorValue(benchmarkVectorOfDimensions(b, dimensions))
+			b.ReportAllocs()
+			for range b.N {
+				packBuffer.dataOffset = 0
+				if _, err := value.pack(packBuffer); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func Benchmark_Vector_Decode_Dims(b *testing.B) {
+	for _, dimensions := range benchmarkDimensionSweep {
+		b.Run(fmt.Sprintf("dims=%d", dimensions), func(b *testing.B) {
+			serialized := benchmarkVectorOfDimensions(b, dimensions).Bytes()
+			b.ReportAllocs()
+			b.SetBytes(int64(len(serialized)))
+			for range b.N {
+				if _, err := bytesToParticle(ParticleType.VECTOR, serialized, 0, len(serialized)); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// Benchmark_Vector_DecodeInList reads a vector back through the unpacker, as
+// a vector inside a list or map bin arrives.
+func Benchmark_Vector_DecodeInList(b *testing.B) {
+	for _, dimensions := range benchmarkDimensionSweep {
+		b.Run(fmt.Sprintf("dims=%d", dimensions), func(b *testing.B) {
+			packer := newPacker()
+			if _, err := packIfcList(packer, []any{benchmarkVectorOfDimensions(b, dimensions)}); err != nil {
+				b.Fatal(err)
+			}
+			packed := packer.Bytes()
+			b.ReportAllocs()
+			b.SetBytes(int64(len(packed)))
+			for range b.N {
+				if _, err := newUnpacker(packed, 0, len(packed)).UnpackList(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func Benchmark_Vector_Float64Getter(b *testing.B) {
+	elements := make([]float64, benchmarkDimensions)
+	for index := range elements {
+		elements[index] = rand.Float64()
+	}
+	vector, err := NewVectorFloat64(elements)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for range b.N {
+		if _, err := vector.Float64(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_Vector_Int32Getter(b *testing.B) {
+	elements := make([]int32, benchmarkDimensions)
+	for index := range elements {
+		elements[index] = rand.Int31()
+	}
+	vector, err := NewVectorInt32(elements)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for range b.N {
+		if _, err := vector.Int32(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // benchmarkTopKResults builds records whose integer "score" bin and digest
 // are random, as a Top-K query would receive them.
 func benchmarkTopKResults(b *testing.B, count int) []*Result {
