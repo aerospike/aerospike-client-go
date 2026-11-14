@@ -331,3 +331,89 @@ func Benchmark_TopK_MergerResults(b *testing.B) {
 		_ = merger.results()
 	}
 }
+
+// Benchmarks for values dispatched through packObject's type switch and
+// through tryConcreteValue behind NewValue.
+
+func Benchmark_Pack_AnyScalarList(b *testing.B) {
+	value := NewValue([]any{1, 2, 3, 4, 5, 6, 7, 8, "a", "b", "c", "d", 1.5, 2.5, true, false})
+	packBuffer := newBuffer(4096)
+	b.ReportAllocs()
+	for range b.N {
+		packBuffer.dataOffset = 0
+		if _, err := value.pack(packBuffer); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_Pack_AnyMixedList(b *testing.B) {
+	value := NewValue([]any{1, "name", []byte{1, 2, 3}, 3.5, map[any]any{"k": 1}, []any{1, 2}})
+	packBuffer := newBuffer(4096)
+	b.ReportAllocs()
+	for range b.N {
+		packBuffer.dataOffset = 0
+		if _, err := value.pack(packBuffer); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_Pack_AnyStringMap(b *testing.B) {
+	value := NewValue(map[any]any{"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8})
+	packBuffer := newBuffer(4096)
+	b.ReportAllocs()
+	for range b.N {
+		packBuffer.dataOffset = 0
+		if _, err := value.pack(packBuffer); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+var benchmarkScalarValueSink Value
+
+func Benchmark_NewValue_Scalars(b *testing.B) {
+	inputs := []any{1, int64(2), "name", 1.5, true, []byte{1}, uint16(3), int32(4), float32(2.5)}
+	b.ReportAllocs()
+	for range b.N {
+		for _, input := range inputs {
+			benchmarkScalarValueSink = NewValue(input)
+		}
+	}
+}
+
+// Benchmark_SetQuery writes a query command buffer, with and without Top-K
+// order-by fields, mirroring how queryFields builds one.
+func Benchmark_SetQuery(b *testing.B) {
+	plain := NewStatement("test", "bench_query")
+	plain.BinNames = []string{"score", "id"}
+
+	topK := NewStatement("test", "bench_query")
+	topK.BinNames = []string{"score", "id"}
+	topK.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+	topK.ThenOrderBy("id", BinDataTypeInteger, OrderAsc)
+	topK.SetTopK(1000)
+
+	policy := NewQueryPolicy()
+	dataBuffer := make([]byte, 8*1024)
+	scenarios := []struct {
+		name      string
+		statement *Statement
+		sendTopK  bool
+	}{
+		{"plain", plain, false},
+		{"two_order_by_keys_and_k", topK, true},
+	}
+	for _, scenario := range scenarios {
+		b.Run(scenario.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				cmd := baseCommand{bufferEx: bufferEx{dataBuffer: dataBuffer}}
+				if err := cmd.setQuery(policy, nil, scenario.statement, 1, nil, false, nil, scenario.sendTopK); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
