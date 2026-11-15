@@ -323,7 +323,7 @@ func TestValidateNodeKeepsAdvertisedHostnameOnTheResolvedAddress(t *testing.T) {
 	}
 }
 
-func TestValidateNodeOnASingleAddressHostnameKeepsTheAddress(t *testing.T) {
+func TestValidateNodeFallsBackToTheAddressWhenTheAdvertisedNameDoesNotResolve(t *testing.T) {
 	server := startFakeInfoServer(t)
 	live := server.host()
 	const hostname = "db.example.invalid"
@@ -402,15 +402,15 @@ func TestValidateNodeGivesUpEarlyWhenEveryAddressRefuses(t *testing.T) {
 	verr := (&nodeValidator{}).validateNode(validationCluster(policy), NewHost("db.example.invalid", port))
 	elapsed := time.Since(started)
 
-	if verr == nil || !verr.Matches(types.TIMEOUT) {
-		t.Fatalf("error = %v, want TIMEOUT", verr)
+	if verr == nil || !verr.Matches(types.NO_AVAILABLE_CONNECTIONS_TO_NODE) || !verr.Matches(types.NETWORK_ERROR) || verr.Matches(types.TIMEOUT) {
+		t.Fatalf("error = %v, want NO_AVAILABLE_CONNECTIONS_TO_NODE over NETWORK_ERROR", verr)
 	}
 	if elapsed >= policy.TendInterval/4 {
 		t.Fatalf("gave up in %s, every address refused at once", elapsed)
 	}
 }
 
-func TestValidateNodeGivesUpOnceWhenNoAddressAccepts(t *testing.T) {
+func TestValidateNodeGivesUpAfterOneBoundWhenNoAddressAccepts(t *testing.T) {
 	withLookupHost(t, func(string) ([]string, error) {
 		return []string{"192.0.2.1", "198.51.100.1"}, nil
 	})
@@ -428,8 +428,8 @@ func TestValidateNodeGivesUpOnceWhenNoAddressAccepts(t *testing.T) {
 	err := (&nodeValidator{}).validateNode(validationCluster(policy), NewHost("db.example.internal", 31091))
 	elapsed := time.Since(started)
 
-	if err == nil || !err.Matches(types.TIMEOUT) {
-		t.Fatalf("error = %v, want TIMEOUT", err)
+	if err == nil || !err.Matches(types.NO_AVAILABLE_CONNECTIONS_TO_NODE) || !err.Matches(types.TIMEOUT) {
+		t.Fatalf("error = %v, want NO_AVAILABLE_CONNECTIONS_TO_NODE over TIMEOUT", err)
 	}
 	if got := dials.Load(); got != 2 {
 		t.Fatalf("dialed %d times, want each address once", got)
@@ -437,6 +437,43 @@ func TestValidateNodeGivesUpOnceWhenNoAddressAccepts(t *testing.T) {
 	// Serial dials of two silent addresses take 2 x TendInterval.
 	if elapsed < policy.TendInterval || elapsed >= 2*policy.TendInterval {
 		t.Fatalf("gave up in %s, cap is %s", elapsed, policy.TendInterval)
+	}
+}
+
+func TestValidateNodeBoundsTheRaceByTimeoutWhenItIsShorterThanTendInterval(t *testing.T) {
+	withLookupHost(t, func(string) ([]string, error) {
+		return []string{"192.0.2.1", "198.51.100.1"}, nil
+	})
+	var bounds sync.Map
+	withProbeDial(t, func(_, address string, timeout time.Duration) (net.Conn, error) {
+		bounds.Store(address, timeout)
+		time.Sleep(timeout)
+		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}
+	})
+
+	policy := NewClientPolicy()
+	policy.Timeout = 200 * time.Millisecond
+	policy.TendInterval = 5 * time.Second
+	started := time.Now()
+	err := (&nodeValidator{}).validateNode(validationCluster(policy), NewHost("db.example.internal", 31091))
+	elapsed := time.Since(started)
+
+	if err == nil {
+		t.Fatal("validateNode succeeded with no address accepting")
+	}
+	dialed := 0
+	bounds.Range(func(address, timeout any) bool {
+		dialed++
+		if timeout.(time.Duration) != policy.Timeout {
+			t.Errorf("%s dialed with %s, want Timeout %s", address, timeout, policy.Timeout)
+		}
+		return true
+	})
+	if dialed != 2 {
+		t.Fatalf("dialed %d addresses, want 2", dialed)
+	}
+	if elapsed >= policy.TendInterval/2 {
+		t.Fatalf("gave up in %s, Timeout is %s", elapsed, policy.Timeout)
 	}
 }
 

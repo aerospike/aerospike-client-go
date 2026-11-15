@@ -1256,8 +1256,9 @@ type l5Logger struct {
 
 // installL5Logger forwards WARNING and above, all labelled WARN, because the
 // logger hook is not told each line's level. Java also forwards INFO node
-// events. Here a node move shows only as a host change in the next snapshot,
-// and as a "Move node" line under L5_DRIVER_DEBUG=1.
+// events. Here a node move shows only as an address change in the next
+// snapshot, since host keeps the advertised hostname, and as a "Move node"
+// line under L5_DRIVER_DEBUG=1.
 func installL5Logger(clock l5Clock, out *l5Output, debug bool) {
 	hook := &l5Logger{clock: clock, out: out, debug: debug}
 	logger.Logger.SetLogger(hook)

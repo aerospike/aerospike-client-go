@@ -53,8 +53,9 @@ type nodeValidator struct {
 	// resolvedHost is the address of lookupName the node connects to when
 	// primaryHost keeps the advertised hostname.
 	resolvedHost *Host
-	// multiAddress is set when lookupName resolved to more than one address
-	// and connectFirstAlias picked the one that accepted.
+	// multiAddress is set when the address being validated is one of several
+	// addresses of lookupName. validateAlias then keeps an advertised lookupName
+	// as the host, and validateNode checks each address on its own.
 	multiAddress bool
 
 	seedOnlyCluster    bool
@@ -181,11 +182,12 @@ func (ndv *nodeValidator) connectFirstAlias(policy *ClientPolicy) ([]*Host, Erro
 		return ndv.aliases, nil
 	}
 
-	if alias := firstToAccept(ndv.aliases, bound); alias != nil {
-		ndv.multiAddress = true
-		return winnerFirst(alias, ndv.aliases), nil
+	alias, err := firstToAccept(ndv.aliases, bound)
+	if alias == nil {
+		return nil, err
 	}
-	return nil, newError(types.TIMEOUT, fmt.Sprintf("none of %d addresses accepted a connection within %s", len(ndv.aliases), bound))
+	ndv.multiAddress = true
+	return winnerFirst(alias, ndv.aliases), nil
 }
 
 // winnerFirst returns hosts with winner moved to the front.
@@ -210,32 +212,41 @@ func raceBound(policy *ClientPolicy) time.Duration {
 }
 
 // firstToAccept dials every IP in hosts together and returns the first that
-// accepts a TCP connection within bound, or nil.
-func firstToAccept(hosts []*Host, bound time.Duration) *Host {
+// accepts a TCP connection within bound. When none accepts, it returns every
+// dial error chained under NO_AVAILABLE_CONNECTIONS_TO_NODE.
+func firstToAccept(hosts []*Host, bound time.Duration) (*Host, Error) {
+	type result struct {
+		host *Host
+		err  Error
+	}
+
 	dial := probeDial
-	results := make(chan *Host, len(hosts))
+	results := make(chan result, len(hosts))
 	for _, host := range hosts {
 		go func(host *Host) {
 			if net.ParseIP(host.Name) == nil {
-				results <- nil
+				results <- result{err: newError(types.PARAMETER_ERROR, "not an IP address: "+host.Name)}
 				return
 			}
 			conn, err := dial("tcp", net.JoinHostPort(host.Name, strconv.Itoa(host.Port)), bound)
 			if err != nil {
-				results <- nil
+				results <- result{err: errToAerospikeErr(nil, err)}
 				return
 			}
 			conn.Close()
-			results <- host
+			results <- result{host: host}
 		}(host)
 	}
 
+	var dialErrors Error
 	for range hosts {
-		if host := <-results; host != nil {
-			return host
+		r := <-results
+		if r.host != nil {
+			return r.host, nil
 		}
+		dialErrors = chainErrors(r.err, dialErrors)
 	}
-	return nil
+	return nil, chainErrors(newError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, fmt.Sprintf("none of %d addresses accepted a connection within %s", len(hosts), bound)), dialErrors)
 }
 
 func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {

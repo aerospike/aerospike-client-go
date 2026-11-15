@@ -652,9 +652,9 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 
 	clientPolicy := clstr.clientPolicy.Load()
 	if bound := raceBound(clientPolicy); bound > 0 {
-		winner := firstToAccept(candidates, bound)
+		winner, err := firstToAccept(candidates, bound)
 		if winner == nil {
-			logger.Logger.Debug("No other address of %s accepted a connection within %s", node.lookupName, bound)
+			logger.Logger.Debug("No other address of %s accepted a connection: %s", node.lookupName, err)
 			return
 		}
 		candidates = winnerFirst(winner, candidates)
