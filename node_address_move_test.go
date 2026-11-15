@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -96,8 +97,7 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		}
 	})
 
-	registerHostname := func(prefix string, addresses ...net.IP) string {
-		name := fmt.Sprintf("%s-%d.move.test", prefix, time.Now().UnixNano())
+	setHostAddresses := func(name string, addresses ...net.IP) {
 		addrs := make([]string, len(addresses))
 		for i, address := range addresses {
 			addrs[i] = address.String()
@@ -105,6 +105,11 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		lookupMu.Lock()
 		hosts[name] = addrs
 		lookupMu.Unlock()
+	}
+
+	registerHostname := func(prefix string, addresses ...net.IP) string {
+		name := fmt.Sprintf("%s-%d.move.test", prefix, time.Now().UnixNano())
+		setHostAddresses(name, addresses...)
 		return name
 	}
 
@@ -292,6 +297,151 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		gm.Expect(record).ToNot(gm.BeNil())
 	})
 
+	gg.It("moves to the next address when the first to accept is a different node", func() {
+		third := net.ParseIP("127.0.0.3")
+		if !canBindIP(third) {
+			gg.Skip("127.0.0.3 cannot be bound locally")
+		}
+		port := 0
+		for range 100 {
+			candidate := freePortOn(first, second)
+			if probe, err := net.Listen("tcp", net.JoinHostPort(third.String(), strconv.Itoa(candidate))); err == nil {
+				probe.Close()
+				port = candidate
+				break
+			}
+		}
+		gm.Expect(port).ToNot(gm.BeZero())
+
+		// The third address dials late so the different node on second always wins the race.
+		var secondProbes atomic.Int32
+		origDial := probeDial
+		gg.DeferCleanup(func() { probeDial = origDial })
+		secondHost, thirdHost := second.String(), third.String()
+		probeDial = func(network, address string, timeout time.Duration) (net.Conn, error) {
+			switch host, _, _ := net.SplitHostPort(address); host {
+			case secondHost:
+				secondProbes.Add(1)
+			case thirdHost:
+				time.Sleep(100 * time.Millisecond)
+			}
+			return origDial(network, address, timeout)
+		}
+
+		hostname := registerHostname("fallthrough", first, second, third)
+		live := startServer(first, port, nodeA)
+		opened := connectSeedOnly(hostname, port)
+		old := nodeNamed(opened, nodeA)
+		gm.Expect(old).ToNot(gm.BeNil())
+		gm.Expect(old.host.Name).To(gm.Equal(first.String()))
+
+		startServer(second, port, nodeC)
+		startServer(third, port, nodeA)
+		probesBefore := secondProbes.Load()
+		live.close()
+
+		gm.Eventually(func() bool {
+			return nodeOnAddress(opened, nodeA, third)
+		}, 10*time.Second, 5*time.Millisecond).Should(gm.BeTrue())
+		gm.Expect(secondProbes.Load()).To(gm.BeNumerically(">", probesBefore))
+		gm.Expect(nodeNamed(opened, nodeC)).To(gm.BeNil())
+		gm.Expect(opened.GetNodes()).To(gm.HaveLen(1))
+
+		record, err := opened.Get(nil, mustKey(namespace, "set", 1))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(record).ToNot(gm.BeNil())
+	})
+
+	// pinnedPair is node B on first plus node A, which advertises a hostname
+	// that resolves to first and other and is pinned to first.
+	type pinnedPair struct {
+		client   *Client
+		node     *Node
+		hostA    string
+		serviceA string
+		peersA   string
+		portA    int
+		a1       *stubNodeServer
+	}
+
+	startPinnedPair := func(prefix string, other net.IP) pinnedPair {
+		hostA := registerHostname(prefix, first, other)
+		portA := freePortOn(first, other)
+		portB := freePortOn(first, second)
+		serviceA := hostA + ":" + strconv.Itoa(portA)
+		peersA := "1,3000,[[" + nodeB + ",,[" + first.String() + ":" + strconv.Itoa(portB) + "]]]"
+
+		b := startServer(first, portB, nodeB)
+		b.setPeers("1,3000,[[" + nodeA + ",,[" + serviceA + "]]]")
+		a1 := startServer(first, portA, nodeA)
+		a1.setService(serviceA)
+		a1.setPeers(peersA)
+
+		opened := connect(first.String(), portB)
+		gm.Eventually(func() int { return len(opened.GetNodes()) }, 10*time.Second, 20*time.Millisecond).Should(gm.Equal(2))
+		pinned := nodeNamed(opened, nodeA)
+		gm.Expect(pinned).ToNot(gm.BeNil())
+		gm.Expect(pinned.GetHost().Name).To(gm.Equal(hostA))
+		gm.Expect(pinned.resolvedHost).ToNot(gm.BeNil())
+		gm.Expect(pinned.resolvedHost.Name).To(gm.Equal(first.String()))
+
+		return pinnedPair{client: opened, node: pinned, hostA: hostA, serviceA: serviceA, peersA: peersA, portA: portA, a1: a1}
+	}
+
+	movePinnedNode := func(shrink bool) {
+		local := nonLoopbackIPv4()
+		if local == nil {
+			gg.Skip("no bindable non-loopback IPv4 address")
+		}
+		pair := startPinnedPair("move", local)
+		if shrink {
+			setHostAddresses(pair.hostA, local)
+		}
+		a2 := startServer(local, pair.portA, nodeA)
+		a2.setService(pair.serviceA)
+		a2.setPeers(pair.peersA)
+		pair.a1.close()
+
+		gm.Eventually(func() *Node {
+			if node := nodeNamed(pair.client, nodeA); node != pair.node {
+				return node
+			}
+			return nil
+		}, 10*time.Second, 5*time.Millisecond).ShouldNot(gm.BeNil())
+		moved := nodeNamed(pair.client, nodeA)
+		gm.Expect(moved.GetHost().Name).To(gm.Equal(pair.hostA))
+		gm.Expect(moved.resolvedHost).ToNot(gm.BeNil())
+		gm.Expect(moved.resolvedHost.Name).To(gm.Equal(local.String()))
+
+		record, err := pair.client.Get(nil, mustKey(namespace, "set", 1))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(record).ToNot(gm.BeNil())
+	}
+
+	gg.It("does not move a node that advertises its hostname back onto the address it uses", func() {
+		pair := startPinnedPair("pinned", second)
+
+		record, err := pair.client.Get(nil, mustKey(namespace, "set", 1))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(record).ToNot(gm.BeNil())
+
+		lookupsA := lookupCount(pair.hostA)
+		pair.a1.dropConnections()
+		gm.Eventually(func() int { return lookupCount(pair.hostA) }, 10*time.Second, 5*time.Millisecond).Should(gm.BeNumerically(">", lookupsA))
+
+		time.Sleep(4 * tendInterval)
+		gm.Expect(nodeNamed(pair.client, nodeA)).To(gm.BeIdenticalTo(pair.node))
+		gm.Expect(pair.node.IsActive()).To(gm.BeTrue())
+	})
+
+	gg.It("keeps the advertised hostname when it moves a node to another address", func() {
+		movePinnedNode(false)
+	})
+
+	gg.It("moves a node whose hostname now resolves to one new address", func() {
+		movePinnedNode(true)
+	})
+
 	gg.It("does not move onto an address that is a different node", func() {
 		otherNodeStays(differentNode)
 	})
@@ -375,6 +525,23 @@ func secondLoopback() net.IP {
 	return nil
 }
 
+func nonLoopbackIPv4() net.IP {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil || !ipNet.IP.IsGlobalUnicast() {
+			continue
+		}
+		if canBindIP(ipNet.IP) {
+			return ipNet.IP.To4()
+		}
+	}
+	return nil
+}
+
 func canBindIP(ip net.IP) bool {
 	listener, err := net.Listen("tcp", net.JoinHostPort(ip.String(), "0"))
 	if err != nil {
@@ -407,9 +574,10 @@ type stubNodeServer struct {
 	nodeName string
 	replicas string
 
-	mu    sync.Mutex
-	peers string
-	conns []net.Conn
+	mu      sync.Mutex
+	peers   string
+	service string
+	conns   []net.Conn
 }
 
 func newStubNodeServer(ip net.IP, port int, nodeName string) (*stubNodeServer, error) {
@@ -437,6 +605,23 @@ func (server *stubNodeServer) setPeers(peers string) {
 	server.mu.Lock()
 	server.peers = peers
 	server.mu.Unlock()
+}
+
+func (server *stubNodeServer) setService(service string) {
+	server.mu.Lock()
+	server.service = service
+	server.mu.Unlock()
+}
+
+// dropConnections closes every open connection and keeps accepting new ones.
+func (server *stubNodeServer) dropConnections() {
+	server.mu.Lock()
+	conns := server.conns
+	server.conns = nil
+	server.mu.Unlock()
+	for _, conn := range conns {
+		conn.Close()
+	}
 }
 
 func (server *stubNodeServer) close() {
@@ -499,6 +684,7 @@ func (server *stubNodeServer) serveConnection(conn net.Conn) {
 func (server *stubNodeServer) info(request []byte) []byte {
 	server.mu.Lock()
 	peers := server.peers
+	service := server.service
 	server.mu.Unlock()
 
 	var out bytes.Buffer
@@ -506,14 +692,14 @@ func (server *stubNodeServer) info(request []byte) []byte {
 		if command == "" {
 			continue
 		}
-		if value, ok := server.infoValue(command, peers); ok {
+		if value, ok := server.infoValue(command, peers, service); ok {
 			out.WriteString(command + "\t" + value + "\n")
 		}
 	}
 	return out.Bytes()
 }
 
-func (server *stubNodeServer) infoValue(command, peers string) (string, bool) {
+func (server *stubNodeServer) infoValue(command, peers, service string) (string, bool) {
 	switch command {
 	case "node":
 		return server.nodeName, true
@@ -525,6 +711,8 @@ func (server *stubNodeServer) infoValue(command, peers string) (string, bool) {
 		return server.replicas, true
 	case "peers-clear-std":
 		return peers, true
+	case "service-clear-std":
+		return service, service != ""
 	default:
 		return "", false
 	}

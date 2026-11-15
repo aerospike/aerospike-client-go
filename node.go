@@ -55,10 +55,13 @@ type Node struct {
 	hostName string
 	// lookupName is the DNS name used to create this node when the seed or
 	// peer was not an IP. Empty for IP literals.
-	lookupName  string
-	aliases     iatomic.TypedVal[[]*Host]
-	stats       nodeStats
-	sessionInfo iatomic.TypedVal[*sessionInfo]
+	lookupName string
+	// resolvedHost is the address of host's name that connections dial when
+	// host keeps the advertised hostname. Nil when connections dial host.
+	resolvedHost *Host
+	aliases      iatomic.TypedVal[[]*Host]
+	stats        nodeStats
+	sessionInfo  iatomic.TypedVal[*sessionInfo]
 
 	racks iatomic.TypedVal[map[string]int]
 
@@ -93,10 +96,11 @@ type Node struct {
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	clusterClientPolicy := cluster.clientPolicy.Load()
 	newNode := &Node{
-		cluster:    cluster,
-		name:       nv.name,
-		host:       nv.primaryHost,
-		lookupName: nv.lookupName,
+		cluster:      cluster,
+		name:         nv.name,
+		host:         nv.primaryHost,
+		lookupName:   nv.lookupName,
+		resolvedHost: nv.resolvedHost,
 
 		features:      nv.features,
 		serverVersion: nv.serverVersion,
@@ -510,7 +514,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
-	conn, err := NewConnection(clusterClientPolicy, nd.host)
+	conn, err := NewConnection(clusterClientPolicy, nd.dialHost())
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
@@ -636,6 +640,13 @@ func (nd *Node) InvalidateConnection(conn *Connection) {
 
 // GetHost retrieves host for the node.
 func (nd *Node) GetHost() *Host {
+	return nd.host
+}
+
+func (nd *Node) dialHost() *Host {
+	if nd.resolvedHost != nil {
+		return nd.resolvedHost
+	}
 	return nd.host
 }
 
