@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -40,12 +41,21 @@ func (nta nodesToAddT) addNodeIfNotExists(ndv *nodeValidator, cluster *Cluster) 
 // lookupHost resolves a hostname to IP addresses.
 var lookupHost = net.LookupHost
 
+// probeDial opens the TCP connections connectFirstAlias races.
+var probeDial = net.DialTimeout
+
 // Validates a Database server node
 type nodeValidator struct {
 	name        string
 	aliases     []*Host
 	primaryHost *Host
 	lookupName  string
+	// resolvedHost is the address of lookupName the node connects to when
+	// primaryHost keeps the advertised hostname.
+	resolvedHost *Host
+	// multiAddress is set when lookupName resolved to more than one address
+	// and connectFirstAlias picked the one that accepted.
+	multiAddress bool
 
 	seedOnlyCluster    bool
 	detectLoadBalancer bool
@@ -100,8 +110,18 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
 		return err
 	}
 
+	candidates, err := ndv.connectFirstAlias(clientPolicy)
+	if err != nil {
+		return err
+	}
+
 	var resultErr Error
-	for _, alias := range ndv.aliases {
+	for _, alias := range candidates {
+		// Load-balancer detection compares the advertised address with
+		// ndv.aliases, so a raced name is checked against one address at a time.
+		if ndv.multiAddress {
+			ndv.aliases = []*Host{alias}
+		}
 		if err := ndv.validateAlias(cluster, alias); err != nil {
 			resultErr = chainErrors(err, resultErr)
 			logger.Logger.Debug("Aliases %s failed: %s", alias, err)
@@ -146,6 +166,75 @@ func (ndv *nodeValidator) setAliases(host *Host) Error {
 		ndv.aliases = aliases
 	}
 	logger.Logger.Debug("Node Validator has %d nodes and they are: %v", len(ndv.aliases), ndv.aliases)
+	return nil
+}
+
+// connectFirstAlias dials every resolved IP together and returns the aliases
+// with the first that accepts within min(Timeout, TendInterval) at the front.
+func (ndv *nodeValidator) connectFirstAlias(policy *ClientPolicy) ([]*Host, Error) {
+	if policy == nil || len(ndv.aliases) < 2 {
+		return ndv.aliases, nil
+	}
+
+	bound := raceBound(policy)
+	if bound <= 0 {
+		return ndv.aliases, nil
+	}
+
+	if alias := firstToAccept(ndv.aliases, bound); alias != nil {
+		ndv.multiAddress = true
+		return winnerFirst(alias, ndv.aliases), nil
+	}
+	return nil, newError(types.TIMEOUT, fmt.Sprintf("none of %d addresses accepted a connection within %s", len(ndv.aliases), bound))
+}
+
+// winnerFirst returns hosts with winner moved to the front.
+func winnerFirst(winner *Host, hosts []*Host) []*Host {
+	ordered := make([]*Host, 0, len(hosts))
+	ordered = append(ordered, winner)
+	for _, host := range hosts {
+		if host != winner {
+			ordered = append(ordered, host)
+		}
+	}
+	return ordered
+}
+
+// raceBound is min(Timeout, TendInterval), or 0 when neither is set.
+func raceBound(policy *ClientPolicy) time.Duration {
+	bound := policy.TendInterval
+	if policy.Timeout > 0 && (bound <= 0 || policy.Timeout < bound) {
+		bound = policy.Timeout
+	}
+	return bound
+}
+
+// firstToAccept dials every IP in hosts together and returns the first that
+// accepts a TCP connection within bound, or nil.
+func firstToAccept(hosts []*Host, bound time.Duration) *Host {
+	dial := probeDial
+	results := make(chan *Host, len(hosts))
+	for _, host := range hosts {
+		go func(host *Host) {
+			if net.ParseIP(host.Name) == nil {
+				results <- nil
+				return
+			}
+			conn, err := dial("tcp", net.JoinHostPort(host.Name, strconv.Itoa(host.Port)), bound)
+			if err != nil {
+				results <- nil
+				return
+			}
+			conn.Close()
+			results <- host
+		}(host)
+	}
+
+	for range hosts {
+		if host := <-results; host != nil {
+			return host
+		}
+	}
 	return nil
 }
 
@@ -277,7 +366,14 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 				}
 			}
 
-			if isLoadBalancer && ndv.detectLoadBalancer {
+			if isLoadBalancer && ndv.detectLoadBalancer && ndv.advertisesLookupName(hostAddress, alias) {
+				// The node advertises the name this validator resolved, and alias is
+				// the address of that name that accepted. Keep the name as the node's
+				// host and connect to alias rather than dialing the name again.
+				ndv.resolvedHost = alias
+				alias = hostAddress[0]
+				ndv.aliases = hostAddress
+			} else if isLoadBalancer && ndv.detectLoadBalancer {
 				aliasFound := false
 
 				// take the seed out of the aliases if it is load balancer
@@ -323,6 +419,11 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	ndv.primaryHost = alias
 
 	return nil
+}
+
+func (ndv *nodeValidator) advertisesLookupName(advertised []*Host, alias *Host) bool {
+	return ndv.multiAddress && len(advertised) == 1 &&
+		advertised[0].Name == ndv.lookupName && advertised[0].Port == alias.Port
 }
 
 func (ndv *nodeValidator) setFeatures(alias *Host) Error {

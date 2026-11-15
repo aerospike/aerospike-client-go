@@ -631,24 +631,43 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 	}
 
 	addresses, err := lookupHost(node.lookupName)
-	if err != nil || len(addresses) <= 1 {
+	// A node that dials its hostname already follows DNS, so a single address
+	// only matters for a node pinned to a resolved address.
+	if err != nil || len(addresses) == 0 || (len(addresses) == 1 && node.resolvedHost == nil) {
+		return
+	}
+
+	candidates := make([]*Host, 0, len(addresses))
+	for _, address := range addresses {
+		if sameIPLiteral(address, node.dialHost().Name) {
+			continue
+		}
+		host := NewHost(address, node.host.Port)
+		host.TLSName = node.host.TLSName
+		candidates = append(candidates, host)
+	}
+	if len(candidates) == 0 {
 		return
 	}
 
 	clientPolicy := clstr.clientPolicy.Load()
-	for _, address := range addresses {
-		if sameIPLiteral(address, node.host.Name) {
-			continue
+	if bound := raceBound(clientPolicy); bound > 0 {
+		winner := firstToAccept(candidates, bound)
+		if winner == nil {
+			logger.Logger.Debug("No other address of %s accepted a connection within %s", node.lookupName, bound)
+			return
 		}
+		candidates = winnerFirst(winner, candidates)
+	}
 
-		host := NewHost(address, node.host.Port)
-		host.TLSName = node.host.TLSName
+	for _, host := range candidates {
 		nv := nodeValidator{
 			seedOnlyCluster: clientPolicy.SeedOnlyCluster,
 			lookupName:      node.lookupName,
+			multiAddress:    true,
 		}
 		if err := nv.validateNode(clstr, host); err != nil {
-			logger.Logger.Debug("Address %s:%d of %s failed: %s", address, node.host.Port, node.lookupName, err)
+			logger.Logger.Debug("Address %s of %s failed: %s", host, node.lookupName, err)
 			continue
 		}
 		if nv.name != node.name {
@@ -664,7 +683,7 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 		if !peers.containsNodeToRemove(node) {
 			peers.addNodesToRemove(node)
 		}
-		logger.Logger.Info("Move node %s %s from %s to %s", node.name, node.lookupName, node.host, replacement.host)
+		logger.Logger.Info("Move node %s %s from %s to %s", node.name, node.lookupName, node.dialHost(), replacement.dialHost())
 		return
 	}
 }
