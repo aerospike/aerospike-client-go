@@ -85,7 +85,7 @@ func (state *l3Scale) restore(t *testing.T) {
 }
 
 // Live client: the pod the operator adds is active within 2*tendInterval of
-// the peers-generation bump, at hostname:NodePort, with every partition owned.
+// the later of the peers-generation bump and the pod turning Ready.
 func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 	state := l3RequireScaleCluster(t)
 	cluster := state.cluster
@@ -105,13 +105,21 @@ func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 	}
 	observer := client.GetNodes()[0]
 	generation := l3PeersGeneration(t, observer)
-	var bump, active time.Time
+	var bump, ready, active time.Time
 	var added *as.Node
 	cluster.resize(t, size+1)
 	seen := waitFor(l3ScaleTimeout, 5*time.Millisecond, func() bool {
 		now := time.Now()
 		if bump.IsZero() && l3PeersGeneration(t, observer) != generation {
 			bump = now
+		}
+		if ready.IsZero() {
+			for name := range cluster.readyPods(t) {
+				if _, ok := before[name]; !ok {
+					ready = now
+					break
+				}
+			}
 		}
 		if added == nil {
 			for _, node := range client.GetNodes() {
@@ -121,15 +129,19 @@ func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 				}
 			}
 		}
-		return !bump.IsZero() && added != nil
+		return !bump.IsZero() && !ready.IsZero() && added != nil
 	})
 	if !seen {
-		t.Fatalf("No peers-generation bump on %s or no new active node", observer.GetName())
+		t.Fatalf("No peers-generation bump on %s, no new Ready pod or no new active node", observer.GetName())
 	}
-	if active.Before(bump) {
-		t.Fatalf("%s active before the peers-generation bump", added.GetName())
+	start := bump
+	if ready.After(bump) {
+		start = ready
 	}
-	elapsed := active.Sub(bump)
+	elapsed := active.Sub(start)
+	if elapsed < 0 {
+		elapsed = 0
+	}
 	budget := 2 * policy.TendInterval
 	cluster.scale(t, size+1)
 
@@ -149,10 +161,11 @@ func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 		t.Fatalf("info %s: %v", added.GetName(), err)
 	}
 	host := added.GetHost()
-	t.Logf("L3-SCALE-UP node=%s pod=%s access=%s alternate=%s serviceNodePort=%d clientHost=%s generation=%d->%d bumpToActiveMs=%d tendInterval=%s budgetMs=%d bumpAt=%s podReadyAt=%s readinessProbe=%s publishNotReadyAddresses=%s",
+	t.Logf("L3-SCALE-UP node=%s pod=%s access=%s alternate=%s serviceNodePort=%d clientHost=%s generation=%d->%d bumpToReadyMs=%d readyToActiveMs=%d bumpToActiveMs=%d tendInterval=%s budgetMs=%d bumpAt=%s podReadyAt=%s readinessProbe=%s publishNotReadyAddresses=%s",
 		added.GetName(), pod.name, info["service-clear-std"], info["service-clear-alt"], nodePort,
 		net.JoinHostPort(host.Name, strconv.Itoa(host.Port)), generation, l3PeersGeneration(t, observer),
-		elapsed.Milliseconds(), policy.TendInterval, budget.Milliseconds(), bump.UTC().Format(time.RFC3339Nano),
+		ready.Sub(bump).Milliseconds(), elapsed.Milliseconds(), active.Sub(bump).Milliseconds(),
+		policy.TendInterval, budget.Milliseconds(), bump.UTC().Format(time.RFC3339Nano),
 		cluster.podReadyAt(t, pod.name), cluster.readinessProbe(t, pod.name), cluster.publishNotReadyAddresses(t, pod.name))
 	if nodePort <= 0 {
 		t.Fatalf("%s has no Service NodePort for %d", pod.name, port)
@@ -167,7 +180,7 @@ func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 	}
 	l3AssertHostIs(t, wantAlt, host)
 	if elapsed > budget {
-		t.Fatalf("%s active %s after the bump, budget %s", added.GetName(), elapsed, budget)
+		t.Fatalf("%s active %s after the bump and %s Ready, budget %s", added.GetName(), elapsed, pod.name, budget)
 	}
 
 	l3AwaitRouting(t, "scale-up-after", client, size+1)

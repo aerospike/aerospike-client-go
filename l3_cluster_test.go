@@ -105,6 +105,21 @@ func (cluster l3Cluster) pods(t *testing.T) []l3Pod {
 	return pods
 }
 
+// Names of pods whose Ready condition is True.
+func (cluster l3Cluster) readyPods(t *testing.T) map[string]struct{} {
+	t.Helper()
+	ready := map[string]struct{}{}
+	for _, line := range l3Lines(l3Kubectl(t, "-n", cluster.namespace, "get", "pods",
+		"-l", "aerospike.com/cr="+cluster.name, "-o",
+		`jsonpath={range .items[*]}{.metadata.name} {.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}`)) {
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) > 1 && parts[1] == "True" {
+			ready[parts[0]] = struct{}{}
+		}
+	}
+	return ready
+}
+
 func (cluster l3Cluster) nodePort(t *testing.T, pod string, port int) int {
 	t.Helper()
 	value := strings.TrimSpace(l3Kubectl(t, "-n", cluster.namespace, "get", "service", pod, "--ignore-not-found",
