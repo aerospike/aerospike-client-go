@@ -16,15 +16,15 @@ package aerospike
 
 import "testing"
 
-// These benchmarks measure the per-command hot-path helpers
+// These benchmarks measure the per-command metric helpers
 // applyTransactionErrorMetrics / applyTransactionRetryMetrics /
-// applyConnectionRecoveredMetrics before and after gating them on
-// Cluster.metricsEnabled.
+// applyConnectionRecoveredMetrics. They were gated on Cluster.metricsEnabled
+// by CLIENT-3968 and ungated again by CLIENT-5762, since Client.Stats()
+// reports these counters regardless of EnableMetrics. They only run on error,
+// retry and connection-recovery paths.
 //
-// "before" is reproduced by the legacy* functions below, which increment the
-// mutex-backed internal/atomic.Int unconditionally (only nil-checking the
-// node) — exactly what command.go did prior to the gate. "after" calls the
-// real, gated implementations from command.go.
+// The legacy* functions below are the pre-CLIENT-3968 unconditional
+// increment; "after" calls the real implementations from command.go.
 //
 // The three helpers are structurally identical, so applyTransactionErrorMetrics
 // is benchmarked as the representative; the retry / connection-recovered
@@ -61,9 +61,7 @@ func newBenchNode(metricsEnabled bool) *Node {
 }
 
 // BenchmarkApplyTransactionMetrics measures the single-goroutine cost.
-// Expect: before/* and after/metricsOn pay the mutex Lock/Unlock per call;
-// after/metricsOff short-circuits to an atomic-bool load + branch. No path
-// allocates.
+// Every path pays the mutex Lock/Unlock per call. No path allocates.
 func BenchmarkApplyTransactionMetrics(b *testing.B) {
 	b.Run("before/unconditional", func(b *testing.B) {
 		node := newBenchNode(false) // legacy ignores the gate; always increments
@@ -93,10 +91,9 @@ func BenchmarkApplyTransactionMetrics(b *testing.B) {
 	})
 }
 
-// BenchmarkApplyTransactionMetricsParallel is the contention case the gate
-// actually addresses: the internal/atomic.Int is mutex-backed, so under many
-// goroutines the unconditional increment serializes on a single Lock. With
-// metrics off, the gated helper never reaches the increment and scales freely.
+// BenchmarkApplyTransactionMetricsParallel is the contention case: the
+// internal/atomic.Int is mutex-backed, so under many goroutines the increment
+// serializes on a single Lock.
 func BenchmarkApplyTransactionMetricsParallel(b *testing.B) {
 	b.Run("before/unconditional", func(b *testing.B) {
 		node := newBenchNode(false)

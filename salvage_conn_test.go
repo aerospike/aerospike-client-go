@@ -330,6 +330,18 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 		gm.Expect(isClosed(closed)()).To(gm.BeFalse())
 	})
 
+	gg.It("must count a salvaged connection when metrics are disabled", func() {
+		pclient.DisableMetrics()
+		before := recovered()
+
+		closed := proxy.holdNext(8)
+		timeOutRead(timeoutPolicy(3*time.Second, 1))
+		proxy.releaseHeld()
+
+		gm.Eventually(recovered, 2*time.Second).Should(gm.Equal(before + 1))
+		gm.Expect(isClosed(closed)()).To(gm.BeFalse())
+	})
+
 	gg.It("must close the connection when the drain deadline expires", func() {
 		before := recovered()
 
