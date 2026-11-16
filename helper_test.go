@@ -129,6 +129,14 @@ func (node *Node) GetErrorCount() int {
 	return node.errorCount.Get()
 }
 
+func (node *Node) GetMaxErrorCount() int {
+	return node.maxErrorCount.Get()
+}
+
+func (node *Node) ResetErrorRate() {
+	node.resetErrorRate(node.cluster.clientPolicy.Load().MaxErrorRate)
+}
+
 func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
 	return &DynConfig{
 		config: config,
