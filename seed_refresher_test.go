@@ -74,6 +74,10 @@ func (provider *scriptedSeedProvider) NeedsPeriodicRefresh() bool { return provi
 func (provider *scriptedSeedProvider) SupportsDeadline() bool     { return provider.deadline }
 func (provider *scriptedSeedProvider) Close()                     { provider.closeCalls.Add(1) }
 
+func periodicDeadlineProvider(results ...[]*Host) *scriptedSeedProvider {
+	return &scriptedSeedProvider{results: results, periodic: true, deadline: true}
+}
+
 // gatedSeedProvider holds the first RefreshSeedCandidates until releaseRefresh.
 // waitUntilStarted returns after that call has begun, so a test can prove
 // start returned while the lookup was still in flight.
@@ -339,7 +343,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 	staticSeeds := []*Host{NewHost("seed-1.internal", 3000), NewHost("seed-2.internal", 3000)}
 
-	newTendRefresherWithDeadline := func(provider SeedCandidateProvider, mergePolicy SeedMergePolicy, deadline time.Duration) (*seedRefresher, *publishRecorder) {
+	newTendRefresherOn := func(provider SeedCandidateProvider, mergePolicy SeedMergePolicy, seeds []*Host, deadline time.Duration) (*seedRefresher, *publishRecorder) {
 		policy := NewClientPolicy()
 		policy.SeedProvider = provider
 		policy.SeedMergePolicy = mergePolicy
@@ -349,9 +353,13 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 		policy.TendInterval = time.Second
 
 		recorder := &publishRecorder{}
-		refresher, err := newSeedRefresher(policy, staticSeeds, recorder.publish)
+		refresher, err := newSeedRefresher(policy, seeds, recorder.publish)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		return refresher, recorder
+	}
+
+	newTendRefresherWithDeadline := func(provider SeedCandidateProvider, mergePolicy SeedMergePolicy, deadline time.Duration) (*seedRefresher, *publishRecorder) {
+		return newTendRefresherOn(provider, mergePolicy, staticSeeds, deadline)
 	}
 
 	newTendRefresher := func(provider SeedCandidateProvider, mergePolicy SeedMergePolicy) (*seedRefresher, *publishRecorder) {
@@ -360,10 +368,45 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 	gg.Describe("merge policies", func() {
 
-		discovered := []*Host{NewHost("found-1.internal", 3000), NewHost("seed-2.internal", 3000)}
+		staticAddrs := []string{"seed-1.internal:3000", "seed-2.internal:3000"}
+		d1 := NewHost("found-1.internal", 3000)
+		d2 := NewHost("found-2.internal", 3000)
+		discovered := []*Host{d1, NewHost("seed-2.internal", 3000)}
+
+		gg.It("orders init and later results per policy, including empty discovery", func() {
+			s1 := NewHost("10.0.0.1", 3000)
+			s2 := NewHost("10.0.0.2", 3000)
+			found1 := NewHost("10.0.1.1", 3000)
+			found2 := NewHost("10.0.1.2", 3000)
+			s2tls := &Host{Name: "10.0.0.2", Port: 3000, TLSName: "tls"}
+			static := []*Host{s1, s2}
+			hosts := []*Host{found1, s2tls, found2, found1}
+
+			mergeRef, _ := newTendRefresherOn(periodicDeadlineProvider([]*Host{}), SeedMergePolicyMerge, static, 100*time.Millisecond)
+			gm.Expect(hostAddresses(mergeRef.merge(hosts, true))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000", "10.0.1.1:3000", "10.0.1.2:3000"}))
+			gm.Expect(mergeRef.merge(hosts, true)[1].TLSName).To(gm.BeEmpty())
+			gm.Expect(hostAddresses(mergeRef.merge(hosts, false))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000", "10.0.1.1:3000", "10.0.1.2:3000"}))
+			gm.Expect(hostAddresses(mergeRef.merge(nil, true))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
+			gm.Expect(hostAddresses(mergeRef.merge([]*Host{}, false))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
+
+			replaceRef, _ := newTendRefresherOn(periodicDeadlineProvider([]*Host{}), SeedMergePolicyReplace, static, 100*time.Millisecond)
+			gm.Expect(hostAddresses(replaceRef.merge(hosts, true))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000", "10.0.1.1:3000", "10.0.1.2:3000"}))
+			laterReplace := replaceRef.merge(hosts, false)
+			gm.Expect(hostAddresses(laterReplace)).To(gm.Equal([]string{"10.0.1.1:3000", "10.0.0.2:3000", "10.0.1.2:3000"}))
+			gm.Expect(laterReplace[1].TLSName).To(gm.Equal("tls"))
+			gm.Expect(hostAddresses(replaceRef.merge([]*Host{}, true))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
+			gm.Expect(replaceRef.merge([]*Host{}, false)).To(gm.BeEmpty())
+
+			onlyRef, _ := newTendRefresherOn(periodicDeadlineProvider([]*Host{}), SeedMergePolicyDiscoveryOnly, static, 100*time.Millisecond)
+			gm.Expect(hostAddresses(onlyRef.merge(hosts, true))).To(gm.Equal([]string{"10.0.1.1:3000", "10.0.0.2:3000", "10.0.1.2:3000"}))
+			gm.Expect(hostAddresses(onlyRef.merge(hosts, false))).To(gm.Equal([]string{"10.0.1.1:3000", "10.0.0.2:3000", "10.0.1.2:3000"}))
+			gm.Expect(onlyRef.merge(hosts, false)[1].TLSName).To(gm.Equal("tls"))
+			gm.Expect(hostAddresses(onlyRef.merge([]*Host{}, true))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
+			gm.Expect(hostAddresses(onlyRef.merge([]*Host{}, false))).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
+		})
 
 		gg.It("merge keeps the configured seeds first and de-duplicates", func() {
-			refresher, _ := newTendRefresher(&scriptedSeedProvider{results: [][]*Host{discovered}, periodic: true, deadline: true}, SeedMergePolicyMerge)
+			refresher, _ := newTendRefresher(periodicDeadlineProvider(discovered), SeedMergePolicyMerge)
 
 			merged, err := refresher.start()
 
@@ -371,8 +414,55 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-1.internal:3000"}))
 		})
 
+		gg.It("merge later refresh is still static then discovered, and empty discovery falls back to static only", func() {
+			provider := periodicDeadlineProvider([]*Host{d1}, []*Host{d2}, []*Host{})
+			refresher, recorder := newTendRefresher(provider, SeedMergePolicyMerge)
+
+			merged, err := refresher.start()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-1.internal:3000"}))
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+			gm.Expect(recorder.count()).To(gm.Equal(0))
+
+			refresher.tendTick(10)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-2.internal:3000"}))
+			gm.Expect(recorder.count()).To(gm.Equal(1))
+
+			refresher.tendTick(20)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(3)))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(staticAddrs))
+			gm.Expect(recorder.count()).To(gm.Equal(2))
+		})
+
 		gg.It("replace keeps only discovered seeds after initialization", func() {
-			provider := &scriptedSeedProvider{results: [][]*Host{discovered, {NewHost("found-2.internal", 3000)}}, periodic: true, deadline: true}
+			provider := periodicDeadlineProvider(discovered, []*Host{d2})
+			refresher, recorder := newTendRefresher(provider, SeedMergePolicyReplace)
+
+			merged, err := refresher.start()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-1.internal:3000"}))
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+
+			refresher.tendTick(10)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"found-2.internal:3000"}))
+			gm.Expect(recorder.count()).To(gm.Equal(1))
+		})
+
+		gg.It("replace init with empty discovery keeps only the constructor seeds", func() {
+			provider := periodicDeadlineProvider([]*Host{})
+			refresher, recorder := newTendRefresher(provider, SeedMergePolicyReplace)
+
+			merged, err := refresher.start()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(merged)).To(gm.Equal(staticAddrs))
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+			gm.Expect(recorder.count()).To(gm.Equal(0))
+		})
+
+		gg.It("replace later empty discovery keeps the previous seeds and does not publish", func() {
+			provider := periodicDeadlineProvider([]*Host{d1}, []*Host{d2}, []*Host{})
 			refresher, recorder := newTendRefresher(provider, SeedMergePolicyReplace)
 
 			merged, err := refresher.start()
@@ -380,16 +470,45 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-1.internal:3000"}))
 
 			refresher.tendTick(10)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"found-2.internal:3000"}))
+			gm.Expect(recorder.count()).To(gm.Equal(1))
+
+			refresher.tendTick(20)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(3)))
+			gm.Expect(recorder.count()).To(gm.Equal(1))
 			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"found-2.internal:3000"}))
 		})
 
 		gg.It("discovery_only falls back to the configured seeds when discovery is empty", func() {
-			refresher, _ := newTendRefresher(&scriptedSeedProvider{results: [][]*Host{{}}, periodic: true, deadline: true}, SeedMergePolicyDiscoveryOnly)
+			refresher, recorder := newTendRefresher(periodicDeadlineProvider([]*Host{}), SeedMergePolicyDiscoveryOnly)
 
 			merged, err := refresher.start()
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"seed-1.internal:3000", "seed-2.internal:3000"}))
+			gm.Expect(hostAddresses(merged)).To(gm.Equal(staticAddrs))
+			gm.Expect(recorder.count()).To(gm.Equal(0))
+		})
+
+		gg.It("discovery_only later refresh drops the constructor seeds, and empty discovery restores them", func() {
+			provider := periodicDeadlineProvider([]*Host{}, []*Host{d1, d2}, []*Host{})
+			refresher, recorder := newTendRefresher(provider, SeedMergePolicyDiscoveryOnly)
+
+			merged, err := refresher.start()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(merged)).To(gm.Equal(staticAddrs))
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+			gm.Expect(recorder.count()).To(gm.Equal(0))
+
+			refresher.tendTick(10)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"found-1.internal:3000", "found-2.internal:3000"}))
+			gm.Expect(recorder.count()).To(gm.Equal(1))
+
+			refresher.tendTick(20)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(3)))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(staticAddrs))
+			gm.Expect(recorder.count()).To(gm.Equal(2))
 		})
 
 		gg.It("collapses the same host and port under different TLS names to the first", func() {
@@ -401,6 +520,59 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(distinct).To(gm.HaveLen(1))
 			gm.Expect(distinct[0].TLSName).To(gm.Equal("name-a"))
 		})
+
+		gg.DescribeTable("failed, empty, or overrunning later refresh never empties the snapshot",
+			func(policy SeedMergePolicy, seeds []*Host) {
+				provider := periodicDeadlineProvider([]*Host{d1}, []*Host{d2}, nil, []*Host{}, []*Host{})
+				refresher, recorder := newTendRefresherOn(provider, policy, seeds, 20*time.Millisecond)
+
+				_, err := refresher.start()
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+
+				refresher.tendTick(10)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+				gm.Expect(recorder.count()).To(gm.BeNumerically(">=", 1))
+				previous := hostAddresses(recorder.last())
+				gm.Expect(previous).ToNot(gm.BeEmpty())
+				publishes := recorder.count()
+
+				refresher.tendTick(20)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(3)))
+				gm.Expect(recorder.count()).To(gm.Equal(publishes))
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(previous))
+
+				emptyWant := previous
+				if policy != SeedMergePolicyReplace && len(seeds) > 0 {
+					emptyWant = hostAddresses(seeds)
+				}
+				refresher.tendTick(30)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(4)))
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(emptyWant))
+				gm.Expect(hostAddresses(recorder.last())).ToNot(gm.BeEmpty())
+				if slices.Equal(emptyWant, previous) {
+					gm.Expect(recorder.count()).To(gm.Equal(publishes))
+				} else {
+					gm.Expect(recorder.count()).To(gm.Equal(publishes + 1))
+				}
+
+				provider.sleep.Store(int64(100 * time.Millisecond))
+				beforeOverrun := hostAddresses(recorder.last())
+				overrunPublishes := recorder.count()
+				refresher.tendTick(40)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(5)))
+				gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
+				gm.Expect(recorder.count()).To(gm.Equal(overrunPublishes))
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(beforeOverrun))
+				gm.Expect(hostAddresses(recorder.last())).ToNot(gm.BeEmpty())
+			},
+			gg.Entry("merge with constructor seeds", SeedMergePolicyMerge, staticSeeds),
+			gg.Entry("replace with constructor seeds", SeedMergePolicyReplace, staticSeeds),
+			gg.Entry("discovery_only with constructor seeds", SeedMergePolicyDiscoveryOnly, staticSeeds),
+			gg.Entry("merge with no constructor seeds", SeedMergePolicyMerge, []*Host(nil)),
+			gg.Entry("replace with no constructor seeds", SeedMergePolicyReplace, []*Host(nil)),
+			gg.Entry("discovery_only with no constructor seeds", SeedMergePolicyDiscoveryOnly, []*Host(nil)),
+		)
 	})
 
 	gg.Describe("ownership", func() {
@@ -562,6 +734,52 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			refresher.tendTick(40)
 			gm.Expect(provider.calls.Load()).To(gm.Equal(callsAtTrip))
 		})
+
+		gg.DescribeTable("trips restore the init-merge snapshot for every merge policy",
+			func(policy SeedMergePolicy, initSeeds, laterSeeds []string) {
+				found1 := NewHost("found-1.internal", 3000)
+				found2 := NewHost("found-2.internal", 3000)
+				provider := periodicDeadlineProvider([]*Host{found1}, []*Host{found2}, []*Host{found2}, []*Host{found2}, []*Host{found2})
+				refresher, recorder := newTendRefresherWithDeadline(provider, policy, 20*time.Millisecond)
+
+				merged, err := refresher.start()
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(hostAddresses(merged)).To(gm.Equal(initSeeds))
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
+				gm.Expect(recorder.count()).To(gm.Equal(0))
+
+				refresher.tendTick(10)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(laterSeeds))
+				gm.Expect(recorder.count()).To(gm.Equal(1))
+
+				provider.sleep.Store(int64(100 * time.Millisecond))
+				refresher.tendTick(20)
+				refresher.tendTick(30)
+				gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(laterSeeds))
+				gm.Expect(recorder.count()).To(gm.Equal(1))
+
+				refresher.tendTick(40)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(5)))
+				gm.Expect(refresher.tripped.Get()).To(gm.BeTrue())
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(initSeeds))
+				gm.Expect(recorder.count()).To(gm.Equal(2))
+
+				callsAtTrip := provider.calls.Load()
+				refresher.tendTick(50)
+				gm.Expect(provider.calls.Load()).To(gm.Equal(callsAtTrip))
+			},
+			gg.Entry("merge", SeedMergePolicyMerge,
+				[]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-1.internal:3000"},
+				[]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-2.internal:3000"}),
+			gg.Entry("replace", SeedMergePolicyReplace,
+				[]string{"seed-1.internal:3000", "seed-2.internal:3000", "found-1.internal:3000"},
+				[]string{"found-2.internal:3000"}),
+			gg.Entry("discovery_only", SeedMergePolicyDiscoveryOnly,
+				[]string{"found-1.internal:3000"},
+				[]string{"found-2.internal:3000"}),
+		)
 
 		gg.It("resets the overrun count after an on-time refresh so the circuit breaker does not trip", func() {
 			provider := &scriptedSeedProvider{results: [][]*Host{{NewHost("found-1.internal", 3000)}}, periodic: true, deadline: true}
