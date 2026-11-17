@@ -61,11 +61,15 @@ type seedRefresher struct {
 
 	// Thread-mode loop lifecycle. refreshing is set while the loop is
 	// inside a provider call, so an urgent request then does nothing.
-	stopCh     chan struct{}
-	urgentCh   chan struct{}
-	refreshing iatomic.Bool
-	loopWg     sync.WaitGroup
-	closeOnce  sync.Once
+	// activeCh is closed once the client is built; until then the loop
+	// publishes nothing. A running loop owns provider.Close.
+	stopCh      chan struct{}
+	urgentCh    chan struct{}
+	activeCh    chan struct{}
+	refreshing  iatomic.Bool
+	loopStarted iatomic.Bool
+	loopWg      sync.WaitGroup
+	closeOnce   sync.Once
 
 	// firstDoneCh is closed when the first lookup is stored. start waits on
 	// it; the refresh goroutine never sends, so it cannot block. firstOnce
@@ -108,6 +112,7 @@ func newSeedRefresher(policy *ClientPolicy, staticSeeds []*Host, publish func([]
 		tendInterval:    policy.TendInterval,
 		stopCh:          make(chan struct{}),
 		urgentCh:        make(chan struct{}, 1),
+		activeCh:        make(chan struct{}),
 		firstDoneCh:     make(chan struct{}),
 	}
 
@@ -184,7 +189,14 @@ func (refresher *seedRefresher) start() ([]*Host, Error) {
 	return refresher.resolveStartupSeeds(discovered, err)
 }
 
+// activate lets the refresh goroutine publish. Call once, after the client
+// is built; a client that fails to build calls close instead.
+func (refresher *seedRefresher) activate() {
+	close(refresher.activeCh)
+}
+
 func (refresher *seedRefresher) startThreadMode() ([]*Host, Error) {
+	refresher.loopStarted.Set(true)
 	refresher.loopWg.Add(1)
 	go refresher.refreshLoop()
 
@@ -228,7 +240,8 @@ func (refresher *seedRefresher) resolveStartupSeeds(discovered []*Host, refreshE
 }
 
 // refreshLoop is the thread-mode goroutine. The first result is handed to
-// start, or published if construction already gave up waiting.
+// start, or published once the client is built if start already gave up
+// waiting. The loop closes the provider as it exits, after its last call.
 func (refresher *seedRefresher) refreshLoop() {
 	defer refresher.loopWg.Done()
 
@@ -241,22 +254,41 @@ func (refresher *seedRefresher) refreshLoop() {
 	}()
 
 	for iteration := int64(0); ; iteration++ {
+		select {
+		case <-refresher.stopCh:
+			refresher.closeProvider()
+			return
+		default:
+		}
+
 		refresher.refreshing.Set(true)
 		began := time.Now()
 		discovered, err := refresher.refreshOnce(iteration)
 		refresher.refreshing.Set(false)
 		refresher.noteThreadOverrun(began)
 
+		report := iteration > 0
 		if iteration == 0 {
-			refresher.completeFirstRefresh(discovered, err)
-		} else if err != nil {
-			logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
-		} else {
-			refresher.publish(refresher.merge(discovered, false))
+			report = refresher.handOffFirst(discovered, err)
+			select {
+			case <-refresher.activeCh:
+			case <-refresher.stopCh:
+				refresher.closeProvider()
+				return
+			}
+		}
+
+		if report {
+			if err != nil {
+				logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
+			} else {
+				refresher.publish(refresher.merge(discovered, iteration == 0))
+			}
 		}
 
 		select {
 		case <-refresher.stopCh:
+			refresher.closeProvider()
 			return
 		case <-refresher.urgentCh:
 		case <-time.After(refresher.refreshInterval):
@@ -264,23 +296,20 @@ func (refresher *seedRefresher) refreshLoop() {
 	}
 }
 
-func (refresher *seedRefresher) completeFirstRefresh(discovered []*Host, err error) {
+// handOffFirst gives the first result to start. It returns true when start
+// already gave up waiting, so the loop publishes the result itself.
+func (refresher *seedRefresher) handOffFirst(discovered []*Host, err error) (late bool) {
 	refresher.firstOnce.Do(func() {
 		refresher.firstMu.Lock()
-		if !refresher.firstAbandoned {
-			refresher.firstResult = firstRefreshResult{hosts: discovered, err: err}
-			close(refresher.firstDoneCh)
-			refresher.firstMu.Unlock()
+		defer refresher.firstMu.Unlock()
+		if refresher.firstAbandoned {
+			late = true
 			return
 		}
-		refresher.firstMu.Unlock()
-
-		if err != nil {
-			logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
-			return
-		}
-		refresher.publish(refresher.merge(discovered, true))
+		refresher.firstResult = firstRefreshResult{hosts: discovered, err: err}
+		close(refresher.firstDoneCh)
 	})
+	return late
 }
 
 func (refresher *seedRefresher) noteThreadOverrun(began time.Time) {
@@ -342,11 +371,18 @@ func (refresher *seedRefresher) requestUrgentRefresh() {
 	}
 }
 
-// close stops the refresh goroutine, waits for an in-flight refresh up to
-// the refresh timeout and closes the provider. Safe to call more than once.
+// close stops the refresher. Without a refresh goroutine it closes the
+// provider. Otherwise it waits up to the refresh timeout for the goroutine,
+// which closes the provider as it exits, after its last call has returned.
+// Safe to call more than once.
 func (refresher *seedRefresher) close() {
 	refresher.closeOnce.Do(func() {
 		close(refresher.stopCh)
+
+		if !refresher.loopStarted.Get() {
+			refresher.closeProvider()
+			return
+		}
 
 		loopDone := make(chan struct{})
 		go func() {
@@ -356,16 +392,33 @@ func (refresher *seedRefresher) close() {
 		select {
 		case <-loopDone:
 		case <-time.After(refresher.refreshTimeout):
-			logger.Logger.Warn("A seed refresh by provider %s is still running after %s; closing the provider anyway", refresher.providerName, refresher.refreshTimeout)
+			logger.Logger.Warn("A seed refresh by provider %s is still running after %s; the provider is closed when it returns", refresher.providerName, refresher.refreshTimeout)
 		}
-
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				logger.Logger.Warn("Seed provider %s close failed: %v", refresher.providerName, recovered)
-			}
-		}()
-		refresher.provider.Close()
 	})
+}
+
+// abort stops the refresher when the client fails to build, without waiting
+// for a refresh in flight. A running goroutine closes the provider as it
+// exits. A later close does nothing.
+func (refresher *seedRefresher) abort() {
+	if refresher == nil {
+		return
+	}
+	refresher.closeOnce.Do(func() {
+		close(refresher.stopCh)
+		if !refresher.loopStarted.Get() {
+			refresher.closeProvider()
+		}
+	})
+}
+
+func (refresher *seedRefresher) closeProvider() {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Logger.Warn("Seed provider %s close failed: %v", refresher.providerName, recovered)
+		}
+	}()
+	refresher.provider.Close()
 }
 
 // refreshOnce requests one seed list from the provider. The list is copied.

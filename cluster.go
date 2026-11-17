@@ -202,17 +202,18 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 
 	initialSeeds, rerr := refresher.start()
 	if rerr != nil {
-		refresher.close()
+		refresher.abort()
 		return nil, rerr
 	}
 	newCluster.seeds.Set(defaultSeedTLSNames(loadedPolicy, initialSeeds))
+	refresher.activate()
 
 	// try to seed connections for first use
 	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
 	if loadedPolicy.FailIfNotConnected && !newCluster.IsConnected() {
-		refresher.close()
+		refresher.abort()
 		if err != nil {
 			return nil, err
 		}
@@ -769,11 +770,13 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	select {
 	case <-time.After(clusterClientPolicy.Timeout):
 		if clusterClientPolicy.FailIfNotConnected {
+			clstr.seedRefresher.abort()
 			clstr.Close()
 		}
 		return ErrTimeout.err()
 	case err := <-doneCh:
 		if err != nil && clusterClientPolicy.FailIfNotConnected {
+			clstr.seedRefresher.abort()
 			clstr.Close()
 		}
 		return err

@@ -103,12 +103,16 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 
 	gg.It("uses timeout_ms for the first thread-mode lookup, not refresh_timeout_ms", func() {
 		server.a("a.example.com", "10.0.0.2").slow(200 * time.Millisecond)
-		refresher, _ := mustThreadRefresher(dnsAProvider(server, 80*time.Millisecond), []*Host{NewHost("127.0.0.1", 1)}, 2*time.Second)
+		refresher, recorder := mustThreadRefresher(dnsAProvider(server, 80*time.Millisecond), []*Host{NewHost("127.0.0.1", 1)}, 2*time.Second)
 		defer refresher.close()
 
+		began := time.Now()
 		seeds, startErr := refresher.start()
+		expectElapsedIn(time.Since(began), 40*time.Millisecond, 190*time.Millisecond)
 		gm.Expect(startErr).ToNot(gm.HaveOccurred())
 		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1"}))
+		gm.Expect(server.queryCount()).To(gm.BeNumerically(">=", 1))
+		gm.Expect(recorder.count()).To(gm.Equal(0))
 	})
 
 	gg.It("uses timeout_ms on later thread-mode lookups, not refresh_timeout_ms", func() {
@@ -119,26 +123,32 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 		seeds, startErr := refresher.start()
 		gm.Expect(startErr).ToNot(gm.HaveOccurred())
 		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"10.0.0.2:3000"}))
+		gm.Expect(recorder.count()).To(gm.Equal(0))
+		queriesAfterStart := server.queryCount()
+		gm.Expect(queriesAfterStart).To(gm.BeNumerically(">=", 1))
 
 		server.clear()
 		server.a("a.example.com", "10.0.0.3").slow(200 * time.Millisecond)
 		refresher.requestUrgentRefresh()
-		gm.Consistently(func() int { return recorder.count() }, "500ms", "20ms").Should(gm.BeZero())
+		gm.Eventually(server.queryCount, "1s", "10ms").Should(gm.BeNumerically(">", queriesAfterStart))
+		gm.Consistently(func() int { return recorder.count() }, "400ms", "20ms").Should(gm.Equal(0))
 	})
 
 	gg.It("bounds the first tend-mode lookup by timeout_ms, not refresh_timeout_ms", func() {
 		server.a("a.example.com", "10.0.0.2").slow(200 * time.Millisecond)
 		staticSeeds := []*Host{NewHost("127.0.0.1", 1)}
-		refresher, _ := newDnsTendRefresher(server, DnsSeedCandidateProviderConfig{
+		refresher, recorder := newDnsTendRefresher(server, DnsSeedCandidateProviderConfig{
 			Names:   []string{"a.example.com"},
 			Timeout: 80 * time.Millisecond,
 		}, staticSeeds)
 
 		began := time.Now()
 		seeds, err := refresher.start()
+		expectElapsedIn(time.Since(began), 40*time.Millisecond, 190*time.Millisecond)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(time.Since(began)).To(gm.BeNumerically("<", 190*time.Millisecond))
 		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1"}))
+		gm.Expect(server.queryCount()).To(gm.BeNumerically(">=", 1))
+		gm.Expect(recorder.count()).To(gm.Equal(0))
 	})
 
 	gg.It("returns IP literals from a successful init lookup", func() {
@@ -240,6 +250,7 @@ type aRecordDNSServer struct {
 	lock    sync.Mutex
 	answers map[string][][]byte
 	delay   time.Duration
+	queries int
 	done    chan struct{}
 }
 
@@ -285,6 +296,12 @@ func (server *aRecordDNSServer) slow(delay time.Duration) *aRecordDNSServer {
 	return server
 }
 
+func (server *aRecordDNSServer) queryCount() int {
+	server.lock.Lock()
+	defer server.lock.Unlock()
+	return server.queries
+}
+
 func (server *aRecordDNSServer) clear() {
 	server.lock.Lock()
 	server.answers = map[string][][]byte{}
@@ -311,6 +328,7 @@ func (server *aRecordDNSServer) serve() {
 		}
 		key := aRecordKey(qname, qtype)
 		server.lock.Lock()
+		server.queries++
 		answers := append([][]byte(nil), server.answers[key]...)
 		rcode := aRecordNOERROR
 		if len(answers) == 0 && !server.hasNameLocked(qname) {

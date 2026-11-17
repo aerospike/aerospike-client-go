@@ -179,6 +179,9 @@ func threadClientPolicy(provider SeedCandidateProvider, timeout time.Duration) *
 func newThreadRefresherFor(provider SeedCandidateProvider, seeds []*Host, timeout time.Duration) (*seedRefresher, *publishRecorder, error) {
 	recorder := &publishRecorder{}
 	refresher, err := newSeedRefresher(threadClientPolicy(provider, timeout), seeds, recorder.publish)
+	if err == nil {
+		refresher.activate()
+	}
 	return refresher, recorder, err
 }
 
@@ -186,6 +189,16 @@ func mustThreadRefresher(provider SeedCandidateProvider, seeds []*Host, timeout 
 	refresher, recorder, err := newThreadRefresherFor(provider, seeds, timeout)
 	gm.Expect(err).ToNot(gm.HaveOccurred())
 	return refresher, recorder
+}
+
+// expectElapsedIn checks that a timed-out lookup waited for the plugin
+// timeout (not an instant empty result) and returned before max (the delayed
+// body, or refresh_timeout_ms).
+func expectElapsedIn(elapsed, min, max time.Duration) {
+	gm.Expect(elapsed).To(gm.And(
+		gm.BeNumerically(">=", min),
+		gm.BeNumerically("<", max),
+	))
 }
 
 func dnsTimeoutProvider(timeout time.Duration) SeedCandidateProvider {
@@ -700,6 +713,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			recorder := &publishRecorder{}
 			refresher, err := newSeedRefresher(policy, staticSeeds, recorder.publish)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
+			refresher.activate()
 			defer refresher.close()
 
 			seeds, serr := refresher.start()
@@ -980,7 +994,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			refresher.close()
 		})
 
-		gg.It("close frees the application and the provider when a refresh hangs on unbounded network I/O", func() {
+		gg.It("close returns within the refresh timeout and closes the provider only after a hung refresh returns", func() {
 			// A server that accepts connections and never responds.
 			silentServer := mustListenLocal()
 			defer silentServer.Close()
@@ -1009,10 +1023,150 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 				close(closed)
 			}()
 			gm.Eventually(closed, "2s", "10ms").Should(gm.BeClosed())
-			gm.Expect(provider.closeCalls.Load()).To(gm.Equal(int64(1)))
 
-			// Closing the provider is what unblocks the hung refresh.
-			gm.Eventually(func() int64 { return provider.refreshReturned.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			// The refresh is still in flight, so the provider stays open.
+			gm.Consistently(func() int64 { return provider.closeCalls.Load() }, "200ms", "20ms").Should(gm.BeZero())
+			gm.Expect(provider.refreshReturned.Load()).To(gm.BeZero())
+
+			// Once the hung call returns, the goroutine closes the provider.
+			provider.cancel()
+			gm.Eventually(func() int64 { return provider.closeCalls.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			gm.Expect(provider.refreshReturned.Load()).To(gm.Equal(int64(1)))
+		})
+
+		gg.It("never calls Close while a refresh is in flight", func() {
+			release := make(chan struct{})
+			provider := &overlapSeedProvider{release: release}
+			refresher, _ := newThreadRefresherWithTimeout(provider, 50*time.Millisecond)
+
+			_, err := refresher.start()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			refresher.close()
+			close(release)
+
+			gm.Eventually(func() int64 { return provider.closeCalls.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			gm.Expect(provider.overlapped.Load()).To(gm.BeFalse())
+		})
+
+		gg.It("abort returns without waiting for a refresh in flight and the provider closes after it returns", func() {
+			release := make(chan struct{})
+			provider := &overlapSeedProvider{release: release}
+			recorder := &publishRecorder{}
+			refresher, err := newSeedRefresher(threadClientPolicy(provider, 200*time.Millisecond), staticSeeds, recorder.publish)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			_, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+
+			began := time.Now()
+			refresher.abort()
+			gm.Expect(time.Since(began)).To(gm.BeNumerically("<", 100*time.Millisecond))
+			gm.Expect(provider.closeCalls.Load()).To(gm.BeZero())
+
+			refresher.close()
+			gm.Expect(time.Since(began)).To(gm.BeNumerically("<", 100*time.Millisecond))
+
+			close(release)
+			gm.Eventually(func() int64 { return provider.closeCalls.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			gm.Expect(provider.overlapped.Load()).To(gm.BeFalse())
+			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.BeZero())
+		})
+
+		gg.It("abort closes the provider at once when no refresh goroutine runs", func() {
+			provider := &scriptedSeedProvider{results: [][]*Host{{NewHost("found-1.internal", 3000)}}}
+			refresher, err := newSeedRefresher(threadClientPolicy(provider, 0), staticSeeds, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			_, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+
+			refresher.abort()
+			gm.Expect(provider.closeCalls.Load()).To(gm.Equal(int64(1)))
+			refresher.close()
+			gm.Expect(provider.closeCalls.Load()).To(gm.Equal(int64(1)))
+		})
+
+		gg.It("a loop restarted after a panic during close makes no further provider call", func() {
+			provider := &scriptedSeedProvider{
+				results:  [][]*Host{{NewHost("found-1.internal", 3000)}, {NewHost("found-2.internal", 3000)}},
+				periodic: true,
+			}
+			entered := make(chan struct{})
+			proceed := make(chan struct{})
+			var publishes atomic.Int64
+			publish := func([]*Host) {
+				if publishes.Add(1) == 1 {
+					close(entered)
+					<-proceed
+					panic("publish failure")
+				}
+			}
+			refresher, err := newSeedRefresher(threadClientPolicy(provider, 0), staticSeeds, publish)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			refresher.activate()
+
+			_, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(entered, "2s", "10ms").Should(gm.BeClosed())
+
+			closed := make(chan struct{})
+			go func() {
+				refresher.close()
+				close(closed)
+			}()
+			gm.Eventually(refresher.stopCh, "2s", "10ms").Should(gm.BeClosed())
+
+			close(proceed)
+			gm.Eventually(closed, "2s", "10ms").Should(gm.BeClosed())
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+			gm.Expect(provider.closeCalls.Load()).To(gm.Equal(int64(1)))
+		})
+
+		gg.It("publishes a late first result only after activate", func() {
+			provider := &scriptedSeedProvider{
+				results:  [][]*Host{{NewHost("found-1.internal", 3000)}},
+				periodic: true,
+			}
+			provider.sleep.Store(int64(150 * time.Millisecond))
+			recorder := &publishRecorder{}
+			refresher, err := newSeedRefresher(threadClientPolicy(provider, 50*time.Millisecond), staticSeeds, recorder.publish)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.Equal(hostAddresses(staticSeeds)))
+
+			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			gm.Consistently(func() int { return recorder.count() }, "300ms", "20ms").Should(gm.BeZero())
+
+			refresher.activate()
+			gm.Eventually(func() int { return recorder.count() }, "2s", "10ms").Should(gm.Equal(1))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.ContainElement("found-1.internal:3000"))
+		})
+
+		gg.It("drops a late first result when construction fails, and closes the provider", func() {
+			provider := &scriptedSeedProvider{
+				results:  [][]*Host{{NewHost("found-1.internal", 3000)}},
+				periodic: true,
+			}
+			provider.sleep.Store(int64(150 * time.Millisecond))
+			recorder := &publishRecorder{}
+			refresher, err := newSeedRefresher(threadClientPolicy(provider, 50*time.Millisecond), staticSeeds, recorder.publish)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			_, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+
+			// Construction fails: close without activate.
+			refresher.close()
+
+			gm.Eventually(func() int64 { return provider.closeCalls.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			gm.Consistently(func() int { return recorder.count() }, "300ms", "20ms").Should(gm.BeZero())
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(1)))
 		})
 
 		gg.It("readers always see one complete published list", func() {
@@ -1100,6 +1254,32 @@ func (provider *hangingSeedProvider) SupportsDeadline() bool     { return false 
 func (provider *hangingSeedProvider) Close() {
 	provider.closeCalls.Add(1)
 	provider.cancel()
+}
+
+// overlapSeedProvider blocks every refresh until release closes and records
+// whether Close ran while a refresh was still in flight.
+type overlapSeedProvider struct {
+	release    chan struct{}
+	inFlight   atomic.Bool
+	overlapped atomic.Bool
+	closeCalls atomic.Int64
+}
+
+func (provider *overlapSeedProvider) RefreshSeedCandidates(*SeedCandidateContext) ([]*Host, error) {
+	provider.inFlight.Store(true)
+	defer provider.inFlight.Store(false)
+	<-provider.release
+	return []*Host{NewHost("found-1.internal", 3000)}, nil
+}
+
+func (provider *overlapSeedProvider) NeedsPeriodicRefresh() bool { return true }
+func (provider *overlapSeedProvider) SupportsDeadline() bool     { return false }
+
+func (provider *overlapSeedProvider) Close() {
+	if provider.inFlight.Load() {
+		provider.overlapped.Store(true)
+	}
+	provider.closeCalls.Add(1)
 }
 
 type panickingSeedProvider struct{}
