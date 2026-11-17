@@ -64,7 +64,7 @@ func expectInvalidAwsYaml(yamlText, message string) {
 
 var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), func() {
 
-	gg.It("refreshes periodically, refuses a tend deadline, and fills unset fields with 3000 / private_ip / 80ms", func() {
+	gg.It("refreshes periodically, refuses a tend deadline, and fills unset fields with 3000 / private_ip / 2000ms", func() {
 		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
 			Region:  "eu-west-1",
 			Filters: []AwsFilter{AwsTagFilter("aerospike-cluster", "prod-a")},
@@ -84,7 +84,7 @@ var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), fun
 		provider.Close()
 	})
 
-	gg.It("treats zero Port and Timeout as 3000 and 80ms", func() {
+	gg.It("treats zero Port and Timeout as 3000 and 2000ms", func() {
 		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
 			Region:  "us-east-1",
 			Filters: []AwsFilter{{Name: "tag:a", Values: []string{"b"}}},
@@ -92,8 +92,8 @@ var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), fun
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cfg := asAwsProvider(provider).client.Config()
-		gm.Expect(cfg.Port).To(gm.Equal(3000))
-		gm.Expect(cfg.Timeout).To(gm.Equal(80 * time.Millisecond))
+		gm.Expect(cfg.Port).To(gm.Equal(aws.DefaultPort))
+		gm.Expect(cfg.Timeout).To(gm.Equal(aws.DefaultTimeout))
 		provider.Close()
 	})
 
@@ -224,7 +224,7 @@ static:
 		gm.Expect(policy.ConnectionQueueSize).To(gm.Equal(98))
 	})
 
-	gg.It("bounds the first refresh by refresh_timeout_ms when the file also sets init_timeout_ms", func() {
+	gg.It("uses timeout_ms for the first refresh even when the file also sets init_timeout_ms", func() {
 		setenvForSpec("AWS_ACCESS_KEY_ID", "AKIDEXAMPLE")
 		setenvForSpec("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY")
 		setenvForSpec("AWS_SESSION_TOKEN", "")
@@ -256,7 +256,7 @@ static:
 
 		seeds, startErr := refresher.start()
 		gm.Expect(startErr).ToNot(gm.HaveOccurred())
-		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
+		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"10.0.0.1:3000"}))
 	})
 
 	gg.Describe("drops the file for an invalid aws block", func() {

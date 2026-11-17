@@ -41,6 +41,51 @@ func staticPolicyFromYaml(yamlText string) *ClientPolicy {
 	return NewClientPolicy().mapStatic(&DynConfig{config: parsed})
 }
 
+type discoveryDurationCase struct {
+	key   string
+	value func(*ClientPolicy) time.Duration
+}
+
+var discoveryDurationKeys = []discoveryDurationCase{
+	{"refresh_interval_ms", func(policy *ClientPolicy) time.Duration { return policy.DiscoveryRefreshInterval }},
+	{"refresh_timeout_ms", func(policy *ClientPolicy) time.Duration { return policy.DiscoveryRefreshTimeout }},
+	{"tend_refresh_deadline_ms", func(policy *ClientPolicy) time.Duration { return policy.DiscoveryTendRefreshDeadline }},
+}
+
+func discoveryDurationYAML(key, value string) string {
+	return `
+static:
+  client:
+    max_connections_per_node: 128
+    discovery:
+      ` + key + `: ` + value + `
+`
+}
+
+func expectDroppedDiscoveryDuration(tc discoveryDurationCase, value string) {
+	yamlText := discoveryDurationYAML(tc.key, value)
+	policy := NewClientPolicy()
+	config := registrationHarness(policy, yamlText)
+	config.initConfig()
+
+	expectFileDropped(config, policy)
+	gm.Expect(tc.value(policy.copy().mapStatic(config))).To(gm.Equal(tc.value(NewClientPolicy())), tc.key)
+	err := staticConfigError(yamlText, policy)
+	gm.Expect(err).To(gm.HaveOccurred(), tc.key)
+	gm.Expect(err.Error()).To(gm.ContainSubstring(
+		"Invalid static.client.discovery." + tc.key + " value '" + value + "': expected an integer from 1 to 2147483647"))
+}
+
+func expectAppliedDiscoveryDuration(tc discoveryDurationCase, value string, want time.Duration) {
+	yamlText := discoveryDurationYAML(tc.key, value)
+	policy := NewClientPolicy()
+	config := registrationHarness(policy, yamlText)
+	config.initConfig()
+
+	gm.Expect(config.config).ToNot(gm.BeNil(), tc.key)
+	gm.Expect(tc.value(policy.copy().mapStatic(config))).To(gm.Equal(want), tc.key)
+}
+
 var _ = gg.Describe("Discovery configuration from YAML", gg.Label("discovery"), func() {
 
 	gg.It("maps the ip_map key onto the policy", func() {
@@ -272,6 +317,18 @@ static:
 		gm.Expect(policy.IpMap).To(gm.BeNil())
 		gm.Expect(policy.AddressTranslator).To(gm.BeNil())
 	})
+
+	for _, tc := range discoveryDurationKeys {
+		tc := tc
+		gg.It("ignores the whole file when "+tc.key+" is below 1", func() {
+			for _, value := range []string{"0", "-1"} {
+				expectDroppedDiscoveryDuration(tc, value)
+			}
+		})
+		gg.It("applies a "+tc.key+" of 1", func() {
+			expectAppliedDiscoveryDuration(tc, "1", time.Millisecond)
+		})
+	}
 
 	gg.It("accepts and applies a valid file at load", func() {
 		parsed := &dynconfig.Config{}

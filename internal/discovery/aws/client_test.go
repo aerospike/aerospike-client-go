@@ -372,7 +372,7 @@ func TestClientStringAndDefaultConfig(t *testing.T) {
 		t.Fatalf("string %s", provider.String())
 	}
 	cfg := provider.Config()
-	if cfg.Port != 3000 || cfg.Timeout != 80*time.Millisecond {
+	if cfg.Port != 3000 || cfg.Timeout != DefaultTimeout {
 		t.Fatalf("defaults %+v", cfg)
 	}
 }

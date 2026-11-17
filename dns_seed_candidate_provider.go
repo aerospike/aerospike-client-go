@@ -62,7 +62,8 @@ type DnsSeedCandidateProviderConfig struct {
 	TLSName string //= ""
 
 	// Timeout bounds every I/O of one refresh, shared equally across Servers.
-	// In thread mode ClientPolicy.DiscoveryRefreshTimeout bounds the first.
+	// Must not exceed ClientPolicy.DiscoveryRefreshTimeout in thread mode, or
+	// DiscoveryTendRefreshDeadline in tend mode.
 	Timeout time.Duration //= 80 milliseconds
 
 	// Servers are resolver addresses, each an IP with an optional port. An
@@ -107,11 +108,7 @@ func NewDnsSeedCandidateProvider(config DnsSeedCandidateProviderConfig) (SeedCan
 
 // RefreshSeedCandidates implements the SeedCandidateProvider interface.
 func (provider *dnsSeedCandidateProvider) RefreshSeedCandidates(seedContext *SeedCandidateContext) ([]*Host, error) {
-	budget := provider.timeout
-	if seedContext != nil && seedContext.TendIteration == 0 && seedContext.refreshTimeout > 0 {
-		budget = seedContext.refreshTimeout
-	}
-	candidates, err := provider.resolver.Lookup(budget)
+	candidates, err := provider.resolver.Lookup(provider.timeout)
 	if err != nil {
 		return nil, err
 	}

@@ -50,12 +50,12 @@ type seedRefresher struct {
 	tendInterval    time.Duration
 	refreshCadence  int
 
-	// startupSeeds is the list published at initialization; the overrun trip
+	// startupSeeds is the list published at initialization, and the overrun trip
 	// restores exactly it.
 	startupSeeds []*Host
 
-	// Tend-mode state, touched only on the tend goroutine. tripped is atomic
-	// so tests can read it.
+	// Tend-mode consecutive overruns. Thread mode counts overruns on the
+	// same field and never trips. tripped is atomic so tests can read it.
 	overrunCount int
 	tripped      iatomic.Bool
 
@@ -66,6 +66,22 @@ type seedRefresher struct {
 	refreshing iatomic.Bool
 	loopWg     sync.WaitGroup
 	closeOnce  sync.Once
+
+	// firstDoneCh is closed when the first lookup is stored. start waits on
+	// it; the refresh goroutine never sends, so it cannot block. firstOnce
+	// is the first hand-off only (panic-restart must not run it again).
+	firstMu        sync.Mutex
+	firstAbandoned bool
+	firstResult    firstRefreshResult
+	firstDoneCh    chan struct{}
+	firstOnce      sync.Once
+}
+
+// firstRefreshResult is the first thread-mode lookup, handed to start or
+// published if start already left.
+type firstRefreshResult struct {
+	hosts []*Host
+	err   error
 }
 
 // newSeedRefresher validates the discovery settings and returns a refresher
@@ -92,6 +108,7 @@ func newSeedRefresher(policy *ClientPolicy, staticSeeds []*Host, publish func([]
 		tendInterval:    policy.TendInterval,
 		stopCh:          make(chan struct{}),
 		urgentCh:        make(chan struct{}, 1),
+		firstDoneCh:     make(chan struct{}),
 	}
 
 	if refresher.refreshInterval <= 0 {
@@ -122,22 +139,35 @@ func newSeedRefresher(policy *ClientPolicy, staticSeeds []*Host, publish func([]
 }
 
 func (refresher *seedRefresher) validate(policy *ClientPolicy) Error {
-	// Cadence and deadline rules apply only to a periodic provider in tend mode.
-	if !refresher.periodic || refresher.executionMode != DiscoveryExecutionTend {
+	if !refresher.periodic {
 		return nil
-	}
-
-	if !refresher.provider.SupportsDeadline() {
-		return newError(types.PARAMETER_ERROR, "Seed provider "+refresher.providerName+" does not support a deadline and cannot run in tend execution mode. Use thread execution mode")
 	}
 	if refresher.refreshInterval < refresher.tendInterval {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Discovery refresh interval %s must be greater or equal to the tend interval %s", refresher.refreshInterval, refresher.tendInterval))
 	}
+	if refresher.executionMode != DiscoveryExecutionTend {
+		return refresher.validateProviderTimeout(refresher.refreshTimeout, "discovery refresh timeout")
+	}
+	if !refresher.provider.SupportsDeadline() {
+		return newError(types.PARAMETER_ERROR, "Seed provider "+refresher.providerName+" does not support a deadline and cannot run in tend execution mode. Use thread execution mode")
+	}
 	if refresher.tendDeadline > refresher.tendInterval/2 {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid discovery tend refresh deadline %s. Must be greater than zero and at most half the tend interval %s", refresher.tendDeadline, refresher.tendInterval))
 	}
-	if dnsProvider, ok := refresher.provider.(*dnsSeedCandidateProvider); ok && dnsProvider.timeout > refresher.tendDeadline {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("DNS seed provider timeout %s must be less or equal to the discovery tend refresh deadline %s", dnsProvider.timeout, refresher.tendDeadline))
+	return refresher.validateProviderTimeout(refresher.tendDeadline, "discovery tend refresh deadline")
+}
+
+func (refresher *seedRefresher) validateProviderTimeout(limit time.Duration, limitName string) Error {
+	switch provider := refresher.provider.(type) {
+	case *dnsSeedCandidateProvider:
+		if provider.timeout > limit {
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("DNS seed provider timeout %s must be less or equal to the %s %s", provider.timeout, limitName, limit))
+		}
+	case *awsEc2TagSeedCandidateProvider:
+		timeout := provider.client.Config().Timeout
+		if timeout > limit {
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("AWS EC2 seed provider timeout %s must be less or equal to the %s %s", timeout, limitName, limit))
+		}
 	}
 	return nil
 }
@@ -155,26 +185,33 @@ func (refresher *seedRefresher) start() ([]*Host, Error) {
 }
 
 func (refresher *seedRefresher) startThreadMode() ([]*Host, Error) {
-	lookup := make(chan startupSeedLookup, 1)
-
 	refresher.loopWg.Add(1)
-	go refresher.refreshLoop(lookup)
+	go refresher.refreshLoop()
 
 	select {
-	case result := <-lookup:
-		return refresher.resolveStartupSeeds(result.discovered, result.err)
+	case <-refresher.firstDoneCh:
+		return refresher.takeFirstResult()
 	case <-time.After(refresher.refreshTimeout):
+		refresher.firstMu.Lock()
+		select {
+		case <-refresher.firstDoneCh:
+			res := refresher.firstResult
+			refresher.firstMu.Unlock()
+			return refresher.resolveStartupSeeds(res.hosts, res.err)
+		default:
+		}
+		refresher.firstAbandoned = true
+		refresher.firstMu.Unlock()
 		logger.Logger.Warn("Seed provider %s did not finish the initial refresh within %s; starting from the configured seeds", refresher.providerName, refresher.refreshTimeout)
 		return refresher.resolveStartupSeeds(nil, fmt.Errorf("the initial refresh did not finish within %s", refresher.refreshTimeout))
 	}
 }
 
-// startupSeedLookup is the seed provider's first call at client start: the
-// hosts it found and whether that call failed. start uses both so a failed
-// lookup with no constructor seeds is SEED_DISCOVERY_FAILED.
-type startupSeedLookup struct {
-	discovered []*Host
-	err        error
+func (refresher *seedRefresher) takeFirstResult() ([]*Host, Error) {
+	refresher.firstMu.Lock()
+	res := refresher.firstResult
+	refresher.firstMu.Unlock()
+	return refresher.resolveStartupSeeds(res.hosts, res.err)
 }
 
 // resolveStartupSeeds merges the first discovery result with the constructor
@@ -191,31 +228,31 @@ func (refresher *seedRefresher) resolveStartupSeeds(discovered []*Host, refreshE
 }
 
 // refreshLoop is the thread-mode goroutine. The first result is handed to
-// start; later results publish directly.
-func (refresher *seedRefresher) refreshLoop(lookup chan<- startupSeedLookup) {
+// start, or published if construction already gave up waiting.
+func (refresher *seedRefresher) refreshLoop() {
 	defer refresher.loopWg.Done()
 
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			logger.Logger.Error("Seed refresh goroutine crashed and restarts: %v", recovered)
 			refresher.loopWg.Add(1)
-			go refresher.refreshLoop(nil)
+			go refresher.refreshLoop()
 		}
 	}()
 
 	for iteration := int64(0); ; iteration++ {
 		refresher.refreshing.Set(true)
+		began := time.Now()
 		discovered, err := refresher.refreshOnce(iteration)
 		refresher.refreshing.Set(false)
+		refresher.noteThreadOverrun(began)
 
-		if lookup != nil {
-			// start merges, checks and publishes the first result itself.
-			lookup <- startupSeedLookup{discovered: discovered, err: err}
-			lookup = nil
+		if iteration == 0 {
+			refresher.completeFirstRefresh(discovered, err)
 		} else if err != nil {
 			logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
-		} else if merged := refresher.merge(discovered, false); len(merged) > 0 {
-			refresher.publish(merged)
+		} else {
+			refresher.publish(refresher.merge(discovered, false))
 		}
 
 		select {
@@ -225,6 +262,35 @@ func (refresher *seedRefresher) refreshLoop(lookup chan<- startupSeedLookup) {
 		case <-time.After(refresher.refreshInterval):
 		}
 	}
+}
+
+func (refresher *seedRefresher) completeFirstRefresh(discovered []*Host, err error) {
+	refresher.firstOnce.Do(func() {
+		refresher.firstMu.Lock()
+		if !refresher.firstAbandoned {
+			refresher.firstResult = firstRefreshResult{hosts: discovered, err: err}
+			close(refresher.firstDoneCh)
+			refresher.firstMu.Unlock()
+			return
+		}
+		refresher.firstMu.Unlock()
+
+		if err != nil {
+			logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
+			return
+		}
+		refresher.publish(refresher.merge(discovered, true))
+	})
+}
+
+func (refresher *seedRefresher) noteThreadOverrun(began time.Time) {
+	elapsed := time.Since(began)
+	if elapsed <= refresher.refreshTimeout {
+		return
+	}
+	refresher.overrunCount++
+	logger.Logger.Warn("Seed refresh by provider %s took %s, exceeding refresh timeout %s. Overruns: %d",
+		refresher.providerName, elapsed, refresher.refreshTimeout, refresher.overrunCount)
 }
 
 // tendTick runs one deadline-measured refresh on the tend goroutine every
@@ -316,9 +382,6 @@ func (refresher *seedRefresher) refreshOnce(tendIteration int64) (discovered []*
 		ClusterName:     refresher.clusterName,
 		ConfiguredSeeds: refresher.staticSeeds,
 		TendIteration:   tendIteration,
-	}
-	if refresher.executionMode == DiscoveryExecutionThread {
-		seedContext.refreshTimeout = refresher.refreshTimeout
 	}
 
 	result, err := refresher.provider.RefreshSeedCandidates(seedContext)

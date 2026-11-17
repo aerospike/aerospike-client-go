@@ -26,8 +26,8 @@ const (
 	// DefaultPort is set on every host.
 	DefaultPort = 3000
 
-	// DefaultTimeout bounds a later refresh, credentials included.
-	DefaultTimeout = 80 * time.Millisecond
+	// DefaultTimeout bounds every refresh, credentials included.
+	DefaultTimeout = 2 * time.Second
 
 	apiVersion  = "2016-11-15"
 	stateFilter = "instance-state-name"

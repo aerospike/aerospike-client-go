@@ -173,11 +173,13 @@ type ClientPolicy struct {
 	DiscoveryExecutionMode DiscoveryExecutionMode //= DiscoveryExecutionThread
 
 	// DiscoveryRefreshInterval is the time between periodic seed refreshes.
-	// In tend execution mode it must be at least TendInterval.
+	// For a periodic provider it must be at least TendInterval.
 	DiscoveryRefreshInterval time.Duration //= 30 seconds
 
-	// DiscoveryRefreshTimeout bounds the wait for the first seed refresh at
-	// client creation in thread execution mode.
+	// DiscoveryRefreshTimeout is the wait for the first seed refresh at
+	// client creation in thread execution mode, and the measured limit of
+	// every later thread-mode refresh. The call is not cancelled. DNS and
+	// AWS provider timeouts must not exceed it.
 	DiscoveryRefreshTimeout time.Duration //= 10 seconds
 
 	// DiscoveryTendRefreshDeadline is the run time a refresh must stay
@@ -684,6 +686,15 @@ func validateStaticConfig(config *dynconfig.Config,
 			if _, err := parseDiscoveryExecutionMode(*discovery.ExecutionMode); err != nil {
 				return err
 			}
+		}
+		if err := validateYamlTimeoutMs("static.client.discovery.refresh_interval_ms", discovery.RefreshIntervalMs); err != nil {
+			return err
+		}
+		if err := validateYamlTimeoutMs("static.client.discovery.refresh_timeout_ms", discovery.RefreshTimeoutMs); err != nil {
+			return err
+		}
+		if err := validateYamlTimeoutMs("static.client.discovery.tend_refresh_deadline_ms", discovery.TendRefreshDeadlineMs); err != nil {
+			return err
 		}
 	}
 

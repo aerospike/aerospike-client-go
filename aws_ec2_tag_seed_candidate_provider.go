@@ -82,9 +82,9 @@ type AwsEc2TagSeedCandidateProviderConfig struct {
 	// to the same rule as constructor seeds.
 	TLSName string //= ""
 
-	// Timeout bounds every refresh after the first, credentials included.
-	// ClientPolicy.DiscoveryRefreshTimeout bounds the first.
-	Timeout time.Duration //= 80 milliseconds
+	// Timeout bounds every refresh, credentials included. Must not exceed
+	// ClientPolicy.DiscoveryRefreshTimeout.
+	Timeout time.Duration //= 2000 milliseconds
 
 	// Endpoint is an EC2 endpoint URL. Empty uses the regional endpoint.
 	Endpoint string //= ""
@@ -137,14 +137,7 @@ func (provider *awsEc2TagSeedCandidateProvider) RefreshSeedCandidates(seedContex
 	if seedContext == nil {
 		return nil, errors.New("SeedCandidateContext is required")
 	}
-	budget := provider.client.Config().Timeout
-	if seedContext.TendIteration == 0 {
-		budget = seedContext.refreshTimeout
-		if budget <= 0 {
-			budget = defaultDiscoveryRefreshTimeout
-		}
-	}
-	candidates, err := provider.client.Lookup(budget)
+	candidates, err := provider.client.Lookup(provider.client.Config().Timeout)
 	if err != nil {
 		return nil, err
 	}

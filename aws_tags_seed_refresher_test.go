@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,27 +31,18 @@ import (
 var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 
 	gg.It("reports the display name aws-tags", func() {
-		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
-			Region:  "us-east-1",
-			Filters: []AwsFilter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		provider := newAwsStubProvider("", 0)
 		gm.Expect(seedProviderDisplayName(provider)).To(gm.Equal(seedProviderNameAwsTags))
 		provider.Close()
 	})
 
 	gg.It("rejects tend mode because the provider cannot take a deadline", func() {
-		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
-			Region:  "us-east-1",
-			Filters: []AwsFilter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
+		provider := newAwsStubProvider("", 0)
 		policy := NewClientPolicy()
 		policy.SeedProvider = provider
 		policy.DiscoveryExecutionMode = DiscoveryExecutionTend
 
-		_, err = newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
+		_, err := newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Error()).To(gm.ContainSubstring("Seed provider aws-tags does not support a deadline and cannot run in tend execution mode. Use thread execution mode"))
 		provider.Close()
@@ -62,20 +52,7 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 		server := startDescribeInstancesStub(describeOne("10.0.0.2"))
 		defer server.Close()
 
-		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
-			Region:      "us-east-1",
-			Filters:     []AwsFilter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-			Endpoint:    server.URL,
-			Credentials: &AwsCredentials{AccessKeyID: "AKIDEXAMPLE", SecretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY"},
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		recorder := &publishRecorder{}
-		refresher, err := newSeedRefresher(policy, []*Host{NewHost("10.0.0.1", 3000)}, recorder.publish)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		refresher, _ := mustThreadRefresher(newAwsStubProvider(server.URL, 0), []*Host{NewHost("10.0.0.1", 3000)}, 0)
 		defer refresher.close()
 
 		seeds, err := refresher.start()
@@ -84,24 +61,10 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 	})
 
 	gg.It("fails thread-mode start with SEED_DISCOVERY_FAILED when DescribeInstances times out and there are no constructor seeds", func() {
-		silent, err := net.Listen("tcp", "127.0.0.1:0")
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		silent := mustListenLocal()
 		defer silent.Close()
 
-		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
-			Region:      "us-east-1",
-			Filters:     []AwsFilter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-			Endpoint:    "http://" + silent.Addr().String(),
-			Credentials: &AwsCredentials{AccessKeyID: "AKIDEXAMPLE", SecretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY"},
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 80 * time.Millisecond
-		refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		refresher, _ := mustThreadRefresher(newAwsStubProvider("http://"+silent.Addr().String(), 80*time.Millisecond), nil, 2*time.Second)
 		defer refresher.close()
 
 		seeds, startErr := refresher.start()
@@ -109,32 +72,15 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 		gm.Expect(startErr).To(gm.HaveOccurred())
 		gm.Expect(startErr.Matches(types.SEED_DISCOVERY_FAILED)).To(gm.BeTrue())
 		gm.Expect(startErr.Error()).To(gm.ContainSubstring("Seed provider aws-tags failed and no seed host is left"))
-		// The lookup and the start wait share refresh_timeout_ms, so either may report first.
-		gm.Expect(startErr.Error()).To(gm.Or(
-			gm.ContainSubstring("DescribeInstances timed out after 80ms"),
-			gm.ContainSubstring("the initial refresh did not finish within 80ms"),
-		))
+		gm.Expect(startErr.Error()).To(gm.ContainSubstring("DescribeInstances timed out after 80ms"))
+		gm.Expect(startErr.Error()).ToNot(gm.ContainSubstring("the initial refresh did not finish within"))
 	})
 
 	gg.It("starts from constructor seeds in thread mode when DescribeInstances times out", func() {
-		silent, err := net.Listen("tcp", "127.0.0.1:0")
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		silent := mustListenLocal()
 		defer silent.Close()
 
-		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
-			Region:      "us-east-1",
-			Filters:     []AwsFilter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-			Endpoint:    "http://" + silent.Addr().String(),
-			Credentials: &AwsCredentials{AccessKeyID: "AKIDEXAMPLE", SecretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY"},
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 80 * time.Millisecond
-		refresher, err := newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		refresher, _ := mustThreadRefresher(newAwsStubProvider("http://"+silent.Addr().String(), 80*time.Millisecond), []*Host{NewHost("127.0.0.1", 1)}, 80*time.Millisecond)
 		defer refresher.close()
 
 		seeds, err := refresher.start()
@@ -142,64 +88,18 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1"}))
 	})
 
-	gg.It("constructs in thread mode when timeout_ms exceeds refresh_timeout_ms", func() {
-		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
-			Region:      "us-east-1",
-			Filters:     []AwsFilter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-			Timeout:     400 * time.Millisecond,
-			Credentials: awsStubCredentials(),
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshTimeout = 80 * time.Millisecond
-
-		_, err = newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		provider.Close()
-	})
-
-	gg.It("starts within refresh_timeout_ms when DescribeInstances is slower", func() {
+	gg.It("uses timeout_ms for the first thread-mode refresh, not refresh_timeout_ms", func() {
 		server := startSequencedDescribeStub(
 			describeReply{delay: 300 * time.Millisecond, body: describeOne("10.0.0.2")},
 		)
 		defer server.Close()
 
-		provider := newAwsStubProvider(server.URL, 80*time.Millisecond)
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 80 * time.Millisecond
-		refresher, err := newSeedRefresher(policy, []*Host{NewHost("10.0.0.1", 3000)}, func([]*Host) {})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		refresher, _ := mustThreadRefresher(newAwsStubProvider(server.URL, 80*time.Millisecond), []*Host{NewHost("10.0.0.1", 3000)}, 2*time.Second)
 		defer refresher.close()
 
-		began := time.Now()
 		seeds, startErr := refresher.start()
 		gm.Expect(startErr).ToNot(gm.HaveOccurred())
-		gm.Expect(time.Since(began)).To(gm.BeNumerically("<", 250*time.Millisecond))
 		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"10.0.0.1:3000"}))
-	})
-
-	gg.It("bounds the first thread-mode refresh by refresh_timeout_ms, not timeout_ms", func() {
-		server := startSequencedDescribeStub(
-			describeReply{delay: 300 * time.Millisecond, body: describeOne("10.0.0.2")},
-		)
-		defer server.Close()
-
-		provider := newAwsStubProvider(server.URL, 80*time.Millisecond)
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 2 * time.Second
-		refresher, err := newSeedRefresher(policy, []*Host{NewHost("10.0.0.1", 3000)}, func([]*Host) {})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		defer refresher.close()
-
-		seeds, startErr := refresher.start()
-		gm.Expect(startErr).ToNot(gm.HaveOccurred())
-		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"10.0.0.1:3000", "10.0.0.2:3000"}))
 	})
 
 	gg.It("uses timeout_ms on later thread-mode refreshes, not refresh_timeout_ms", func() {
@@ -209,13 +109,7 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 		)
 		defer server.Close()
 
-		provider := newAwsStubProvider(server.URL, 80*time.Millisecond)
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		recorder := &publishRecorder{}
-		refresher, err := newSeedRefresher(policy, []*Host{NewHost("10.0.0.1", 3000)}, recorder.publish)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		refresher, recorder := mustThreadRefresher(newAwsStubProvider(server.URL, 80*time.Millisecond), []*Host{NewHost("10.0.0.1", 3000)}, 0)
 		defer refresher.close()
 
 		seeds, startErr := refresher.start()
@@ -234,10 +128,9 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 		)
 		defer server.Close()
 
-		provider := newAwsStubProvider(server.URL, 250*time.Millisecond)
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
+		policy := threadClientPolicy(newAwsStubProvider(server.URL, 250*time.Millisecond), 0)
 		policy.DiscoveryRefreshInterval = 50 * time.Millisecond
+		policy.TendInterval = 10 * time.Millisecond
 		recorder := &publishRecorder{}
 		refresher, err := newSeedRefresher(policy, []*Host{NewHost("10.0.0.1", 3000)}, recorder.publish)
 		gm.Expect(err).ToNot(gm.HaveOccurred())

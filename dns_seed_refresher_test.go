@@ -101,88 +101,19 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1"}))
 	})
 
-	gg.It("constructs in thread mode when timeout_ms exceeds refresh_timeout_ms", func() {
-		provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
-			Names:   []string{"a.example.com"},
-			Servers: []string{server.address()},
-			Timeout: 400 * time.Millisecond,
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshTimeout = 80 * time.Millisecond
-
-		_, verr := newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
-		gm.Expect(verr).ToNot(gm.HaveOccurred())
-		provider.Close()
-	})
-
-	gg.It("starts within refresh_timeout_ms when dns timeout_ms is larger", func() {
-		silent, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		defer silent.Close()
-
-		provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
-			Names:   []string{"a.example.com"},
-			Servers: []string{silent.LocalAddr().String()},
-			Timeout: 400 * time.Millisecond,
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 80 * time.Millisecond
-		refresher, verr := newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
-		gm.Expect(verr).ToNot(gm.HaveOccurred())
-		defer refresher.close()
-
-		began := time.Now()
-		seeds, startErr := refresher.start()
-		gm.Expect(startErr).ToNot(gm.HaveOccurred())
-		gm.Expect(time.Since(began)).To(gm.BeNumerically("<", 250*time.Millisecond))
-		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1"}))
-	})
-
-	gg.It("bounds the first thread-mode lookup by refresh_timeout_ms, not timeout_ms", func() {
+	gg.It("uses timeout_ms for the first thread-mode lookup, not refresh_timeout_ms", func() {
 		server.a("a.example.com", "10.0.0.2").slow(200 * time.Millisecond)
-		provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
-			Names:   []string{"a.example.com"},
-			Servers: []string{server.address()},
-			Timeout: 80 * time.Millisecond,
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 2 * time.Second
-		refresher, verr := newSeedRefresher(policy, []*Host{NewHost("127.0.0.1", 1)}, func([]*Host) {})
-		gm.Expect(verr).ToNot(gm.HaveOccurred())
+		refresher, _ := mustThreadRefresher(dnsAProvider(server, 80*time.Millisecond), []*Host{NewHost("127.0.0.1", 1)}, 2*time.Second)
 		defer refresher.close()
 
 		seeds, startErr := refresher.start()
 		gm.Expect(startErr).ToNot(gm.HaveOccurred())
-		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1", "10.0.0.2:3000"}))
+		gm.Expect(hostAddresses(seeds)).To(gm.Equal([]string{"127.0.0.1:1"}))
 	})
 
 	gg.It("uses timeout_ms on later thread-mode lookups, not refresh_timeout_ms", func() {
 		server.a("a.example.com", "10.0.0.2")
-		provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
-			Names:   []string{"a.example.com"},
-			Servers: []string{server.address()},
-			Timeout: 80 * time.Millisecond,
-		})
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		policy := NewClientPolicy()
-		policy.SeedProvider = provider
-		policy.DiscoveryRefreshInterval = time.Hour
-		policy.DiscoveryRefreshTimeout = 2 * time.Second
-		recorder := &publishRecorder{}
-		refresher, verr := newSeedRefresher(policy, nil, recorder.publish)
-		gm.Expect(verr).ToNot(gm.HaveOccurred())
+		refresher, recorder := mustThreadRefresher(dnsAProvider(server, 80*time.Millisecond), nil, 2*time.Second)
 		defer refresher.close()
 
 		seeds, startErr := refresher.start()
@@ -252,6 +183,16 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 	})
 })
 
+func dnsAProvider(server *aRecordDNSServer, timeout time.Duration) SeedCandidateProvider {
+	provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
+		Names:   []string{"a.example.com"},
+		Servers: []string{server.address()},
+		Timeout: timeout,
+	})
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+	return provider
+}
+
 func newDnsTendRefresher(server *aRecordDNSServer, config DnsSeedCandidateProviderConfig, staticSeeds []*Host) (*seedRefresher, *publishRecorder) {
 	return newDnsRefresher(server, config, staticSeeds, DiscoveryExecutionTend)
 }
@@ -270,17 +211,15 @@ func newDnsRefresher(server *aRecordDNSServer, config DnsSeedCandidateProviderCo
 
 	provider, err := NewDnsSeedCandidateProvider(config)
 	gm.Expect(err).ToNot(gm.HaveOccurred())
+	if mode != DiscoveryExecutionTend {
+		return mustThreadRefresher(provider, staticSeeds, 0)
+	}
 
 	policy := NewClientPolicy()
 	policy.SeedProvider = provider
-	policy.DiscoveryExecutionMode = mode
-	if mode == DiscoveryExecutionTend {
-		policy.DiscoveryRefreshInterval = time.Second
-		policy.TendInterval = time.Second
-	} else {
-		policy.DiscoveryRefreshInterval = time.Hour
-	}
-
+	policy.DiscoveryExecutionMode = DiscoveryExecutionTend
+	policy.DiscoveryRefreshInterval = time.Second
+	policy.TendInterval = time.Second
 	recorder := &publishRecorder{}
 	refresher, err := newSeedRefresher(policy, staticSeeds, recorder.publish)
 	gm.Expect(err).ToNot(gm.HaveOccurred())

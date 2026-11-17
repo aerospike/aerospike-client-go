@@ -3,7 +3,6 @@ package aws
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestConfigZeroValuesBecomeDocumentedDefaults(t *testing.T) {
@@ -19,9 +18,6 @@ func TestConfigZeroValuesBecomeDocumentedDefaults(t *testing.T) {
 	}
 	if cfg.AddressField != AddressFieldPrivateIP || cfg.TLSName != "" || cfg.Endpoint != "" {
 		t.Fatalf("optional defaults: %+v", cfg)
-	}
-	if cfg.Timeout != 80*time.Millisecond || cfg.Port != 3000 {
-		t.Fatalf("got timeout=%s port=%d", cfg.Timeout, cfg.Port)
 	}
 }
 

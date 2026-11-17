@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,6 +73,210 @@ func (provider *scriptedSeedProvider) RefreshSeedCandidates(seedContext *SeedCan
 func (provider *scriptedSeedProvider) NeedsPeriodicRefresh() bool { return provider.periodic }
 func (provider *scriptedSeedProvider) SupportsDeadline() bool     { return provider.deadline }
 func (provider *scriptedSeedProvider) Close()                     { provider.closeCalls.Add(1) }
+
+// gatedSeedProvider holds the first RefreshSeedCandidates until releaseRefresh.
+// waitUntilStarted returns after that call has begun, so a test can prove
+// start returned while the lookup was still in flight.
+type gatedSeedProvider struct {
+	begin   chan struct{}
+	release chan struct{}
+	hosts   []*Host
+
+	beginOnce sync.Once
+	calls     atomic.Int64
+}
+
+func newGatedSeedProvider(hosts []*Host) *gatedSeedProvider {
+	return &gatedSeedProvider{
+		begin:   make(chan struct{}),
+		release: make(chan struct{}),
+		hosts:   hosts,
+	}
+}
+
+func (provider *gatedSeedProvider) RefreshSeedCandidates(*SeedCandidateContext) ([]*Host, error) {
+	provider.calls.Add(1)
+	provider.beginOnce.Do(func() { close(provider.begin) })
+	<-provider.release
+	return copyHosts(provider.hosts), nil
+}
+
+func (*gatedSeedProvider) NeedsPeriodicRefresh() bool { return true }
+func (*gatedSeedProvider) SupportsDeadline() bool     { return false }
+func (*gatedSeedProvider) Close()                     {}
+
+func (provider *gatedSeedProvider) waitUntilStarted(within time.Duration) bool {
+	select {
+	case <-provider.begin:
+		return true
+	case <-time.After(within):
+		return false
+	}
+}
+
+func (provider *gatedSeedProvider) releaseRefresh() {
+	close(provider.release)
+}
+
+type firstStartResult struct {
+	seeds []*Host
+	err   Error
+}
+
+func beginStart(refresher *seedRefresher) <-chan firstStartResult {
+	done := make(chan firstStartResult, 1)
+	go func() {
+		seeds, err := refresher.start()
+		done <- firstStartResult{seeds: seeds, err: err}
+	}()
+	return done
+}
+
+func waitStart(done <-chan firstStartResult, within time.Duration) (firstStartResult, error) {
+	select {
+	case result := <-done:
+		if result.err != nil {
+			return result, result.err
+		}
+		return result, nil
+	case <-time.After(within):
+		return firstStartResult{}, fmt.Errorf("start did not return: constructor and refresh loop are deadlocked")
+	}
+}
+
+func waitUntil(within time.Duration, ready func() bool) bool {
+	deadline := time.Now().Add(within)
+	for {
+		if ready() {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func hostListHas(hosts []*Host, name string) bool {
+	for _, host := range hosts {
+		if host != nil && host.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func threadClientPolicy(provider SeedCandidateProvider, timeout time.Duration) *ClientPolicy {
+	policy := NewClientPolicy()
+	policy.SeedProvider = provider
+	policy.DiscoveryRefreshInterval = time.Hour
+	if timeout > 0 {
+		policy.DiscoveryRefreshTimeout = timeout
+	}
+	return policy
+}
+
+func newThreadRefresherFor(provider SeedCandidateProvider, seeds []*Host, timeout time.Duration) (*seedRefresher, *publishRecorder, error) {
+	recorder := &publishRecorder{}
+	refresher, err := newSeedRefresher(threadClientPolicy(provider, timeout), seeds, recorder.publish)
+	return refresher, recorder, err
+}
+
+func mustThreadRefresher(provider SeedCandidateProvider, seeds []*Host, timeout time.Duration) (*seedRefresher, *publishRecorder) {
+	refresher, recorder, err := newThreadRefresherFor(provider, seeds, timeout)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+	return refresher, recorder
+}
+
+func dnsTimeoutProvider(timeout time.Duration) SeedCandidateProvider {
+	provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
+		Names:   []string{"seeds.example.com"},
+		Servers: []string{"127.0.0.1"},
+		Timeout: timeout,
+	})
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+	return provider
+}
+
+func mustListenLocal() net.Listener {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+	return listener
+}
+
+func assertLoopMovedOn(provider *gatedSeedProvider, refresher *seedRefresher) error {
+	refresher.requestUrgentRefresh()
+	if !waitUntil(2*time.Second, func() bool { return provider.calls.Load() >= 2 }) {
+		return fmt.Errorf("refresh loop did not run again; it is stuck on the first handoff")
+	}
+	began := time.Now()
+	refresher.close()
+	if time.Since(began) >= 400*time.Millisecond {
+		return fmt.Errorf("close blocked as if the refresh loop were stuck on the first handoff")
+	}
+	return nil
+}
+
+func exerciseOnTimeHandoff(staticSeeds []*Host) error {
+	discovered := NewHost("found-1.internal", 3000)
+	provider := newGatedSeedProvider([]*Host{discovered})
+	provider.releaseRefresh()
+	refresher, recorder, err := newThreadRefresherFor(provider, staticSeeds, 2*time.Second)
+	if err != nil {
+		return err
+	}
+	defer refresher.close()
+
+	started, err := waitStart(beginStart(refresher), 2*time.Second)
+	if err != nil {
+		return err
+	}
+	if !hostListHas(started.seeds, discovered.Name) {
+		return fmt.Errorf("on-time start missed %s in %v", discovered.Name, hostAddresses(started.seeds))
+	}
+	if recorder.count() != 0 {
+		return fmt.Errorf("on-time start published %d lists; the first result belongs on start's return", recorder.count())
+	}
+	return assertLoopMovedOn(provider, refresher)
+}
+
+func exerciseLateHandoff(staticSeeds []*Host) error {
+	discovered := NewHost("found-late.internal", 3000)
+	provider := newGatedSeedProvider([]*Host{discovered})
+	refresher, recorder, err := newThreadRefresherFor(provider, staticSeeds, 50*time.Millisecond)
+	if err != nil {
+		return err
+	}
+	defer refresher.close()
+
+	done := beginStart(refresher)
+	if !provider.waitUntilStarted(2 * time.Second) {
+		return fmt.Errorf("refresh loop never started the first lookup")
+	}
+	started, err := waitStart(done, 2*time.Second)
+	if err != nil {
+		return err
+	}
+	if got, want := hostAddresses(started.seeds), hostAddresses(staticSeeds); !slices.Equal(got, want) {
+		return fmt.Errorf("abandoned start got %v, want constructor seeds %v", got, want)
+	}
+	if recorder.count() != 0 {
+		return fmt.Errorf("abandoned start published %d lists before the lookup finished", recorder.count())
+	}
+
+	provider.releaseRefresh()
+	if !waitUntil(2*time.Second, func() bool { return hostListHas(recorder.last(), discovered.Name) }) {
+		return fmt.Errorf("late success was not published")
+	}
+	return assertLoopMovedOn(provider, refresher)
+}
+
+func exerciseFirstHandoff(staticSeeds []*Host, late bool) error {
+	if late {
+		return exerciseLateHandoff(staticSeeds)
+	}
+	return exerciseOnTimeHandoff(staticSeeds)
+}
 
 // publishRecorder collects every published seed list.
 type publishRecorder struct {
@@ -245,38 +450,24 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 		})
 
 		gg.It("rejects a dns timeout above the tend refresh deadline in tend mode", func() {
-			provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
-				Names:   []string{"seeds.example.com"},
-				Servers: []string{"127.0.0.1"},
-				Timeout: 200 * time.Millisecond,
-			})
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			policy := NewClientPolicy()
-			policy.SeedProvider = provider
+			policy.SeedProvider = dnsTimeoutProvider(200 * time.Millisecond)
 			policy.DiscoveryExecutionMode = DiscoveryExecutionTend
 			policy.DiscoveryTendRefreshDeadline = 100 * time.Millisecond
 
-			_, verr := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
-			gm.Expect(verr).To(gm.HaveOccurred())
-			gm.Expect(verr.Error()).To(gm.ContainSubstring("DNS seed provider timeout 200ms must be less or equal to the discovery tend refresh deadline 100ms"))
+			_, err := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("DNS seed provider timeout 200ms must be less or equal to the discovery tend refresh deadline 100ms"))
 		})
 
 		gg.It("does not check dns timeout against the tend deadline in thread mode", func() {
-			provider, err := NewDnsSeedCandidateProvider(DnsSeedCandidateProviderConfig{
-				Names:   []string{"seeds.example.com"},
-				Servers: []string{"127.0.0.1"},
-				Timeout: 200 * time.Millisecond,
-			})
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			policy := NewClientPolicy()
-			policy.SeedProvider = provider
-			policy.DiscoveryExecutionMode = DiscoveryExecutionThread
+			provider := dnsTimeoutProvider(200 * time.Millisecond)
+			defer provider.Close()
+			policy := threadClientPolicy(provider, 0)
 			policy.DiscoveryTendRefreshDeadline = 100 * time.Millisecond
 
-			_, verr := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
-			gm.Expect(verr).ToNot(gm.HaveOccurred())
+			_, err := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
 		gg.It("skips tend-mode range checks when the provider is not periodic", func() {
@@ -320,7 +511,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(recorder.count()).To(gm.BeZero())
 		})
 
-		gg.It("discards an overrunning result, trips after three and restores the startup seeds", func() {
+		gg.It("discards an overrunning result, trips the circuit breaker after three consecutive overruns and restores the startup seeds", func() {
 			provider := &scriptedSeedProvider{results: [][]*Host{
 				{NewHost("found-1.internal", 3000)},
 				{NewHost("late-1.internal", 3000)},
@@ -351,7 +542,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(provider.calls.Load()).To(gm.Equal(callsAtTrip))
 		})
 
-		gg.It("resets the overrun count after an on-time refresh", func() {
+		gg.It("resets the overrun count after an on-time refresh so the circuit breaker does not trip", func() {
 			provider := &scriptedSeedProvider{results: [][]*Host{{NewHost("found-1.internal", 3000)}}, periodic: true, deadline: true}
 			refresher, _ := newTendRefresherWithDeadline(provider, SeedMergePolicyMerge, 20*time.Millisecond)
 
@@ -406,23 +597,158 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 	gg.Describe("thread execution mode", func() {
 
-		newThreadRefresher := func(provider SeedCandidateProvider) (*seedRefresher, *publishRecorder) {
-			policy := NewClientPolicy()
-			policy.SeedProvider = provider
-			policy.DiscoveryRefreshInterval = time.Hour
+		newThreadRefresherWithTimeout := func(provider SeedCandidateProvider, timeout time.Duration) (*seedRefresher, *publishRecorder) {
+			return mustThreadRefresher(provider, staticSeeds, timeout)
+		}
 
+		newThreadRefresher := func(provider SeedCandidateProvider) (*seedRefresher, *publishRecorder) {
+			return mustThreadRefresher(provider, staticSeeds, 0)
+		}
+
+		gg.It("rejects a refresh interval below the tend interval", func() {
+			policy := threadClientPolicy(&scriptedSeedProvider{results: [][]*Host{{}}, periodic: true}, 0)
+			policy.DiscoveryRefreshInterval = 500 * time.Millisecond
+			policy.TendInterval = time.Second
+
+			_, err := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("must be greater or equal to the tend interval"))
+		})
+
+		gg.It("rejects a dns timeout above the refresh timeout", func() {
+			provider := dnsTimeoutProvider(400 * time.Millisecond)
+			defer provider.Close()
+			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("DNS seed provider timeout 400ms must be less or equal to the discovery refresh timeout 80ms"))
+		})
+
+		gg.It("constructs when a dns timeout equals the refresh timeout", func() {
+			provider := dnsTimeoutProvider(80 * time.Millisecond)
+			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			provider.Close()
+		})
+
+		gg.It("rejects an aws timeout above the refresh timeout", func() {
+			provider := newAwsStubProvider("", 400*time.Millisecond)
+			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("AWS EC2 seed provider timeout 400ms must be less or equal to the discovery refresh timeout 80ms"))
+			provider.Close()
+		})
+
+		gg.It("constructs when an aws timeout equals the refresh timeout", func() {
+			provider := newAwsStubProvider("", 80*time.Millisecond)
+			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			provider.Close()
+		})
+
+		gg.It("does not deadlock when the first lookup finishes before start waits", func() {
+			gm.Expect(exerciseOnTimeHandoff(staticSeeds)).To(gm.Succeed())
+		})
+
+		gg.It("does not deadlock when start gives up while the first lookup is still running", func() {
+			gm.Expect(exerciseLateHandoff(staticSeeds)).To(gm.Succeed())
+		})
+
+		gg.It("does not deadlock when on-time and late first handoffs run together", func() {
+			const n = 8
+			errs := make(chan error, n)
+			var wg sync.WaitGroup
+			wg.Add(n)
+			for i := 0; i < n; i++ {
+				go func(late bool) {
+					defer wg.Done()
+					errs <- exerciseFirstHandoff(staticSeeds, late)
+				}(i%2 == 0)
+			}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+		})
+
+		gg.It("does not publish the first lookup when it fails after the construction wait expires", func() {
+			provider := &scriptedSeedProvider{
+				results:  [][]*Host{nil},
+				periodic: true,
+			}
+			provider.sleep.Store(int64(200 * time.Millisecond))
+			refresher, recorder := newThreadRefresherWithTimeout(provider, 50*time.Millisecond)
+			defer refresher.close()
+
+			started, waitErr := waitStart(beginStart(refresher), 2*time.Second)
+			gm.Expect(waitErr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(started.seeds)).To(gm.Equal(hostAddresses(staticSeeds)))
+			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.Equal(int64(1)))
+			gm.Consistently(func() int { return recorder.count() }, "400ms", "20ms").Should(gm.BeZero())
+		})
+
+		gg.It("publishes an empty later refresh instead of keeping the previous snapshot", func() {
+			provider := &scriptedSeedProvider{
+				results:  [][]*Host{{NewHost("found-1.internal", 3000)}, {}},
+				periodic: true,
+			}
+			policy := threadClientPolicy(provider, 0)
+			policy.SeedMergePolicy = SeedMergePolicyReplace
 			recorder := &publishRecorder{}
 			refresher, err := newSeedRefresher(policy, staticSeeds, recorder.publish)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			return refresher, recorder
-		}
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.ContainElement("found-1.internal:3000"))
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() int { return recorder.count() }, "2s", "10ms").Should(gm.Equal(1))
+			gm.Expect(recorder.last()).To(gm.BeEmpty())
+		})
+
+		gg.It("does not trip the circuit breaker after three overruns and still publishes each successful result", func() {
+			provider := &scriptedSeedProvider{
+				results: [][]*Host{
+					{NewHost("late-1.internal", 3000)},
+					{NewHost("late-2.internal", 3000)},
+					{NewHost("late-3.internal", 3000)},
+				},
+				periodic: true,
+			}
+			provider.sleep.Store(int64(80 * time.Millisecond))
+			refresher, recorder := newThreadRefresherWithTimeout(provider, 20*time.Millisecond)
+			defer refresher.close()
+
+			seeds, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(seeds)).To(gm.Equal(hostAddresses(staticSeeds)))
+
+			gm.Eventually(func() []string { return hostAddresses(recorder.last()) }, "2s", "10ms").Should(gm.Equal([]string{
+				"seed-1.internal:3000", "seed-2.internal:3000", "late-1.internal:3000",
+			}))
+			gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() []string { return hostAddresses(recorder.last()) }, "2s", "10ms").Should(gm.Equal([]string{
+				"seed-1.internal:3000", "seed-2.internal:3000", "late-2.internal:3000",
+			}))
+			gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
+
+			refresher.requestUrgentRefresh()
+			gm.Eventually(func() []string { return hostAddresses(recorder.last()) }, "2s", "10ms").Should(gm.Equal([]string{
+				"seed-1.internal:3000", "seed-2.internal:3000", "late-3.internal:3000",
+			}))
+			gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
+		})
 
 		gg.It("fails start when discovery errors and no seed is left", func() {
-			policy := NewClientPolicy()
-			policy.SeedProvider = &scriptedSeedProvider{results: [][]*Host{nil}, periodic: true}
+			policy := threadClientPolicy(&scriptedSeedProvider{results: [][]*Host{nil}, periodic: true}, 0)
 			policy.SeedMergePolicy = SeedMergePolicyReplace
-			policy.DiscoveryRefreshInterval = time.Hour
-
 			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			defer refresher.close()
@@ -435,12 +761,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 		})
 
 		gg.It("fails start when a panicking periodic provider leaves no seed", func() {
-			policy := NewClientPolicy()
-			policy.SeedProvider = &panickingSeedProvider{}
-			policy.DiscoveryRefreshInterval = time.Hour
-
-			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+			refresher, _ := mustThreadRefresher(&panickingSeedProvider{}, nil, 0)
 			defer refresher.close()
 
 			seeds, serr := refresher.start()
@@ -464,12 +785,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 		gg.It("fails start when a one-shot provider errors and no seed is left", func() {
 			provider := &scriptedSeedProvider{results: [][]*Host{nil}}
-			policy := NewClientPolicy()
-			policy.SeedProvider = provider
-			policy.DiscoveryRefreshInterval = time.Hour
-
-			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+			refresher, _ := mustThreadRefresher(provider, nil, 0)
 			defer refresher.close()
 
 			_, serr := refresher.start()
@@ -666,8 +982,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 		gg.It("close frees the application and the provider when a refresh hangs on unbounded network I/O", func() {
 			// A server that accepts connections and never responds.
-			silentServer, err := net.Listen("tcp", "127.0.0.1:0")
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+			silentServer := mustListenLocal()
 			defer silentServer.Close()
 			go func() {
 				for {
@@ -678,14 +993,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			}()
 
 			provider := newHangingSeedProvider("http://" + silentServer.Addr().String())
-
-			policy := NewClientPolicy()
-			policy.SeedProvider = provider
-			policy.DiscoveryRefreshInterval = time.Hour
-			policy.DiscoveryRefreshTimeout = 150 * time.Millisecond
-
-			refresher, rerr := newSeedRefresher(policy, staticSeeds, func([]*Host) {})
-			gm.Expect(rerr).ToNot(gm.HaveOccurred())
+			refresher, _ := newThreadRefresherWithTimeout(provider, 150*time.Millisecond)
 
 			// Initialization survives the hang: the bounded first-refresh wait
 			// expires and the client starts from the configured seeds.
