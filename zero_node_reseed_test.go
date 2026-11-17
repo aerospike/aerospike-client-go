@@ -83,18 +83,26 @@ var _ = gg.Describe("Zero-node re-seed", gg.Label("discovery"), func() {
 		gm.Expect(client.GetNodes()).To(gm.HaveLen(0))
 	})
 
-	gg.It("refreshes a thread-mode provider again while no node is reachable", func() {
+	gg.It("refreshes a thread-mode provider on the first empty tend, then at most once per refresh interval", func() {
 		provider := &scriptedSeedProvider{
 			results:  [][]*Host{{deadSeed}},
 			periodic: true,
 		}
 		client := newZeroNodeClient(policy(provider, DiscoveryExecutionThread, time.Hour), deadSeed)
 
+		// The construction tends saw zero nodes too but request nothing. The
+		// tend goroutine's first tend is a full tend interval (1s) away.
+		gm.Consistently(provider.calls.Load, "200ms", "20ms").Should(gm.Equal(int64(1)),
+			"a tend during construction requested an urgent refresh")
+
 		for range 5 {
 			_ = client.cluster.tend()
 		}
 
-		gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.BeNumerically(">=", 3))
+		gm.Eventually(provider.calls.Load, "2s", "10ms").Should(gm.Equal(int64(2)),
+			"the first empty tend after construction did not wake the refresh goroutine")
+		gm.Consistently(provider.calls.Load, "300ms", "20ms").Should(gm.Equal(int64(2)),
+			"later empty tends within the refresh interval made more provider calls")
 		gm.Expect(client.GetNodes()).To(gm.HaveLen(0))
 	})
 

@@ -221,6 +221,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 	}
 
 	// start up cluster maintenance go routine
+	refresher.markTending()
 	newCluster.wgTend.Add(1)
 	go newCluster.clusterBoss()
 

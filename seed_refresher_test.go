@@ -181,8 +181,16 @@ func newThreadRefresherFor(provider SeedCandidateProvider, seeds []*Host, timeou
 	refresher, err := newSeedRefresher(threadClientPolicy(provider, timeout), seeds, recorder.publish)
 	if err == nil {
 		refresher.activate()
+		refresher.markTending()
 	}
 	return refresher, recorder, err
+}
+
+// triggerRefresh wakes the loop for its next refresh now, bypassing the
+// urgent rate limit. For specs that drive refreshes, not test the limit.
+func triggerRefresh(refresher *seedRefresher) {
+	refresher.lastUrgent.Store(0)
+	refresher.requestUrgentRefresh()
 }
 
 func mustThreadRefresher(provider SeedCandidateProvider, seeds []*Host, timeout time.Duration) (*seedRefresher, *publishRecorder) {
@@ -714,6 +722,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			refresher, err := newSeedRefresher(policy, staticSeeds, recorder.publish)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			refresher.activate()
+			refresher.markTending()
 			defer refresher.close()
 
 			seeds, serr := refresher.start()
@@ -747,13 +756,13 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			}))
 			gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
 
-			refresher.requestUrgentRefresh()
+			triggerRefresh(refresher)
 			gm.Eventually(func() []string { return hostAddresses(recorder.last()) }, "2s", "10ms").Should(gm.Equal([]string{
 				"seed-1.internal:3000", "seed-2.internal:3000", "late-2.internal:3000",
 			}))
 			gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
 
-			refresher.requestUrgentRefresh()
+			triggerRefresh(refresher)
 			gm.Eventually(func() []string { return hostAddresses(recorder.last()) }, "2s", "10ms").Should(gm.Equal([]string{
 				"seed-1.internal:3000", "seed-2.internal:3000", "late-3.internal:3000",
 			}))
@@ -844,7 +853,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.Equal(int64(2)))
 			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.Equal(0))
 
-			refresher.requestUrgentRefresh()
+			triggerRefresh(refresher)
 			gm.Eventually(func() []string {
 				return hostAddresses(recorder.last())
 			}, "2s", "10ms").Should(gm.ContainElement("found-3.internal:3000"))
@@ -876,7 +885,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			close(release)
 			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.Equal(0))
 
-			refresher.requestUrgentRefresh()
+			triggerRefresh(refresher)
 			gm.Eventually(func() []string {
 				return hostAddresses(recorder.last())
 			}, "2s", "10ms").Should(gm.ContainElement("found-3.internal:3000"))
@@ -895,7 +904,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.BeNumerically(">=", 2))
 			gm.Consistently(func() int { return recorder.count() }, "200ms", "20ms").Should(gm.Equal(0))
 
-			refresher.requestUrgentRefresh()
+			triggerRefresh(refresher)
 			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.BeNumerically(">=", 3))
 			gm.Expect(recorder.count()).To(gm.Equal(0))
 		})
@@ -986,12 +995,157 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			refresher.requestUrgentRefresh()
 			gm.Eventually(func() int64 { return provider.calls.Load() }, "2s", "10ms").Should(gm.Equal(int64(2)))
 
-			// A request during the running refresh does nothing.
-			refresher.requestUrgentRefresh()
+			// A request during the running refresh does nothing, even with the
+			// rate limit cleared.
+			triggerRefresh(refresher)
 			close(release)
 
 			gm.Consistently(func() int64 { return provider.calls.Load() }, "300ms", "20ms").Should(gm.Equal(int64(2)))
 			refresher.close()
+		})
+
+		gg.Describe("urgent refresh gate", func() {
+			// The refresh interval is an hour, so the periodic timer never
+			// fires here: every provider call after the first is an honoured
+			// urgent request.
+			startUrgentRefresher := func(provider *scriptedSeedProvider, refreshTimeout time.Duration, tending bool) *seedRefresher {
+				refresher, err := newSeedRefresher(threadClientPolicy(provider, refreshTimeout), staticSeeds, func([]*Host) {})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				refresher.activate()
+				if tending {
+					refresher.markTending()
+				}
+				gg.DeferCleanup(refresher.close)
+
+				_, serr := refresher.start()
+				gm.Expect(serr).ToNot(gm.HaveOccurred())
+				return refresher
+			}
+
+			quickProvider := func() *scriptedSeedProvider {
+				return &scriptedSeedProvider{results: [][]*Host{{NewHost("found-1.internal", 3000)}}, periodic: true}
+			}
+
+			expectCalls := func(provider *scriptedSeedProvider, n int64) {
+				gm.Eventually(provider.calls.Load, "2s", "10ms").Should(gm.Equal(n))
+				gm.Consistently(provider.calls.Load, "200ms", "20ms").Should(gm.Equal(n))
+			}
+
+			waitIdle := func(refresher *seedRefresher) {
+				gm.Eventually(refresher.refreshing.Get, "2s", "5ms").Should(gm.BeFalse())
+			}
+
+			gg.It("honours the first request once the client is tending", func() {
+				provider := quickProvider()
+				refresher := startUrgentRefresher(provider, 0, true)
+				expectCalls(provider, 1)
+
+				refresher.requestUrgentRefresh()
+
+				expectCalls(provider, 2)
+				gm.Expect(refresher.lastUrgent.Load()).To(gm.BeNumerically(">", 0))
+			})
+
+			gg.It("makes one provider call per interval while tend keeps asking during an outage", func() {
+				provider := quickProvider()
+				refresher := startUrgentRefresher(provider, 0, true)
+				expectCalls(provider, 1)
+
+				refresher.requestUrgentRefresh()
+				expectCalls(provider, 2)
+				waitIdle(refresher)
+				honoured := refresher.lastUrgent.Load()
+
+				// Tend with zero nodes asks on every tend; simulate 60 tends.
+				for tend := 0; tend < 60; tend++ {
+					refresher.requestUrgentRefresh()
+					time.Sleep(5 * time.Millisecond)
+				}
+
+				expectCalls(provider, 2)
+				gm.Expect(refresher.urgentCh).To(gm.BeEmpty())
+				gm.Expect(refresher.lastUrgent.Load()).To(gm.Equal(honoured))
+			})
+
+			gg.It("honours a request again once a refresh interval has passed", func() {
+				provider := quickProvider()
+				refresher := startUrgentRefresher(provider, 0, true)
+				expectCalls(provider, 1)
+
+				refresher.requestUrgentRefresh()
+				expectCalls(provider, 2)
+				waitIdle(refresher)
+
+				refresher.requestUrgentRefresh()
+				expectCalls(provider, 2)
+
+				// Move the refresher's clock origin back one interval, as if an
+				// hour had passed. Only this goroutine reads created.
+				refresher.created = refresher.created.Add(-time.Hour)
+				refresher.requestUrgentRefresh()
+
+				expectCalls(provider, 3)
+			})
+
+			gg.It("ignores requests from construction tends without using up the interval", func() {
+				provider := quickProvider()
+				refresher := startUrgentRefresher(provider, 0, false)
+				expectCalls(provider, 1)
+
+				for i := 0; i < 3; i++ {
+					refresher.requestUrgentRefresh()
+				}
+
+				expectCalls(provider, 1)
+				gm.Expect(refresher.urgentCh).To(gm.BeEmpty())
+				gm.Expect(refresher.lastUrgent.Load()).To(gm.BeZero())
+
+				// The first outage after the tend goroutine starts is refreshed at once.
+				refresher.markTending()
+				refresher.requestUrgentRefresh()
+				expectCalls(provider, 2)
+			})
+
+			gg.It("does not use up the interval with a request ignored during an in-flight refresh", func() {
+				provider := quickProvider()
+				provider.sleep.Store(int64(300 * time.Millisecond))
+				// start gives up after 50ms while the first refresh keeps running.
+				refresher := startUrgentRefresher(provider, 50*time.Millisecond, true)
+				gm.Expect(refresher.refreshing.Get()).To(gm.BeTrue())
+
+				refresher.requestUrgentRefresh()
+				gm.Expect(refresher.lastUrgent.Load()).To(gm.BeZero())
+				gm.Expect(refresher.urgentCh).To(gm.BeEmpty())
+
+				waitIdle(refresher)
+				expectCalls(provider, 1)
+
+				refresher.requestUrgentRefresh()
+				gm.Eventually(provider.calls.Load, "2s", "10ms").Should(gm.Equal(int64(2)))
+			})
+
+			gg.It("lets exactly one of many concurrent requests through", func() {
+				provider := quickProvider()
+				refresher := startUrgentRefresher(provider, 0, true)
+				expectCalls(provider, 1)
+
+				const callers = 32
+				gate := make(chan struct{})
+				var callersDone sync.WaitGroup
+				callersDone.Add(callers)
+				for i := 0; i < callers; i++ {
+					go func() {
+						defer callersDone.Done()
+						<-gate
+						refresher.requestUrgentRefresh()
+					}()
+				}
+				close(gate)
+				callersDone.Wait()
+
+				expectCalls(provider, 2)
+				gm.Expect(refresher.lastUrgent.Load()).To(gm.BeNumerically(">", 0))
+			})
 		})
 
 		gg.It("close returns within the refresh timeout and closes the provider only after a hung refresh returns", func() {
@@ -1105,6 +1259,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			refresher, err := newSeedRefresher(threadClientPolicy(provider, 0), staticSeeds, publish)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			refresher.activate()
+			refresher.markTending()
 
 			_, serr := refresher.start()
 			gm.Expect(serr).ToNot(gm.HaveOccurred())

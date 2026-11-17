@@ -17,6 +17,7 @@ package aerospike
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
@@ -71,6 +72,13 @@ type seedRefresher struct {
 	loopWg      sync.WaitGroup
 	closeOnce   sync.Once
 
+	// Urgent refresh gate. tending is set once the tend goroutine starts;
+	// construction tends request nothing. lastUrgent is the monotonic time
+	// since created of the last honoured request, 0 when none yet.
+	created    time.Time
+	tending    iatomic.Bool
+	lastUrgent atomic.Int64
+
 	// firstDoneCh is closed when the first lookup is stored. start waits on
 	// it; the refresh goroutine never sends, so it cannot block. firstOnce
 	// is the first hand-off only (panic-restart must not run it again).
@@ -114,6 +122,7 @@ func newSeedRefresher(policy *ClientPolicy, staticSeeds []*Host, publish func([]
 		urgentCh:        make(chan struct{}, 1),
 		activeCh:        make(chan struct{}),
 		firstDoneCh:     make(chan struct{}),
+		created:         time.Now(),
 	}
 
 	if refresher.refreshInterval <= 0 {
@@ -358,13 +367,31 @@ func (refresher *seedRefresher) tendTick(tendCount int) {
 	}
 }
 
+// markTending lets the tend goroutine request urgent refreshes. Call it
+// when that goroutine starts; the tends during construction request none.
+func (refresher *seedRefresher) markTending() {
+	refresher.tending.Set(true)
+}
+
 // requestUrgentRefresh wakes the thread-mode loop so a client with no nodes
-// does not wait out the refresh interval. It never blocks; the caller
-// reconnects from the seeds already in hand.
+// does not wait out the refresh interval. It is honoured at most once per
+// refresh interval and does nothing while a refresh runs. It never blocks;
+// the caller reconnects from the seeds already in hand.
 func (refresher *seedRefresher) requestUrgentRefresh() {
-	if refresher == nil || !refresher.periodic || refresher.executionMode != DiscoveryExecutionThread || refresher.refreshing.Get() {
+	if refresher == nil || !refresher.periodic || refresher.executionMode != DiscoveryExecutionThread || !refresher.tending.Get() || refresher.refreshing.Get() {
 		return
 	}
+
+	// At most one honoured request per refresh interval.
+	now := int64(time.Since(refresher.created))
+	last := refresher.lastUrgent.Load()
+	if last != 0 && now-last < int64(refresher.refreshInterval) {
+		return
+	}
+	if !refresher.lastUrgent.CompareAndSwap(last, now) {
+		return
+	}
+
 	select {
 	case refresher.urgentCh <- struct{}{}:
 	default:
