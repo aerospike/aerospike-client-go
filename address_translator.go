@@ -63,21 +63,24 @@ type Endpoint struct {
 }
 
 // AddressTranslator maps a server-advertised endpoint to the address the
-// client connects to. It changes only the transport address; TLS still
-// authenticates against the node's own TLS name.
-// Translate runs on the tend goroutine once per advertised address and must
-// be in-memory only: no locking, no I/O. Returning ok false is a miss
-// ClientPolicy.TranslationOnMiss decides what happens next.
-// A translator may additionally implement ClusterViewChangeObserver.
+// client connects to. The returned TLS name is ignored; TLS authenticates
+// against the advertised TLS name.
+//
+// Translate runs on the tend goroutine once per advertised address and must be
+// in-memory only: no locks, no I/O. Returning ok false is a miss, and so is a
+// returned port outside 1-65535. ClientPolicy.TranslationOnMiss decides what
+// happens on a miss. A translator may additionally implement
+// ClusterViewChangeObserver.
 type AddressTranslator interface {
 	Translate(advertised Endpoint) (translated Host, ok bool)
 }
 
-// ClusterViewChangeObserver is optionally implemented by an AddressTranslator
-// to invalidate cached state when the cluster view changes.
+// ClusterViewChangeObserver is an optional interface for AddressTranslator
+// implementations to invalidate cached state when the cluster view changes.
+//
 // OnClusterViewChanged runs on the tend goroutine whenever the node set or an
-// advertised address changed; viewChange increases by one per change. It must
-// not block or perform I/O.
+// advertised address changes, incrementing viewChange by 1. It must not block or
+// perform I/O.
 type ClusterViewChangeObserver interface {
 	OnClusterViewChanged(viewChange int64)
 }
@@ -95,11 +98,12 @@ func translatorDisplayName(translator AddressTranslator) string {
 	return fmt.Sprintf("%T", translator)
 }
 
-// translate applies translator to advertised and the onMiss rule to a miss.
-// A pass_through miss warns through misses, and a nil misses never warns.
-func translate(translator AddressTranslator, onMiss TranslationMissMode, advertised Endpoint, misses *translationMisses) (Host, Error) {
+// translate maps advertised using translator and applies onMiss on failure.
+// With checkPort, a translated port outside 1–65535 is a failure too.
+// Pass-through misses log a warning via misses unless misses is nil.
+func translate(translator AddressTranslator, onMiss TranslationMissMode, advertised Endpoint, misses *translationMisses, checkPort bool) (Host, Error) {
 	host, ok := translator.Translate(advertised)
-	if !ok {
+	if !ok || (checkPort && !isValidPort(host.Port)) {
 		if onMiss == TranslationMissStrict {
 			return Host{}, newTranslationMiss(translator, advertised)
 		}

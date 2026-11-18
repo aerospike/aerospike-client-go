@@ -599,6 +599,54 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 		})
 	})
 
+	gg.Describe("provider hosts with a port outside 1-65535", func() {
+
+		gg.It("are dropped with a warning at init and on every later refresh, keeping the order of the valid hosts", func() {
+			logs := captureWarnLogs()
+			zero := NewHost("10.0.0.1", 0)
+			lowest := NewHost("10.0.0.2", 1)
+			above := NewHost("10.0.0.3", 65536)
+			highest := NewHost("10.0.0.4", 65535)
+			negative := NewHost("10.0.0.5", -1)
+			provider := periodicDeadlineProvider([]*Host{zero, lowest, above, highest}, []*Host{above, highest, negative})
+			refresher, recorder := newTendRefresherOn(provider, SeedMergePolicyReplace, nil, 100*time.Millisecond)
+
+			merged, err := refresher.start()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"10.0.0.2:1", "10.0.0.4:65535"}))
+
+			refresher.tendTick(10)
+			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
+			gm.Expect(recorder.count()).To(gm.Equal(1))
+			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"10.0.0.4:65535"}))
+
+			prefix := "Seed candidate provider *aerospike.scriptedSeedProvider returned host "
+			gm.Expect(logs.msgs).To(gm.Equal([]string{
+				prefix + "10.0.0.1 with port 0 outside 1-65535. Host dropped",
+				prefix + "10.0.0.3 with port 65536 outside 1-65535. Host dropped",
+				prefix + "10.0.0.3 with port 65536 outside 1-65535. Host dropped",
+				prefix + "10.0.0.5 with port -1 outside 1-65535. Host dropped",
+			}))
+		})
+
+		gg.It("are dropped with a warning from the built-in static provider", func() {
+			logs := captureWarnLogs()
+			policy := NewClientPolicy()
+			policy.SeedProvider = NewStaticSeedCandidateProvider(NewHost("10.0.0.1", 65536), NewHost("10.0.0.2", 3000))
+			policy.SeedMergePolicy = SeedMergePolicyDiscoveryOnly
+			refresher, err := newSeedRefresher(policy, nil, func([]*Host) {})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gg.DeferCleanup(refresher.close)
+
+			merged, serr := refresher.start()
+			gm.Expect(serr).ToNot(gm.HaveOccurred())
+			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"10.0.0.2:3000"}))
+			gm.Expect(logs.msgs).To(gm.Equal([]string{
+				"Seed candidate provider static returned host 10.0.0.1 with port 65536 outside 1-65535. Host dropped",
+			}))
+		})
+	})
+
 	gg.Describe("tend execution mode", func() {
 
 		gg.It("rejects a provider without deadline support at construction", func() {

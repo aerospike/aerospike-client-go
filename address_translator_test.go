@@ -18,8 +18,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -193,6 +196,91 @@ var _ = gg.Describe("Address translators", gg.Label("discovery"), func() {
 		})
 	})
 
+	gg.Describe("translated ports", func() {
+
+		advertised := Endpoint{NodeName: "BB9A", TLSName: "tls1", Host: "10.0.0.9", Port: 3000, SourceList: SourceListStandard}
+		advertisedHost := Host{Name: "10.0.0.9", TLSName: "tls1", Port: 3000}
+
+		gg.DescribeTable("outside 1-65535 is a miss under both on_miss modes",
+			func(port int) {
+				translator := fixedAddressTranslator{host: Host{Name: "192.168.1.1", Port: port}}
+
+				host, err := translate(translator, TranslationMissPassThrough, advertised, nil, true)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(host).To(gm.Equal(advertisedHost))
+
+				host, err = translate(translator, TranslationMissStrict, advertised, nil, true)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.TRANSLATION_MISS)).To(gm.BeTrue())
+				gm.Expect(host).To(gm.Equal(Host{}))
+			},
+			gg.Entry("port 0", 0),
+			gg.Entry("port -1", -1),
+			gg.Entry("port 65536", 65536),
+		)
+
+		gg.DescribeTable("1 and 65535 are accepted",
+			func(port int) {
+				translator := fixedAddressTranslator{host: Host{Name: "192.168.1.1", Port: port}}
+
+				host, err := translate(translator, TranslationMissStrict, advertised, nil, true)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(host).To(gm.Equal(Host{Name: "192.168.1.1", TLSName: "tls1", Port: port}))
+			},
+			gg.Entry("port 1", 1),
+			gg.Entry("port 65535", 65535),
+		)
+
+		gg.It("outside 1-65535 warns once per node and advertised address on a pass_through miss", func() {
+			logs := captureWarnLogs()
+			misses := newTranslationMisses()
+			translator := fixedAddressTranslator{host: Host{Name: "192.168.1.1", Port: 0}}
+
+			for range 2 {
+				host, err := translate(translator, TranslationMissPassThrough, advertised, misses, true)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(host).To(gm.Equal(advertisedHost))
+			}
+			gm.Expect(logs.msgs).To(gm.HaveLen(1))
+			gm.Expect(logs.msgs[0]).To(gm.ContainSubstring("node BB9A advertised address 10.0.0.9:3000"))
+		})
+
+		gg.DescribeTable("a static-map value outside 1-65535 is a miss at translation time",
+			func(value string) {
+				translator := NewStaticMapAddressTranslator(map[string]string{"10.0.0.9": value})
+
+				host, err := translate(translator, TranslationMissPassThrough, advertised, nil, true)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(host).To(gm.Equal(advertisedHost))
+			},
+			gg.Entry("port 0", "nlb.example.com:0"),
+			gg.Entry("port -1", "nlb.example.com:-1"),
+			gg.Entry("port 65536", "nlb.example.com:65536"),
+		)
+
+		gg.DescribeTable("default IpMap keeps an out-of-range mapped port; a user-set translator treats it as a miss",
+			func(userSet bool, expected Host) {
+				ipMap := map[string]string{"10.0.0.9": "nlb.example.com:0"}
+				policy := NewClientPolicy()
+				if userSet {
+					policy.AddressTranslator = NewStaticMapAddressTranslator(ipMap)
+				} else {
+					policy.IpMap = ipMap
+				}
+				stored := new(atomic.Pointer[ClientPolicy])
+				stored.Store(policy)
+				cluster := &Cluster{clientPolicy: stored}
+				cluster.setAddressTranslator(policy)
+
+				host, err := cluster.translate(advertised.NodeName, advertised.TLSName, advertised.Host, advertised.Port)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(host).To(gm.Equal(expected))
+			},
+			gg.Entry("the default IpMap translator keeps the mapped port", false, Host{Name: "nlb.example.com", TLSName: "tls1", Port: 0}),
+			gg.Entry("a user-set static-map misses and connects to the advertised address", true, advertisedHost),
+		)
+	})
+
 	gg.Describe("translation on the hot path", func() {
 
 		gg.It("allocates nothing per call", func() {
@@ -318,6 +406,14 @@ func translateLatencyP99(name string, rounds [][]time.Duration) (time.Duration, 
 		return p99, fmt.Errorf("%s median round p99 %d ns, round p99s %s ns", name, p99, listed)
 	}
 	return p99, nil
+}
+
+type fixedAddressTranslator struct {
+	host Host
+}
+
+func (translator fixedAddressTranslator) Translate(Endpoint) (Host, bool) {
+	return translator.host, true
 }
 
 type spinningAddressTranslator struct {

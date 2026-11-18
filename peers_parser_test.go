@@ -363,7 +363,7 @@ var _ = gg.Describe("Peers parsing with a translator", gg.Label("discovery"), fu
 		logs := captureWarnLogs()
 		host, err := translate(translator, TranslationMissPassThrough, Endpoint{
 			NodeName: "BB9A", Host: "203.0.113.1", Port: 30001, SourceList: SourceListAlternate,
-		}, nil)
+		}, nil, true)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(host.Name).To(gm.Equal("203.0.113.1"))
 		gm.Expect(logs.msgs).To(gm.BeEmpty())

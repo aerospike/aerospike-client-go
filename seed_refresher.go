@@ -163,7 +163,7 @@ func (refresher *seedRefresher) validate(policy *ClientPolicy) Error {
 		return refresher.validateProviderTimeout(refresher.refreshTimeout, "discovery refresh timeout")
 	}
 	if !refresher.provider.SupportsDeadline() {
-		return newError(types.PARAMETER_ERROR, "Seed provider "+refresher.providerName+" does not support a deadline and cannot run in tend execution mode. Use thread execution mode")
+		return newError(types.PARAMETER_ERROR, "Seed candidate provider "+refresher.providerName+" does not support a deadline and cannot run in tend execution mode. Use thread execution mode")
 	}
 	if refresher.tendDeadline > refresher.tendInterval/2 {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid discovery tend refresh deadline %s. Must be greater than zero and at most half the tend interval %s", refresher.tendDeadline, refresher.tendInterval))
@@ -223,7 +223,7 @@ func (refresher *seedRefresher) startThreadMode() ([]*Host, Error) {
 		}
 		refresher.firstAbandoned = true
 		refresher.firstMu.Unlock()
-		logger.Logger.Warn("Seed provider %s did not finish the initial refresh within %s; starting from the configured seeds", refresher.providerName, refresher.refreshTimeout)
+		logger.Logger.Warn("Seed candidate provider %s did not finish the initial refresh within %s; starting from the configured seeds", refresher.providerName, refresher.refreshTimeout)
 		return refresher.resolveStartupSeeds(nil, fmt.Errorf("the initial refresh did not finish within %s", refresher.refreshTimeout))
 	}
 }
@@ -241,7 +241,7 @@ func (refresher *seedRefresher) takeFirstResult() ([]*Host, Error) {
 func (refresher *seedRefresher) resolveStartupSeeds(discovered []*Host, refreshErr error) ([]*Host, Error) {
 	merged := refresher.merge(discovered, true)
 	if refreshErr != nil && len(merged) == 0 {
-		return nil, newError(types.SEED_DISCOVERY_FAILED, "Seed provider "+refresher.providerName+" failed and no seed host is left: "+refreshErr.Error())
+		return nil, newError(types.SEED_DISCOVERY_FAILED, "Seed candidate provider "+refresher.providerName+" failed and no seed host is left: "+refreshErr.Error())
 	}
 
 	refresher.startupSeeds = copyHosts(merged)
@@ -352,7 +352,7 @@ func (refresher *seedRefresher) tendTick(tendCount int) {
 		if refresher.overrunCount >= seedRefreshMaxOverruns {
 			refresher.tripped.Set(true)
 			refresher.publish(copyHosts(refresher.startupSeeds))
-			logger.Logger.Error("Seed provider %s exceeded the tend refresh deadline %d consecutive times. The provider is disabled for this client and the initial seeds are restored", refresher.providerName, refresher.overrunCount)
+			logger.Logger.Error("Seed candidate provider %s exceeded the tend refresh deadline %d consecutive times. The provider is disabled for this client and the initial seeds are restored", refresher.providerName, refresher.overrunCount)
 		}
 		return
 	}
@@ -440,7 +440,7 @@ func (refresher *seedRefresher) abort() {
 func (refresher *seedRefresher) closeProvider() {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			logger.Logger.Warn("Seed provider %s close failed: %v", refresher.providerName, recovered)
+			logger.Logger.Warn("Seed candidate provider %s close failed: %v", refresher.providerName, recovered)
 		}
 	}()
 	refresher.provider.Close()
@@ -466,7 +466,25 @@ func (refresher *seedRefresher) refreshOnce(tendIteration int64) (discovered []*
 	if err != nil {
 		return nil, err
 	}
-	return copyHosts(result), nil
+	return refresher.copyValidHosts(result), nil
+}
+
+// copyValidHosts copies hosts like copyHosts and drops, with a warning, every
+// host whose port is outside 1-65535.
+func (refresher *seedRefresher) copyValidHosts(hosts []*Host) []*Host {
+	valid := make([]*Host, 0, len(hosts))
+	for _, host := range hosts {
+		if host == nil {
+			continue
+		}
+		if !isValidPort(host.Port) {
+			logger.Logger.Warn("Seed candidate provider %s returned host %s with port %d outside 1-65535. Host dropped", refresher.providerName, host.Name, host.Port)
+			continue
+		}
+		hostCopy := *host
+		valid = append(valid, &hostCopy)
+	}
+	return valid
 }
 
 // merge combines the configured seeds with the discovered ones per the merge

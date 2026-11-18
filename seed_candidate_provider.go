@@ -35,7 +35,8 @@ type SeedCandidateContext struct {
 // define cluster membership. Nodes come from the server's peers lists.
 type SeedCandidateProvider interface {
 	// RefreshSeedCandidates returns seed candidates in preference order.
-	// An empty list is valid, not an error.
+	// An empty list is valid, not an error. A host with a port outside
+	// 1-65535 is dropped with a warning.
 	RefreshSeedCandidates(seedContext *SeedCandidateContext) ([]*Host, error)
 
 	// NeedsPeriodicRefresh is true when candidates can change over time.

@@ -63,7 +63,7 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 		gm.Expect(seeds).To(gm.BeNil())
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Matches(types.SEED_DISCOVERY_FAILED)).To(gm.BeTrue())
-		gm.Expect(err.Error()).To(gm.ContainSubstring("Seed provider dns failed and no seed host is left"))
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Seed candidate provider dns failed and no seed host is left"))
 		gm.Expect(err.Error()).To(gm.ContainSubstring("DNS seed discovery failed for every name: a.example.com: NXDOMAIN; b.example.com: NXDOMAIN"))
 	})
 
@@ -86,7 +86,7 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 		gm.Expect(seeds).To(gm.BeNil())
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Matches(types.SEED_DISCOVERY_FAILED)).To(gm.BeTrue())
-		gm.Expect(err.Error()).To(gm.ContainSubstring("Seed provider dns failed and no seed host is left"))
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Seed candidate provider dns failed and no seed host is left"))
 		gm.Expect(err.Error()).To(gm.ContainSubstring("DNS seed discovery failed for every name: a.example.com: NXDOMAIN; b.example.com: NXDOMAIN"))
 	})
 

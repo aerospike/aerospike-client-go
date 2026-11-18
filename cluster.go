@@ -534,12 +534,13 @@ func (clstr *Cluster) translate(nodeName, tlsName, host string, port int) (Host,
 		Host:       host,
 		Port:       port,
 		SourceList: sourceList,
-	}, clstr.translationMisses)
+	}, clstr.translationMisses, clstr.translationMisses != nil)
 }
 
 // setAddressTranslator uses the user's translator, or a static-map over IpMap
-// when none is set. Only a user-set translator warns on a pass_through miss,
-// so a client without discovery config logs as before.
+// when none is set. Only a user-set translator warns on a pass_through miss
+// and has its translated port checked, so a client without discovery config
+// behaves as before.
 func (clstr *Cluster) setAddressTranslator(policy *ClientPolicy) {
 	translator := policy.AddressTranslator
 	if translator == nil {
