@@ -4,4 +4,7 @@
 #
 # Do not copy java-declared.yaml. Java's four TLS fails are CN fallback. Go
 # VerifyHostname rejects those certificates, so those rows pass.
-{}
+discovery/translate/static-map.yaml:
+  host-port-value-keeps-advertised-port:
+    result: fail
+    reason: "IpMap host:port values replace the advertised port, kept for existing deployments since v8.8.0 (NFR-6)"

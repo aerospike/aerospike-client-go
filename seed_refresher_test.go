@@ -461,7 +461,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(recorder.count()).To(gm.Equal(0))
 		})
 
-		gg.It("replace later empty discovery keeps the previous seeds and does not publish", func() {
+		gg.It("replace later empty discovery publishes an empty seed list", func() {
 			provider := periodicDeadlineProvider([]*Host{d1}, []*Host{d2}, []*Host{})
 			refresher, recorder := newTendRefresher(provider, SeedMergePolicyReplace)
 
@@ -476,8 +476,9 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 			refresher.tendTick(20)
 			gm.Expect(provider.calls.Load()).To(gm.Equal(int64(3)))
-			gm.Expect(recorder.count()).To(gm.Equal(1))
-			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"found-2.internal:3000"}))
+			gm.Expect(recorder.count()).To(gm.Equal(2))
+			gm.Expect(recorder.last()).ToNot(gm.BeNil())
+			gm.Expect(recorder.last()).To(gm.BeEmpty())
 		})
 
 		gg.It("discovery_only falls back to the configured seeds when discovery is empty", func() {
@@ -521,7 +522,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(distinct[0].TLSName).To(gm.Equal("name-a"))
 		})
 
-		gg.DescribeTable("failed, empty, or overrunning later refresh never empties the snapshot",
+		gg.DescribeTable("failed or overrunning later refresh keeps the snapshot and a successful empty one is published",
 			func(policy SeedMergePolicy, seeds []*Host) {
 				provider := periodicDeadlineProvider([]*Host{d1}, []*Host{d2}, nil, []*Host{}, []*Host{})
 				refresher, recorder := newTendRefresherOn(provider, policy, seeds, 20*time.Millisecond)
@@ -532,39 +533,34 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 				refresher.tendTick(10)
 				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(2)))
-				gm.Expect(recorder.count()).To(gm.BeNumerically(">=", 1))
+				gm.Expect(recorder.count()).To(gm.Equal(1))
 				previous := hostAddresses(recorder.last())
-				gm.Expect(previous).ToNot(gm.BeEmpty())
-				publishes := recorder.count()
+				gm.Expect(previous).To(gm.ContainElement("found-2.internal:3000"))
 
 				refresher.tendTick(20)
 				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(3)))
-				gm.Expect(recorder.count()).To(gm.Equal(publishes))
+				gm.Expect(recorder.count()).To(gm.Equal(1))
 				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(previous))
 
-				emptyWant := previous
-				if policy != SeedMergePolicyReplace && len(seeds) > 0 {
-					emptyWant = hostAddresses(seeds)
-				}
+				provider.sleep.Store(int64(100 * time.Millisecond))
 				refresher.tendTick(30)
 				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(4)))
-				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(emptyWant))
-				gm.Expect(hostAddresses(recorder.last())).ToNot(gm.BeEmpty())
-				if slices.Equal(emptyWant, previous) {
-					gm.Expect(recorder.count()).To(gm.Equal(publishes))
-				} else {
-					gm.Expect(recorder.count()).To(gm.Equal(publishes + 1))
-				}
+				gm.Expect(refresher.overrunCount).To(gm.Equal(1))
+				gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
+				gm.Expect(recorder.count()).To(gm.Equal(1))
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(previous))
 
-				provider.sleep.Store(int64(100 * time.Millisecond))
-				beforeOverrun := hostAddresses(recorder.last())
-				overrunPublishes := recorder.count()
+				emptyWant := hostAddresses(seeds)
+				if policy == SeedMergePolicyReplace {
+					emptyWant = []string{}
+				}
+				provider.sleep.Store(0)
 				refresher.tendTick(40)
 				gm.Expect(provider.calls.Load()).To(gm.Equal(int64(5)))
-				gm.Expect(refresher.tripped.Get()).To(gm.BeFalse())
-				gm.Expect(recorder.count()).To(gm.Equal(overrunPublishes))
-				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(beforeOverrun))
-				gm.Expect(hostAddresses(recorder.last())).ToNot(gm.BeEmpty())
+				gm.Expect(refresher.overrunCount).To(gm.Equal(0))
+				gm.Expect(recorder.count()).To(gm.Equal(2))
+				gm.Expect(recorder.last()).ToNot(gm.BeNil())
+				gm.Expect(hostAddresses(recorder.last())).To(gm.Equal(emptyWant))
 			},
 			gg.Entry("merge with constructor seeds", SeedMergePolicyMerge, staticSeeds),
 			gg.Entry("replace with constructor seeds", SeedMergePolicyReplace, staticSeeds),

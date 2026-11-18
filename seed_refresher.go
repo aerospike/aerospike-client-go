@@ -362,9 +362,7 @@ func (refresher *seedRefresher) tendTick(tendCount int) {
 		logger.Logger.Warn("Seed refresh by provider %s failed; keeping the current seeds: %s", refresher.providerName, err.Error())
 		return
 	}
-	if merged := refresher.merge(discovered, false); len(merged) > 0 {
-		refresher.publish(merged)
-	}
+	refresher.publish(refresher.merge(discovered, false))
 }
 
 // markTending lets the tend goroutine request urgent refreshes. Call it

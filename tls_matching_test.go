@@ -147,7 +147,7 @@ func TestTlsMatchingReport(t *testing.T) {
 		}
 		reportRows = append(reportRows, conformanceReportEntry(row, actual))
 	}
-	if err := writeConformanceReport(conformanceFixtureSetVersion, reportRows); err != nil {
+	if err := writeConformanceReport(reportRows); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeTlsMatchingDeclarations(filepath.Dir(conformanceReportPath()), rows); err != nil {

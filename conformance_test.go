@@ -46,7 +46,7 @@ const (
 	conformanceUnsupported = "unsupported"
 	conformanceBlocked     = "blocked"
 
-	conformanceFixtureSetVersion = "1.1.0"
+	conformanceFixtureSchema     = "schema/fixture.schema.json"
 	conformanceProviderTimeoutMs = 2000
 	conformanceFixtureServer     = "discovery/providers/fixture-server.py"
 	conformanceAccessKey         = "AKIDCONFORMANCE00000"
@@ -107,11 +107,10 @@ type conformanceCounts struct {
 }
 
 type conformanceReport struct {
-	Runtime           string                 `json:"runtime"`
-	ClientVersion     string                 `json:"clientVersion"`
-	FixtureSetVersion string                 `json:"fixtureSetVersion"`
-	Counts            conformanceCounts      `json:"counts"`
-	Rows              []conformanceReportRow `json:"rows"`
+	Runtime       string                 `json:"runtime"`
+	ClientVersion string                 `json:"clientVersion"`
+	Counts        conformanceCounts      `json:"counts"`
+	Rows          []conformanceReportRow `json:"rows"`
 }
 
 type conformanceRunner struct {
@@ -142,7 +141,7 @@ func (*conformanceSeedScript) Close()                     {}
 func TestConformance(t *testing.T) {
 	raw := strings.TrimSpace(os.Getenv("CONFORMANCE_DIR"))
 	if raw == "" {
-		t.Skip("set CONFORMANCE_DIR to an aerospike-client-conformance 1.1.0 checkout")
+		t.Skip("set CONFORMANCE_DIR to an aerospike-client-conformance checkout")
 	}
 	dir, err := conformanceFixtureDir(raw)
 	if err != nil {
@@ -166,7 +165,7 @@ func TestConformance(t *testing.T) {
 
 	reportRows := make([]conformanceReportRow, 0, len(rows))
 	t.Cleanup(func() {
-		if writeErr := writeConformanceReport(conformanceFixtureSetVersion, reportRows); writeErr != nil {
+		if writeErr := writeConformanceReport(reportRows); writeErr != nil {
 			t.Errorf("conformance report: %v", writeErr)
 		}
 	})
@@ -183,7 +182,7 @@ func TestConformance(t *testing.T) {
 }
 
 // conformanceFixtureDir returns the absolute path of dir after checking that it
-// is a conformance checkout at conformanceFixtureSetVersion.
+// is an aerospike-client-conformance checkout.
 func conformanceFixtureDir(dir string) (string, error) {
 	dir, err := filepath.Abs(dir)
 	if err != nil {
@@ -192,13 +191,8 @@ func conformanceFixtureDir(dir string) (string, error) {
 	if info, statErr := os.Stat(dir); statErr != nil || !info.IsDir() {
 		return "", fmt.Errorf("conformance directory not found: %s", dir)
 	}
-	versionBytes, err := os.ReadFile(filepath.Join(dir, "VERSION"))
-	if err != nil {
-		return "", fmt.Errorf("not a conformance fixture set, VERSION not found: %s", dir)
-	}
-	if got := strings.TrimSpace(string(versionBytes)); got != conformanceFixtureSetVersion {
-		return "", fmt.Errorf("conformance fixture set %s found, %s expected: check out that release or update the declarations",
-			got, conformanceFixtureSetVersion)
+	if info, statErr := os.Stat(filepath.Join(dir, conformanceFixtureSchema)); statErr != nil || !info.Mode().IsRegular() {
+		return "", fmt.Errorf("not an aerospike-client-conformance checkout, %s not found: %s", conformanceFixtureSchema, dir)
 	}
 	return dir, nil
 }
@@ -628,9 +622,7 @@ func refreshSeeds(policy *ClientPolicy, staticSeeds []*Host, results [][]*Host) 
 	for i := 1; i < len(results); i++ {
 		discovered, refreshErr = refresher.refreshOnce(int64(i))
 		if refreshErr == nil {
-			if merged := refresher.merge(discovered, false); len(merged) > 0 {
-				snapshot = copyHosts(merged)
-			}
+			snapshot = copyHosts(refresher.merge(discovered, false))
 		}
 		snapshots = append(snapshots, copyHosts(snapshot))
 	}
@@ -670,9 +662,7 @@ func refreshProvider(provider SeedCandidateProvider, refreshes int, selectRefres
 			}
 			snapshot = copyHosts(seeds)
 		} else if refreshErr == nil {
-			if merged := refresher.merge(discovered, false); len(merged) > 0 {
-				snapshot = copyHosts(merged)
-			}
+			snapshot = copyHosts(refresher.merge(discovered, false))
 		}
 		step.seeds = copyHosts(snapshot)
 		steps = append(steps, step)
@@ -899,7 +889,7 @@ func applyConformanceDeclarations(rows []*conformanceRow) error {
 	return nil
 }
 
-func writeConformanceReport(fixtureSetVersion string, rows []conformanceReportRow) error {
+func writeConformanceReport(rows []conformanceReportRow) error {
 	sort.Slice(rows, func(i, j int) bool {
 		return rows[i].File+":"+rows[i].Case < rows[j].File+":"+rows[j].Case
 	})
@@ -928,11 +918,10 @@ func writeConformanceReport(fixtureSetVersion string, rows []conformanceReportRo
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(conformanceReport{
-		Runtime:           "go",
-		ClientVersion:     getLibraryVersion(aesModule),
-		FixtureSetVersion: fixtureSetVersion,
-		Counts:            counts,
-		Rows:              rows,
+		Runtime:       "go",
+		ClientVersion: getLibraryVersion(aesModule),
+		Counts:        counts,
+		Rows:          rows,
 	})
 }
 

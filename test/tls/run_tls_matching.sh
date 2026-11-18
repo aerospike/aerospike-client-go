@@ -13,7 +13,7 @@
 # n6_proxy (N-6 is L2 EE).
 #
 # Required:
-#   CONFORMANCE_DIR       aerospike-client-conformance 1.1.0 checkout
+#   CONFORMANCE_DIR       aerospike-client-conformance checkout
 #   AEROSPIKE_IMAGE       Enterprise server image
 #   FEATURES_CONF_PATH    feature-key file. The only source of the key.
 #
@@ -48,7 +48,7 @@ require_prereqs() {
 	[ -n "${AEROSPIKE_IMAGE:-}" ] || die "AEROSPIKE_IMAGE is not set"
 	[ -n "${CONFORMANCE_DIR:-}" ] || die "CONFORMANCE_DIR is not set"
 	CONFORMANCE_DIR="$(cd "$CONFORMANCE_DIR" && pwd)"
-	[ -f "$CONFORMANCE_DIR/VERSION" ] || die "CONFORMANCE_DIR has no VERSION"
+	[ -f "$CONFORMANCE_DIR/schema/fixture.schema.json" ] || die "CONFORMANCE_DIR has no schema/fixture.schema.json"
 	[ -f "$CONFORMANCE_DIR/tls/name-matching.yaml" ] || die "CONFORMANCE_DIR has no tls/name-matching.yaml"
 	[ -n "${FEATURES_CONF_PATH:-}" ] || die "FEATURES_CONF_PATH is required"
 	[ -r "$FEATURES_CONF_PATH" ] || die "FEATURES_CONF_PATH '$FEATURES_CONF_PATH' is not readable"

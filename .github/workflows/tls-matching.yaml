@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aerospike/aerospike-client-conformance
-          ref: 1971a9b61975fbecac1c3b6d4c612eb7bc03d101 # main, fixture set 1.1.0
+          ref: a30c0787dede434f15be3622e7007dc57b55209d # main
           path: conformance-fixtures
 
       - name: Setup Go
@@ -100,7 +100,6 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${DST}/tls"
-          cp "${SRC}/VERSION" "${DST}/VERSION"
           cp "${SRC}/tls/name-matching.yaml" "${DST}/tls/name-matching.yaml"
 
       - name: Upload conformance report
@@ -113,7 +112,7 @@ jobs:
 
       - name: Collect conformance report
         if: ${{ always() }}
-        uses: aerospike/aerospike-client-conformance/.github/actions/collect-conformance-report@1971a9b61975fbecac1c3b6d4c612eb7bc03d101 # main
+        uses: aerospike/aerospike-client-conformance/.github/actions/collect-conformance-report@a30c0787dede434f15be3622e7007dc57b55209d # main
         with:
           reports-directory: ${{ runner.temp }}/conformance-report
           fixtures-directory: ${{ runner.temp }}/tls-fixtures
