@@ -81,6 +81,13 @@ type Recordset struct {
 	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
 	// Will be unexported in the future
 	records chan *Result
+
+	// sinkChan and sinkFactory are non-nil iff this recordset was
+	// produced by ScanAllSink / QuerySink. The scan dispatch calls
+	// sinkFactory() per record, populates the returned BinReceiver via
+	// the sink parser, and sends it on sinkChan.
+	sinkChan    chan BinReceiver
+	sinkFactory func() BinReceiver
 }
 
 // makes sure the recordset is closed eventually, even if it is not consumed
@@ -117,6 +124,21 @@ func newRecordset(recSize, goroutines int) *Recordset {
 	rs := &Recordset{
 		records:   make(chan *Result, recSize),
 		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines),
+	}
+
+	runtime.SetFinalizer(rs, recordsetFinalizer)
+	return rs
+}
+
+// newSinkRecordset generates a Recordset that streams populated
+// BinReceivers (one per record) to the caller via sinkChan.
+func newSinkRecordset(sinkChan chan BinReceiver, factory func() BinReceiver, goroutines int) *Recordset {
+	var nilChan chan *struct{}
+
+	rs := &Recordset{
+		sinkChan:    sinkChan,
+		sinkFactory: factory,
+		objectset:   *newObjectset(reflect.ValueOf(nilChan), goroutines),
 	}
 
 	runtime.SetFinalizer(rs, recordsetFinalizer)
@@ -189,6 +211,8 @@ func (rcs *Recordset) signalEnd() {
 
 		if rcs.records != nil {
 			close(rcs.records)
+		} else if rcs.sinkChan != nil {
+			close(rcs.sinkChan)
 		} else if rcs.objChan.IsValid() {
 			rcs.objChan.Close()
 		}

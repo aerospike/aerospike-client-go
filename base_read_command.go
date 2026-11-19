@@ -31,12 +31,27 @@ type baseReadCommand struct {
 	// pointer to the object that's going to be unmarshalled
 	object *reflect.Value
 
+	// destination receiver for the codegen / sink read path. Takes
+	// precedence over `object` when both are set.
+	sink BinReceiver
+
 	replicaSequence int
 }
 
 // this method uses reflection.
 // Will not be set if performance flag is passed for the build.
 var objectParser func(
+	brc *baseReadCommand,
+	opCount int,
+	fieldCount int,
+	generation uint32,
+	expiration uint32,
+) Error
+
+// sinkParser dispatches the read response into a BinReceiver. It is set in
+// read_command_sink.go's init() and is always available (no build tag),
+// since this path does not depend on reflection.
+var sinkParser func(
 	brc *baseReadCommand,
 	opCount int,
 	fieldCount int,
