@@ -727,7 +727,8 @@ func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
 // control as well.  Do not return an error since future
 // database requests may still succeed.
 func (clstr *Cluster) waitTillStabilized() Error {
-	count := -1
+	seen := map[int]bool{}
+	last := -1
 
 	doneCh := make(chan Error, 10)
 
@@ -745,15 +746,19 @@ func (clstr *Cluster) waitTillStabilized() Error {
 				logger.Logger.Warn("%s", err.Error())
 			}
 
-			// Check to see if cluster has changed since the last Tend().
-			// If not, assume cluster has stabilized and return.
-			if count == len(clstr.GetNodes()) {
+			// Stop at a node count already seen: either nothing changed since the last
+			// Tend(), or the count is flapping, e.g. a node behind a load balancer.
+			count := len(clstr.GetNodes())
+			if seen[count] {
+				if count != last {
+					logger.Logger.Warn("Node count did not settle during cluster start (%d after %d); continuing with %d nodes. A node may be flapping, e.g. behind a load balancer", count, last, count)
+				}
 				break
 			}
+			seen[count] = true
+			last = count
 
 			time.Sleep(time.Millisecond)
-
-			count = len(clstr.GetNodes())
 		}
 		doneCh <- err
 	}()
