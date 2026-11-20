@@ -381,6 +381,10 @@ func (clstr *Cluster) tend() Error {
 
 			// Must look for new node name in the unlikely event that node names do not agree.
 			if _peer.nodeName != nv.name {
+				if clstr.isAlias(peers, &nv, host) {
+					logger.Logger.Warn("Peer node `%s` address `%s` answers as node `%s`, trying its next address", _peer.nodeName, host, nv.name)
+					return nil
+				}
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
 			}
 
