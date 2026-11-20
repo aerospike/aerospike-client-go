@@ -46,7 +46,6 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 	gg.It("reports the display name aws-tags", func() {
 		provider := newAwsStubProvider("", 0)
 		gm.Expect(seedProviderDisplayName(provider)).To(gm.Equal(seedProviderNameAwsTags))
-		provider.Close()
 	})
 
 	gg.It("rejects tend mode because the provider cannot take a deadline", func() {
@@ -63,7 +62,6 @@ var _ = gg.Describe("AWS tags seed refresher", gg.Label("discovery"), func() {
 		gm.Expect(err.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue())
 		gm.Expect(err.Error()).To(gm.ContainSubstring("Seed candidate provider aws-tags does not support a deadline and cannot run in tend execution mode. Use thread execution mode"))
 		gm.Expect(server.callCount()).To(gm.Equal(0))
-		provider.Close()
 	})
 
 	gg.Context("thread-mode start", func() {

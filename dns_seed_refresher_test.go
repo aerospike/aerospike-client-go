@@ -52,7 +52,6 @@ var _ = gg.Describe("DNS seed refresher", gg.Label("discovery"), func() {
 		})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(seedProviderDisplayName(provider)).To(gm.Equal(seedProviderNameDns))
-		provider.Close()
 	})
 
 	gg.It("fails start with SEED_DISCOVERY_FAILED when every name is NXDOMAIN and there are no constructor seeds", func() {

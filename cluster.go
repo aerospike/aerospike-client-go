@@ -92,6 +92,12 @@ type Cluster struct {
 	closed      iatomic.Bool
 	tendCount   int
 
+	// constructionTendDone closes when the tend goroutine that
+	// waitTillStabilized started has returned. The translator closes only
+	// after that tend, its one caller that Close does not wait for.
+	constructionTendDone chan struct{}
+	translatorClosed     iatomic.Bool
+
 	supportsPartitionQuery iatomic.Bool // whether all nodes in the cluster support query by partition.
 
 	// User name in UTF-8 encoded bytes.
@@ -135,6 +141,26 @@ func defaultSeedTLSNames(policy *ClientPolicy, hosts []*Host) []*Host {
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, Error) {
 	loadedPolicy := policy.Load()
+
+	// A build that fails closes the plugins here. Once the seed refresher
+	// exists, it closes the provider.
+	var newCluster *Cluster
+	clusterBuilt := false
+	refresherOwnsProvider := false
+	defer func() {
+		if clusterBuilt {
+			return
+		}
+		if !refresherOwnsProvider {
+			closeSeedProvider(loadedPolicy.SeedProvider)
+		}
+		if newCluster != nil {
+			newCluster.closeTranslatorWhenUnused()
+		} else {
+			closeAddressTranslator(loadedPolicy.AddressTranslator)
+		}
+	}()
+
 	// Validate the policy params
 	if loadedPolicy.MinConnectionsPerNode > loadedPolicy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
@@ -148,7 +174,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 		loadedPolicy.IdleTimeout = 55 * time.Second
 	}
 
-	newCluster := &Cluster{
+	newCluster = &Cluster{
 		infoPolicy:   InfoPolicy{Timeout: loadedPolicy.Timeout},
 		tendChannel:  make(chan struct{}),
 		clientPolicy: policy,
@@ -198,6 +224,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 	if rerr != nil {
 		return nil, rerr
 	}
+	refresherOwnsProvider = true
 	newCluster.seedRefresher = refresher
 
 	initialSeeds, rerr := refresher.start()
@@ -231,7 +258,33 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 		logger.Logger.Error("New cluster was not initialized successfully, but the client will keep trying to connect to the database. Error: %s", err.Error())
 	}
 
+	clusterBuilt = true
 	return newCluster, err
+}
+
+// closeTranslatorWhenUnused closes the translator now, or, while the
+// construction tend is still running, as soon as it returns. It never waits.
+func (clstr *Cluster) closeTranslatorWhenUnused() {
+	constructionTendDone := clstr.constructionTendDone
+	if constructionTendDone == nil {
+		clstr.closeTranslator()
+		return
+	}
+	select {
+	case <-constructionTendDone:
+		clstr.closeTranslator()
+	default:
+		go func() {
+			<-constructionTendDone
+			clstr.closeTranslator()
+		}()
+	}
+}
+
+func (clstr *Cluster) closeTranslator() {
+	if clstr.translatorClosed.CompareAndToggle(false) {
+		closeAddressTranslator(clstr.addressTranslator)
+	}
 }
 
 // String implements the stringer interface
@@ -319,8 +372,10 @@ func (clstr *Cluster) tend() Error {
 	// If active nodes don't exist, seed cluster.
 	if clientPolicy := clstr.clientPolicy.Load(); len(nodes) == 0 || (clientPolicy != nil && clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
+		// The urgent refresh is for the next tend, so take this tend's seeds first.
+		seeds := clstr.seedSnapshot()
 		clstr.seedRefresher.requestUrgentRefresh()
-		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
+		if newNodesFound, err := clstr.seedNodes(seeds); !newNodesFound {
 			// Count this tend and run tend-mode discovery so a provider can
 			// refresh while the cluster stays empty. Thread-mode tendTick is a
 			// no-op, urgent already woke the loop.
@@ -734,8 +789,13 @@ func (clstr *Cluster) waitTillStabilized() Error {
 
 	doneCh := make(chan Error, 10)
 
+	constructionTendDone := make(chan struct{})
+	clstr.constructionTendDone = constructionTendDone
+
 	// will run until the cluster is stabilized
 	go func() {
+		defer close(constructionTendDone)
+
 		var err Error
 		for !clstr.closed.Get() {
 			if err = clstr.tend(); err != nil {
@@ -842,8 +902,8 @@ func discoverSeedIPs(seeds []*Host) []seedTarget {
 	return res
 }
 
-// Adds seeds to the cluster
-func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
+// seedSnapshot returns a copy of the current seed list.
+func (clstr *Cluster) seedSnapshot() []*Host {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayCopy, _ := clstr.seeds.GetSyncedVia(func(seeds []*Host) ([]*Host, error) {
 		seedsCopy := make([]*Host, len(seeds))
@@ -851,7 +911,11 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 
 		return seedsCopy, nil
 	})
+	return seedArrayCopy
+}
 
+// Adds seeds to the cluster
+func (clstr *Cluster) seedNodes(seedArrayCopy []*Host) (newSeedsFound bool, errChain Error) {
 	// discover seed IPs from DNS or Load Balancers
 	seedArray := discoverSeedIPs(seedArrayCopy)
 
@@ -1197,6 +1261,7 @@ func (clstr *Cluster) Close() {
 		if clstr.seedRefresher != nil {
 			clstr.seedRefresher.close()
 		}
+		clstr.closeTranslatorWhenUnused()
 
 		// remove node references from the partition table
 		// to allow GC to work its magic. Leaks otherwise.

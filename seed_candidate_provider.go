@@ -33,6 +33,12 @@ type SeedCandidateContext struct {
 
 // SeedCandidateProvider supplies bootstrap and re-seed hosts. It does not
 // define cluster membership. Nodes come from the server's peers lists.
+//
+// A provider that holds resources implements io.Closer. The client calls
+// Close once after every other call has returned: when the client closes, or
+// when the client fails to build. An error or panic from Close is logged. A
+// Close without an error result is never called; declare
+// var _ io.Closer = (*myProvider)(nil) so the build checks the signature.
 type SeedCandidateProvider interface {
 	// RefreshSeedCandidates returns seed candidates in preference order.
 	// An empty list is valid, not an error. A host with a port outside
@@ -47,8 +53,4 @@ type SeedCandidateProvider interface {
 	// time to ClientPolicy.DiscoveryTendRefreshDeadline. Required for
 	// DiscoveryExecutionTend.
 	SupportsDeadline() bool
-
-	// Close releases provider resources. Called once when the client closes,
-	// after every other call has returned.
-	Close()
 }

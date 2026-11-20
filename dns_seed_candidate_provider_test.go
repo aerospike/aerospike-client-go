@@ -55,7 +55,6 @@ var _ = gg.Describe("DnsSeedCandidateProvider", gg.Label("discovery"), func() {
 		gm.Expect(dnsProvider.resolver.Config().Port).To(gm.Equal(dns.DefaultPort))
 		gm.Expect(dnsProvider.recordType).To(gm.Equal(DnsRecordTypeA))
 		gm.Expect(dnsProvider.tlsName).To(gm.Equal(""))
-		provider.Close()
 	})
 
 	gg.It("zero Port and Timeout mean the Java numeric defaults", func() {
@@ -67,7 +66,6 @@ var _ = gg.Describe("DnsSeedCandidateProvider", gg.Label("discovery"), func() {
 		dnsProvider := asDnsProvider(provider)
 		gm.Expect(dnsProvider.resolver.Config().Port).To(gm.Equal(3000))
 		gm.Expect(dnsProvider.timeout).To(gm.Equal(80 * time.Millisecond))
-		provider.Close()
 	})
 
 	gg.It("constructs without probing system resolvers when Servers is empty", func() {
@@ -76,7 +74,6 @@ var _ = gg.Describe("DnsSeedCandidateProvider", gg.Label("discovery"), func() {
 		})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(asDnsProvider(provider).resolver.Config().Servers).To(gm.BeEmpty())
-		provider.Close()
 	})
 
 	gg.It("sets tls_name on every host from a lookup", func() {

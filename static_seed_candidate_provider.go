@@ -40,11 +40,6 @@ func (staticSeedCandidateProvider) SupportsDeadline() bool {
 	return true
 }
 
-// Close implements the SeedCandidateProvider interface.
-func (staticSeedCandidateProvider) Close() {
-	// no-op
-}
-
 // copyHosts returns a deep copy of the given hosts: a new slice with a new
 // Host per element, so later changes to the originals are not shared.
 func copyHosts(hosts []*Host) []*Host {

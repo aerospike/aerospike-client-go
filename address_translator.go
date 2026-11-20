@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"io"
 	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -71,6 +72,12 @@ type Endpoint struct {
 // returned port outside 1-65535. ClientPolicy.TranslationOnMiss decides what
 // happens on a miss. A translator may additionally implement
 // ClusterViewChangeObserver.
+//
+// A translator that holds resources implements io.Closer. The client calls
+// Close once after every other call has returned: when the client closes, or
+// when the client fails to build. An error or panic from Close is logged. A
+// Close without an error result is never called; declare
+// var _ io.Closer = (*myTranslator)(nil) so the build checks the signature.
 type AddressTranslator interface {
 	Translate(advertised Endpoint) (translated Host, ok bool)
 }
@@ -80,9 +87,17 @@ type AddressTranslator interface {
 //
 // OnClusterViewChanged runs on the tend goroutine whenever the node set or an
 // advertised address changes, incrementing viewChange by 1. It must not block or
-// perform I/O.
+// perform I/O. Declare var _ aerospike.ClusterViewChangeObserver =
+// (*myTranslator)(nil) so the build checks the method.
 type ClusterViewChangeObserver interface {
 	OnClusterViewChanged(viewChange int64)
+}
+
+// closeAddressTranslator closes a translator that implements io.Closer.
+func closeAddressTranslator(translator AddressTranslator) {
+	if closer, isCloser := translator.(io.Closer); isCloser {
+		closeDiscoveryPlugin(closer, "Address translator "+translatorDisplayName(translator))
+	}
 }
 
 // translatorDisplayName names a translator in logs and errors.

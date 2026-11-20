@@ -125,10 +125,6 @@ func (*dnsSeedCandidateProvider) SupportsDeadline() bool {
 	return true
 }
 
-// Close implements the SeedCandidateProvider interface.
-func (*dnsSeedCandidateProvider) Close() {
-}
-
 func (provider *dnsSeedCandidateProvider) String() string {
 	return "dns " + strings.Join(provider.resolver.Config().Names, ",") + " " + provider.recordType.String()
 }

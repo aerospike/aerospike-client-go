@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -139,5 +140,39 @@ var _ = gg.Describe("Zero-node re-seed", gg.Label("discovery"), func() {
 
 		gm.Expect(accepts.Load()).To(gm.BeNumerically(">=", 3))
 		gm.Expect(client.GetNodes()).To(gm.HaveLen(0))
+	})
+
+	gg.It("takes the seed snapshot before waking a thread-mode refresh", func() {
+		freshSeed := NewHost("127.0.0.1", 2)
+		provider := &scriptedSeedProvider{
+			results:  [][]*Host{{deadSeed}, {freshSeed}},
+			periodic: true,
+		}
+		clientPolicy := policy(provider, DiscoveryExecutionThread, time.Hour)
+		clientPolicy.TendInterval = 100 * time.Millisecond
+		client := newZeroNodeClient(clientPolicy, deadSeed)
+
+		// Hold the seed list so the client's next tend waits on its snapshot.
+		// The cleanup releases it before the client closes, even on a failure.
+		seedsHeld := make(chan struct{})
+		seedsRelease := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseSeeds := func() { releaseOnce.Do(func() { close(seedsRelease) }) }
+		gg.DeferCleanup(releaseSeeds)
+		go func() {
+			_ = client.cluster.seeds.Update(func(seeds []*Host) ([]*Host, error) {
+				close(seedsHeld)
+				<-seedsRelease
+				return seeds, nil
+			})
+		}()
+		<-seedsHeld
+
+		gm.Consistently(provider.calls.Load, "400ms", "20ms").Should(gm.Equal(int64(1)),
+			"the tend woke the refresh before taking its seed snapshot")
+
+		releaseSeeds()
+		gm.Eventually(provider.calls.Load, "2s", "10ms").Should(gm.Equal(int64(2)))
+		gm.Eventually(client.cluster.GetSeeds, "2s", "10ms").Should(gm.ContainElement(*freshSeed))
 	})
 })

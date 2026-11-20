@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -265,7 +266,7 @@ func (refresher *seedRefresher) refreshLoop() {
 	for iteration := int64(0); ; iteration++ {
 		select {
 		case <-refresher.stopCh:
-			refresher.closeProvider()
+			closeSeedProvider(refresher.provider)
 			return
 		default:
 		}
@@ -282,7 +283,7 @@ func (refresher *seedRefresher) refreshLoop() {
 			select {
 			case <-refresher.activeCh:
 			case <-refresher.stopCh:
-				refresher.closeProvider()
+				closeSeedProvider(refresher.provider)
 				return
 			}
 		}
@@ -297,7 +298,7 @@ func (refresher *seedRefresher) refreshLoop() {
 
 		select {
 		case <-refresher.stopCh:
-			refresher.closeProvider()
+			closeSeedProvider(refresher.provider)
 			return
 		case <-refresher.urgentCh:
 		case <-time.After(refresher.refreshInterval):
@@ -405,7 +406,7 @@ func (refresher *seedRefresher) close() {
 		close(refresher.stopCh)
 
 		if !refresher.loopStarted.Get() {
-			refresher.closeProvider()
+			closeSeedProvider(refresher.provider)
 			return
 		}
 
@@ -432,18 +433,29 @@ func (refresher *seedRefresher) abort() {
 	refresher.closeOnce.Do(func() {
 		close(refresher.stopCh)
 		if !refresher.loopStarted.Get() {
-			refresher.closeProvider()
+			closeSeedProvider(refresher.provider)
 		}
 	})
 }
 
-func (refresher *seedRefresher) closeProvider() {
+// closeSeedProvider closes a provider that implements io.Closer.
+func closeSeedProvider(provider SeedCandidateProvider) {
+	if closer, isCloser := provider.(io.Closer); isCloser {
+		closeDiscoveryPlugin(closer, "Seed candidate provider "+seedProviderDisplayName(provider))
+	}
+}
+
+// closeDiscoveryPlugin calls Close and logs a returned error or a panic
+// instead of passing it on. pluginLabel names the plugin in the warning.
+func closeDiscoveryPlugin(closer io.Closer, pluginLabel string) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			logger.Logger.Warn("Seed candidate provider %s close failed: %v", refresher.providerName, recovered)
+			logger.Logger.Warn("%s close failed: %v", pluginLabel, recovered)
 		}
 	}()
-	refresher.provider.Close()
+	if err := closer.Close(); err != nil {
+		logger.Logger.Warn("%s close failed: %s", pluginLabel, err.Error())
+	}
 }
 
 // refreshOnce requests one seed list from the provider. The list is copied.

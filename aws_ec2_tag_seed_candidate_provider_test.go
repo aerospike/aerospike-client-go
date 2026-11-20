@@ -81,7 +81,6 @@ var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), fun
 		gm.Expect(cfg.TLSName).To(gm.Equal(""))
 		gm.Expect(cfg.Endpoint).To(gm.Equal(""))
 		gm.Expect(awsProvider.String()).To(gm.Equal("aws-tags eu-west-1 {tag:aerospike-cluster=[prod-a]}"))
-		provider.Close()
 	})
 
 	gg.It("treats zero Port and Timeout as 3000 and 2000ms", func() {
@@ -94,7 +93,6 @@ var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), fun
 		cfg := asAwsProvider(provider).client.Config()
 		gm.Expect(cfg.Port).To(gm.Equal(aws.DefaultPort))
 		gm.Expect(cfg.Timeout).To(gm.Equal(aws.DefaultTimeout))
-		provider.Close()
 	})
 
 	gg.It("rejects a missing region as 'null'", func() {
@@ -123,7 +121,6 @@ var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), fun
 		_, refreshErr := provider.RefreshSeedCandidates(nil)
 		gm.Expect(refreshErr).To(gm.HaveOccurred())
 		gm.Expect(refreshErr.Error()).To(gm.ContainSubstring("SeedCandidateContext is required"))
-		provider.Close()
 	})
 
 	gg.It("parses address_field tokens without regard to case", func() {

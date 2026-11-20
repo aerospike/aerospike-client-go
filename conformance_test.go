@@ -136,7 +136,6 @@ func (provider *conformanceSeedScript) RefreshSeedCandidates(*SeedCandidateConte
 
 func (*conformanceSeedScript) NeedsPeriodicRefresh() bool { return true }
 func (*conformanceSeedScript) SupportsDeadline() bool     { return false }
-func (*conformanceSeedScript) Close()                     {}
 
 func TestConformance(t *testing.T) {
 	raw := strings.TrimSpace(os.Getenv("CONFORMANCE_DIR"))

@@ -44,6 +44,9 @@ type scriptedSeedProvider struct {
 	blockOn chan struct{}
 	sleep   atomic.Int64 // nanoseconds slept by every call
 
+	closeErr    error
+	closePanics bool
+
 	calls      atomic.Int64
 	closeCalls atomic.Int64
 }
@@ -72,7 +75,13 @@ func (provider *scriptedSeedProvider) RefreshSeedCandidates(seedContext *SeedCan
 
 func (provider *scriptedSeedProvider) NeedsPeriodicRefresh() bool { return provider.periodic }
 func (provider *scriptedSeedProvider) SupportsDeadline() bool     { return provider.deadline }
-func (provider *scriptedSeedProvider) Close()                     { provider.closeCalls.Add(1) }
+func (provider *scriptedSeedProvider) Close() error {
+	provider.closeCalls.Add(1)
+	if provider.closePanics {
+		panic("provider close failure")
+	}
+	return provider.closeErr
+}
 
 func periodicDeadlineProvider(results ...[]*Host) *scriptedSeedProvider {
 	return &scriptedSeedProvider{results: results, periodic: true, deadline: true}
@@ -107,7 +116,6 @@ func (provider *gatedSeedProvider) RefreshSeedCandidates(*SeedCandidateContext) 
 
 func (*gatedSeedProvider) NeedsPeriodicRefresh() bool { return true }
 func (*gatedSeedProvider) SupportsDeadline() bool     { return false }
-func (*gatedSeedProvider) Close()                     {}
 
 func (provider *gatedSeedProvider) waitUntilStarted(within time.Duration) bool {
 	select {
@@ -699,7 +707,6 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 		gg.It("does not check dns timeout against the tend deadline in thread mode", func() {
 			provider := dnsTimeoutProvider(200 * time.Millisecond)
-			defer provider.Close()
 			policy := threadClientPolicy(provider, 0)
 			policy.DiscoveryTendRefreshDeadline = 100 * time.Millisecond
 
@@ -901,7 +908,6 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 
 		gg.It("rejects a dns timeout above the refresh timeout", func() {
 			provider := dnsTimeoutProvider(400 * time.Millisecond)
-			defer provider.Close()
 			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue())
@@ -912,7 +918,6 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			provider := dnsTimeoutProvider(80 * time.Millisecond)
 			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			provider.Close()
 		})
 
 		gg.It("rejects an aws timeout above the refresh timeout", func() {
@@ -921,14 +926,12 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue())
 			gm.Expect(err.Error()).To(gm.ContainSubstring("AWS EC2 seed provider timeout 400ms must be less or equal to the discovery refresh timeout 80ms"))
-			provider.Close()
 		})
 
 		gg.It("constructs when an aws timeout equals the refresh timeout", func() {
 			provider := newAwsStubProvider("", 80*time.Millisecond)
 			_, err := newSeedRefresher(threadClientPolicy(provider, 80*time.Millisecond), staticSeeds, func([]*Host) {})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			provider.Close()
 		})
 
 		gg.It("does not deadlock when the first lookup finishes before start waits", func() {
@@ -1668,9 +1671,10 @@ func (provider *hangingSeedProvider) RefreshSeedCandidates(*SeedCandidateContext
 func (provider *hangingSeedProvider) NeedsPeriodicRefresh() bool { return true }
 func (provider *hangingSeedProvider) SupportsDeadline() bool     { return false }
 
-func (provider *hangingSeedProvider) Close() {
+func (provider *hangingSeedProvider) Close() error {
 	provider.closeCalls.Add(1)
 	provider.cancel()
+	return nil
 }
 
 // overlapSeedProvider blocks every refresh until release closes and records
@@ -1692,11 +1696,12 @@ func (provider *overlapSeedProvider) RefreshSeedCandidates(*SeedCandidateContext
 func (provider *overlapSeedProvider) NeedsPeriodicRefresh() bool { return true }
 func (provider *overlapSeedProvider) SupportsDeadline() bool     { return false }
 
-func (provider *overlapSeedProvider) Close() {
+func (provider *overlapSeedProvider) Close() error {
 	if provider.inFlight.Load() {
 		provider.overlapped.Store(true)
 	}
 	provider.closeCalls.Add(1)
+	return nil
 }
 
 type panickingSeedProvider struct{}
@@ -1706,7 +1711,6 @@ func (panickingSeedProvider) RefreshSeedCandidates(*SeedCandidateContext) ([]*Ho
 }
 func (panickingSeedProvider) NeedsPeriodicRefresh() bool { return true }
 func (panickingSeedProvider) SupportsDeadline() bool     { return true }
-func (panickingSeedProvider) Close()                     {}
 
 // panickingAfterSeedProvider succeeds after times, then panics on every later call.
 type panickingAfterSeedProvider struct {
@@ -1724,4 +1728,3 @@ func (provider *panickingAfterSeedProvider) RefreshSeedCandidates(*SeedCandidate
 }
 func (provider *panickingAfterSeedProvider) NeedsPeriodicRefresh() bool { return provider.periodic }
 func (*panickingAfterSeedProvider) SupportsDeadline() bool              { return false }
-func (*panickingAfterSeedProvider) Close()                              {}

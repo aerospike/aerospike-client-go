@@ -154,10 +154,6 @@ func (*awsEc2TagSeedCandidateProvider) SupportsDeadline() bool {
 	return false
 }
 
-// Close implements the SeedCandidateProvider interface.
-func (*awsEc2TagSeedCandidateProvider) Close() {
-}
-
 func (provider *awsEc2TagSeedCandidateProvider) String() string {
 	return provider.client.String()
 }

@@ -105,8 +105,6 @@ func (provider *l2CountingSeedProvider) NeedsPeriodicRefresh() bool { return tru
 
 func (provider *l2CountingSeedProvider) SupportsDeadline() bool { return true }
 
-func (provider *l2CountingSeedProvider) Close() {}
-
 func (provider *l2CountingSeedProvider) callCount() int {
 	return int(provider.calls.Load())
 }

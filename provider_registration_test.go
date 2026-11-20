@@ -35,7 +35,6 @@ func (provider *recordingSeedProvider) RefreshSeedCandidates(seedContext *SeedCa
 }
 func (provider *recordingSeedProvider) NeedsPeriodicRefresh() bool { return false }
 func (provider *recordingSeedProvider) SupportsDeadline() bool     { return false }
-func (provider *recordingSeedProvider) Close()                     {}
 
 type recordingTranslator struct {
 	options map[string]any
