@@ -414,7 +414,8 @@ func (clstr *Cluster) tend() Error {
 	clstr.detectTranslationCollisions(peers)
 
 	// find the first host that connects
-	seq.ParDo(peers.peers(), func(_peer *peer) {
+	candidates := peers.peers()
+	seq.ParDo(candidates, func(_peer *peer) {
 		if clstr.peerExists(peers, _peer) {
 			// Node already exists. Do not even try to connect to hosts.
 			return
@@ -441,30 +442,14 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
 			}
 
-			// A validated newcomer that turns out to be a node the cluster
-			// already holds, or whose address another peer validated first,
-			// is a translation collision and is not added.
-			if existing := clstr.findNodeByName(nv.name); existing != nil && existing.name != _peer.nodeName {
-				logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, _peer.nodeName, existing.name, nv.primaryHost.Name, nv.primaryHost.Port)
-				return seq.Break
-			}
-			if otherNodeName := peers.claimAddress(hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}, nv.name); otherNodeName != "" {
-				logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, _peer.nodeName, otherNodeName, nv.primaryHost.Name, nv.primaryHost.Port)
-				return seq.Break
-			}
-
-			// Create new node.
-			node := clstr.createNode(&nv)
-			peers.addNode(nv.name, node)
-			partMap.InitDoVal(clstr.getPartitions().clone, func(partMap partitionMap) {
-				node.refreshPartitions(peers, partMap, true)
-			})
-
-			// Preventing duplicate entries.
-			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
-				peers.addNodesToRemove(_peer.replaceNode)
-			}
+			_peer.validated = &nv
 			return seq.Break
+		})
+	})
+
+	seq.ParDo(clstr.addValidatedPeers(peers, candidates), func(node *Node) {
+		partMap.InitDoVal(clstr.getPartitions().clone, func(partMap partitionMap) {
+			node.refreshPartitions(peers, partMap, true)
 		})
 	})
 
@@ -648,6 +633,66 @@ func (clstr *Cluster) detectTranslationCollisions(peers *peers) {
 			clstr.warnAddressCollision(newPeer.nodeName, ownerName, address)
 		}
 	}
+}
+
+// addValidatedPeers creates the nodes of the peers validated this tend and
+// returns them. A peer that validated as a node the cluster already holds, or
+// whose validated address or node name another validated peer shares, is not
+// added; neither side of a clash between peers is added. Runs on the tend
+// goroutine after validation, so the outcome does not depend on which peer
+// validated first.
+func (clstr *Cluster) addValidatedPeers(peers *peers, candidates []*peer) []*Node {
+	byAddress := make(map[hostAndPort][]*peer, len(candidates))
+	byName := make(map[string][]*peer, len(candidates))
+	for _, candidate := range candidates {
+		if nv := candidate.validated; nv != nil {
+			address := hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}
+			byAddress[address] = append(byAddress[address], candidate)
+			byName[nv.name] = append(byName[nv.name], candidate)
+		}
+	}
+
+	var added []*Node
+	for _, candidate := range candidates {
+		nv := candidate.validated
+		if nv == nil {
+			continue
+		}
+
+		address := hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}
+		if existing := clstr.findNodeByName(nv.name); existing != nil && existing.name != candidate.nodeName {
+			clstr.warnAddressCollision(candidate.nodeName, existing.name, address)
+			continue
+		}
+		if other := otherPeer(byAddress[address], candidate); other != nil {
+			clstr.warnAddressCollision(candidate.nodeName, other.nodeName, address)
+			continue
+		}
+		if other := otherPeer(byName[nv.name], candidate); other != nil {
+			logger.Logger.Warn("Peer nodes %s and %s both validated as node %s. Neither is added", candidate.nodeName, other.nodeName, nv.name)
+			continue
+		}
+
+		node := clstr.createNode(nv)
+		peers.addNode(nv.name, node)
+
+		// Preventing duplicate entries.
+		if candidate.replaceNode != nil && !peers.containsNodeToRemove(candidate.replaceNode) {
+			peers.addNodesToRemove(candidate.replaceNode)
+		}
+		added = append(added, node)
+	}
+	return added
+}
+
+// otherPeer returns a peer in list other than self, or nil.
+func otherPeer(list []*peer, self *peer) *peer {
+	for _, candidate := range list {
+		if candidate != self {
+			return candidate
+		}
+	}
+	return nil
 }
 
 // healthyNodeAt returns the node on address, or nil. Only an active node

@@ -130,4 +130,5 @@ type peer struct {
 	tlsName     string
 	hosts       []*Host
 	replaceNode *Node
+	validated   *nodeValidator
 }
