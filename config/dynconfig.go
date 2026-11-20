@@ -68,6 +68,7 @@ type Client struct {
 	ConnectionQueueSize   *int               `yaml:"max_connections_per_node"`
 	MinConnectionsPerNode *int               `yaml:"min_connections_per_node"`
 	IpMap                 *map[string]string `yaml:"ip_map"`
+	UseServicesAlternate  *bool              `yaml:"use_services_alternate"`
 	Discovery             *DiscoveryConfig   `yaml:"discovery"`
 	Translation           *TranslationConfig `yaml:"translation"`
 

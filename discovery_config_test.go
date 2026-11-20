@@ -100,6 +100,35 @@ static:
 		gm.Expect(policy.AddressTranslator).To(gm.BeNil())
 	})
 
+	gg.It("maps static use_services_alternate onto the policy", func() {
+		gm.Expect(NewClientPolicy().UseServicesAlternate).To(gm.BeFalse())
+
+		policy := staticPolicyFromYaml(`
+static:
+  client:
+    use_services_alternate: true
+`)
+
+		gm.Expect(policy.UseServicesAlternate).To(gm.BeTrue())
+	})
+
+	gg.It("lets dynamic use_service_alternate override static use_services_alternate", func() {
+		parsed := &dynconfig.Config{}
+		gm.Expect(yaml.Unmarshal([]byte(`
+static:
+  client:
+    use_services_alternate: true
+dynamic:
+  client:
+    use_service_alternate: false
+`), parsed)).To(gm.Succeed())
+		dynConfig := &DynConfig{config: parsed, logUpdate: &atomic.Bool{}}
+
+		policy := NewClientPolicy().mapStatic(dynConfig).mapDynamic(dynConfig)
+
+		gm.Expect(policy.UseServicesAlternate).To(gm.BeFalse())
+	})
+
 	gg.It("maps every discovery and translation key onto the policy", func() {
 		policy := staticPolicyFromYaml(`
 static:

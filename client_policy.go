@@ -524,6 +524,9 @@ func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
 		if currentConfig.Static.Client.IpMap != nil {
 			cp.IpMap = *currentConfig.Static.Client.IpMap
 		}
+		if currentConfig.Static.Client.UseServicesAlternate != nil {
+			cp.UseServicesAlternate = *currentConfig.Static.Client.UseServicesAlternate
+		}
 		cp.applyStaticTranslation(currentConfig.Static.Client.Translation, dynConfig.registeredTranslator)
 		cp.applyStaticDiscovery(currentConfig.Static.Client.Discovery, dynConfig.registeredSeedProvider)
 	}
