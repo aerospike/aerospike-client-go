@@ -54,30 +54,37 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		first  = net.ParseIP("127.0.0.1")
 		second net.IP
 
-		servers    []*stubNodeServer
-		client     *Client
-		origLookup = lookupHost
-		lookups    map[string]int
-		lookupMu   sync.Mutex
-		hosts      map[string][]string
+		servers     []*stubNodeServer
+		client      *Client
+		origLookup  = lookupHost
+		lookups     map[string]int
+		lookupMu    sync.Mutex
+		hosts       map[string][]string
+		lookupDelay time.Duration
 	)
 
 	gg.BeforeEach(func() {
 		second = secondLoopback()
+		if second == nil && canBindIP(net.IPv6loopback) {
+			second = net.IPv6loopback
+		}
 		if second == nil {
-			gg.Skip("127.0.0.2 cannot be bound locally")
+			gg.Skip("neither 127.0.0.2 nor ::1 can be bound locally")
 		}
 
 		servers = nil
 		client = nil
 		lookups = map[string]int{}
 		hosts = map[string][]string{}
+		lookupDelay = 0
 		lookupHost = func(name string) ([]string, error) {
 			lookupMu.Lock()
 			lookups[name]++
 			addrs := hosts[name]
+			delay := lookupDelay
 			lookupMu.Unlock()
 			if addrs != nil {
+				time.Sleep(delay)
 				out := make([]string, len(addrs))
 				copy(out, addrs)
 				return out, nil
@@ -96,8 +103,7 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		}
 	})
 
-	registerHostname := func(prefix string, addresses ...net.IP) string {
-		name := fmt.Sprintf("%s-%d.move.test", prefix, time.Now().UnixNano())
+	setAddresses := func(name string, addresses ...net.IP) {
 		addrs := make([]string, len(addresses))
 		for i, address := range addresses {
 			addrs[i] = address.String()
@@ -105,7 +111,18 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		lookupMu.Lock()
 		hosts[name] = addrs
 		lookupMu.Unlock()
+	}
+
+	registerHostname := func(prefix string, addresses ...net.IP) string {
+		name := fmt.Sprintf("%s-%d.move.test", prefix, time.Now().UnixNano())
+		setAddresses(name, addresses...)
 		return name
+	}
+
+	setLookupDelay := func(delay time.Duration) {
+		lookupMu.Lock()
+		lookupDelay = delay
+		lookupMu.Unlock()
 	}
 
 	lookupCount := func(name string) int {
@@ -129,6 +146,26 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		client = opened
 		return opened
+	}
+
+	// connectWith opens a client with the given Timeout and TendInterval. With
+	// TendInterval of an hour the spec drives every tend with cluster.tend().
+	connectWith := func(hostname string, port int, timeout, interval time.Duration) *Client {
+		policy := NewClientPolicy()
+		policy.Timeout = timeout
+		policy.TendInterval = interval
+		opened, err := NewClientWithPolicyAndHost(policy, NewHost(hostname, port))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		client = opened
+		return opened
+	}
+
+	failTends := func(opened *Client, node *Node, from, to int) {
+		for tend := from; tend <= to; tend++ {
+			_ = opened.cluster.tend()
+			gm.Expect(nodeNamed(opened, node.name)).To(gm.BeIdenticalTo(node), "tend %d replaced the node", tend)
+			gm.Expect(node.failures.Get()).To(gm.Equal(tend), "tend %d", tend)
+		}
 	}
 
 	connectSeedOnly := func(hostname string, port int) *Client {
@@ -319,7 +356,206 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 	gg.It("does not look up a hostname for a node that has no failures", func() {
 		otherNodeStays(noFailures)
 	})
+
+	gg.Context("bounded move", func() {
+		var third net.IP
+
+		gg.BeforeEach(func() {
+			third = thirdAddress(first, second)
+		})
+
+		requireThird := func() {
+			if third == nil {
+				gg.Skip("no third local address to bind")
+			}
+		}
+
+		gg.It("does not move a failing node before its third failed tend", func() {
+			hostname := registerHostname("gate", first, second)
+			port := freePortOn(first, second)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+			gm.Expect(old).ToNot(gm.BeNil())
+
+			startServer(second, port, nodeA)
+			lookups := lookupCount(hostname)
+			live.close()
+
+			failTends(opened, old, 1, moveFailedTends-1)
+			gm.Expect(lookupCount(hostname)).To(gm.Equal(lookups))
+
+			_ = opened.cluster.tend()
+			gm.Expect(nodeOnAddress(opened, nodeA, second)).To(gm.BeTrue())
+			gm.Expect(old.IsActive()).To(gm.BeFalse())
+		})
+
+		gg.It("does not move a node that recovers before its third failed tend", func() {
+			hostname := registerHostname("recover", first, second)
+			port := freePortOn(first, second)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+			startServer(second, port, nodeA)
+
+			live.close()
+			failTends(opened, old, 1, moveFailedTends-1)
+
+			live = startServer(first, port, nodeA)
+			_ = opened.cluster.tend()
+			gm.Expect(nodeNamed(opened, nodeA)).To(gm.BeIdenticalTo(old))
+			gm.Expect(old.failures.Get()).To(gm.Equal(0))
+
+			live.close()
+			failTends(opened, old, 1, moveFailedTends-1)
+			gm.Expect(nodeOnAddress(opened, nodeA, first)).To(gm.BeTrue())
+		})
+
+		gg.It("clears the last tried address when the node recovers", func() {
+			hostname := registerHostname("reset", first, second)
+			port := freePortOn(first, second)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+
+			live.close()
+			failTends(opened, old, 1, moveFailedTends)
+			gm.Expect(old.moveAddress).To(gm.Equal(second.String()))
+
+			startServer(first, port, nodeA)
+			_ = opened.cluster.tend()
+			gm.Expect(nodeNamed(opened, nodeA)).To(gm.BeIdenticalTo(old))
+			gm.Expect(old.failures.Get()).To(gm.Equal(0))
+			gm.Expect(old.moveAddress).To(gm.BeEmpty())
+		})
+
+		gg.It("tries one address per tend", func() {
+			requireThird()
+			hostname := registerHostname("one", first, second, third)
+			port := freePortOn(first, second, third)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+
+			startServer(third, port, nodeA)
+			live.close()
+
+			failTends(opened, old, 1, moveFailedTends)
+			gm.Expect(old.moveAddress).To(gm.Equal(second.String()))
+
+			_ = opened.cluster.tend()
+			gm.Expect(nodeOnAddress(opened, nodeA, third)).To(gm.BeTrue())
+			gm.Expect(old.IsActive()).To(gm.BeFalse())
+		})
+
+		gg.It("starts after the last tried address when DNS order changes", func() {
+			requireThird()
+			hostname := registerHostname("order", first, second, third)
+			port := freePortOn(first, second, third)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+
+			live.close()
+			failTends(opened, old, 1, moveFailedTends)
+			gm.Expect(old.moveAddress).To(gm.Equal(second.String()))
+
+			// second is now at the index after the one it had, so a stored
+			// index would try second again.
+			setAddresses(hostname, third, first, second)
+			failTends(opened, old, moveFailedTends+1, moveFailedTends+1)
+			gm.Expect(old.moveAddress).To(gm.Equal(third.String()))
+		})
+
+		gg.It("bounds a silent address by half the tend interval", func() {
+			requireThird()
+			hostname := registerHostname("silent", first, second, third)
+			port := freePortOn(first, second, third)
+			live := startServer(first, port, nodeA)
+			const timeout = 6 * time.Second
+			opened := connectWith(hostname, port, timeout, 200*time.Millisecond)
+
+			startServer(second, port, nodeA).setSilent()
+			startServer(third, port, nodeA)
+
+			begin := time.Now()
+			live.close()
+			gm.Eventually(func() bool {
+				return nodeOnAddress(opened, nodeA, third)
+			}, 10*time.Second, 5*time.Millisecond).Should(gm.BeTrue())
+			gm.Expect(time.Since(begin)).To(gm.BeNumerically("<", timeout/2))
+		})
+
+		gg.It("does not move onto an address that answers as another node", func() {
+			hostname := registerHostname("other", first, second)
+			port := freePortOn(first, second)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+
+			startServer(second, port, nodeC)
+			live.close()
+
+			failTends(opened, old, 1, moveFailedTends+1)
+			gm.Expect(old.moveAddress).To(gm.Equal(second.String()))
+			gm.Expect(nodeNamed(opened, nodeC)).To(gm.BeNil())
+			gm.Expect(opened.GetNodes()).To(gm.HaveLen(1))
+		})
+
+		gg.It("looks up the hostname on the tend goroutine", func() {
+			const delay = 300 * time.Millisecond
+			hostname := registerHostname("slow", first, second)
+			port := freePortOn(first, second)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+
+			startServer(second, port, nodeA)
+			setLookupDelay(delay)
+			live.close()
+
+			for tend := 1; tend < moveFailedTends; tend++ {
+				begin := time.Now()
+				_ = opened.cluster.tend()
+				gm.Expect(time.Since(begin)).To(gm.BeNumerically("<", delay), "tend %d", tend)
+			}
+
+			begin := time.Now()
+			_ = opened.cluster.tend()
+			gm.Expect(time.Since(begin)).To(gm.BeNumerically(">=", delay))
+			gm.Expect(nodeOnAddress(opened, nodeA, second)).To(gm.BeTrue())
+			gm.Expect(old.IsActive()).To(gm.BeFalse())
+		})
+	})
 })
+
+// thirdAddress returns a local address other than first and second that can
+// be bound, or nil.
+func thirdAddress(first, second net.IP) net.IP {
+	for _, ip := range []net.IP{net.IPv6loopback, nonLoopbackIPv4()} {
+		if ip != nil && !ip.Equal(first) && !ip.Equal(second) && canBindIP(ip) {
+			return ip
+		}
+	}
+	return nil
+}
+
+func nonLoopbackIPv4() net.IP {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil || !ipNet.IP.IsGlobalUnicast() {
+			continue
+		}
+		if canBindIP(ipNet.IP) {
+			return ipNet.IP.To4()
+		}
+	}
+	return nil
+}
 
 func peersFor(hostname string, names []string, ports []int, skip int) string {
 	var b strings.Builder
@@ -396,22 +632,30 @@ func canBindIP(ip net.IP) bool {
 	return true
 }
 
-func freePortOn(first, second net.IP) int {
+func freePortOn(ips ...net.IP) int {
 	for range 100 {
-		listener, err := net.Listen("tcp", net.JoinHostPort(second.String(), "0"))
+		listener, err := net.Listen("tcp", net.JoinHostPort(ips[len(ips)-1].String(), "0"))
 		if err != nil {
 			continue
 		}
 		port := listener.Addr().(*net.TCPAddr).Port
 		listener.Close()
-		probe, err := net.Listen("tcp", net.JoinHostPort(first.String(), strconv.Itoa(port)))
+		if portFreeOn(port, ips[:len(ips)-1]) {
+			return port
+		}
+	}
+	panic(fmt.Sprintf("no port free on every address of %v", ips))
+}
+
+func portFreeOn(port int, ips []net.IP) bool {
+	for _, ip := range ips {
+		probe, err := net.Listen("tcp", net.JoinHostPort(ip.String(), strconv.Itoa(port)))
 		if err != nil {
-			continue
+			return false
 		}
 		probe.Close()
-		return port
 	}
-	panic("no port free on both 127.0.0.1 and 127.0.0.2")
+	return true
 }
 
 type stubNodeServer struct {
@@ -419,9 +663,10 @@ type stubNodeServer struct {
 	nodeName string
 	replicas string
 
-	mu    sync.Mutex
-	peers string
-	conns []net.Conn
+	mu     sync.Mutex
+	peers  string
+	conns  []net.Conn
+	silent bool
 }
 
 func newStubNodeServer(ip net.IP, port int, nodeName string) (*stubNodeServer, error) {
@@ -467,6 +712,14 @@ func (server *stubNodeServer) setPeers(peers string) {
 	server.mu.Unlock()
 }
 
+// setSilent makes the server accept connections and never answer, like a
+// node that hangs after the TCP handshake.
+func (server *stubNodeServer) setSilent() {
+	server.mu.Lock()
+	server.silent = true
+	server.mu.Unlock()
+}
+
 func (server *stubNodeServer) close() {
 	server.listener.Close()
 	server.mu.Lock()
@@ -493,6 +746,14 @@ func (server *stubNodeServer) serve() {
 
 func (server *stubNodeServer) serveConnection(conn net.Conn) {
 	defer conn.Close()
+
+	server.mu.Lock()
+	silent := server.silent
+	server.mu.Unlock()
+	if silent {
+		_, _ = io.Copy(io.Discard, conn)
+		return
+	}
 
 	for {
 		var header types.MessageHeader

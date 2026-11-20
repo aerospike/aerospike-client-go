@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -150,8 +151,14 @@ func (ndv *nodeValidator) setAliases(host *Host) Error {
 }
 
 func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
+	return ndv.validateAliasWithin(cluster, alias, cluster.clientPolicy.Load().Timeout/2)
+}
+
+// validateAliasWithin validates alias with timeout bounding the dial and the
+// info requests. Login keeps ClientPolicy.LoginTimeout.
+func (ndv *nodeValidator) validateAliasWithin(cluster *Cluster, alias *Host, timeout time.Duration) Error {
 	clientPolicy := *cluster.clientPolicy.Load()
-	clientPolicy.Timeout /= 2
+	clientPolicy.Timeout = timeout
 
 	conn, err := NewConnection(&clientPolicy, alias)
 	if err != nil {

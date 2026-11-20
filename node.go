@@ -55,7 +55,11 @@ type Node struct {
 	hostName string
 	// lookupName is the DNS name used to create this node when the seed or
 	// peer was not an IP. Empty for IP literals.
-	lookupName  string
+	lookupName string
+	// moveAddress is the last address of lookupName tried by moveFailedNode.
+	// Cleared by a successful Refresh. Refresh and moveFailedNode never run
+	// concurrently for one node, so it needs no lock.
+	moveAddress string
 	aliases     iatomic.TypedVal[[]*Host]
 	stats       nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]
@@ -202,6 +206,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 	}
 
 	nd.failures.Set(0)
+	nd.moveAddress = ""
 	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
 	nd.stats.TendsSuccessful.IncrementAndGet()

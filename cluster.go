@@ -681,10 +681,16 @@ func (clstr *Cluster) notifyClusterViewChanged() {
 	clstr.viewChangeObserver.OnClusterViewChanged(clstr.viewChangeCount)
 }
 
+// moveFailedTends is the number of consecutive failed tends after which a
+// node is moved to another address of its hostname.
+const moveFailedTends = 3
+
 // moveFailedNode replaces a failing node with the same server name on
-// another address of the hostname it was created from.
+// another address of the hostname it was created from. It tries one address
+// per tend, bounded by moveTimeout, so a dead or silent address cannot stall
+// the tend.
 func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.Guard[partitionMap]) {
-	if node.failures.Get() <= 0 || !node.active.Get() || node.lookupName == "" {
+	if node.failures.Get() < moveFailedTends || !node.active.Get() || node.lookupName == "" {
 		return
 	}
 
@@ -693,38 +699,68 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 		return
 	}
 
-	clientPolicy := clstr.clientPolicy.Load()
-	for _, address := range addresses {
-		if sameIPLiteral(address, node.host.Name) {
-			continue
-		}
-
-		host := NewHost(address, node.host.Port)
-		host.TLSName = node.host.TLSName
-		nv := nodeValidator{
-			seedOnlyCluster: clientPolicy.SeedOnlyCluster,
-			lookupName:      node.lookupName,
-		}
-		if err := nv.validateNode(clstr, host); err != nil {
-			logger.Logger.Debug("Address %s:%d of %s failed: %s", address, node.host.Port, node.lookupName, err)
-			continue
-		}
-		if nv.name != node.name {
-			logger.Logger.Debug("Address %s of %s is node %s, not node %s", nv.primaryHost, node.lookupName, nv.name, node.name)
-			continue
-		}
-
-		replacement := clstr.createNode(&nv)
-		peers.addNode(node.name, replacement)
-		partMap.InitDoVal(clstr.getPartitions().clone, func(partitions partitionMap) {
-			replacement.refreshPartitions(peers, partitions, true)
-		})
-		if !peers.containsNodeToRemove(node) {
-			peers.addNodesToRemove(node)
-		}
-		logger.Logger.Info("Move node %s %s from %s to %s", node.name, node.lookupName, node.host, replacement.host)
+	address := nextMoveAddress(addresses, node.moveAddress, node.host.Name)
+	if address == "" {
 		return
 	}
+	node.moveAddress = address
+
+	clientPolicy := clstr.clientPolicy.Load()
+	host := NewHost(address, node.host.Port)
+	host.TLSName = node.host.TLSName
+	nv := nodeValidator{
+		aliases:         []*Host{host},
+		seedOnlyCluster: clientPolicy.SeedOnlyCluster,
+		lookupName:      node.lookupName,
+	}
+	if err := nv.validateAliasWithin(clstr, host, moveTimeout(clientPolicy)); err != nil {
+		logger.Logger.Debug("Address %s:%d of %s failed: %s", address, node.host.Port, node.lookupName, err)
+		return
+	}
+	if nv.name != node.name {
+		logger.Logger.Debug("Address %s of %s is node %s, not node %s", nv.primaryHost, node.lookupName, nv.name, node.name)
+		return
+	}
+
+	replacement := clstr.createNode(&nv)
+	peers.addNode(node.name, replacement)
+	partMap.InitDoVal(clstr.getPartitions().clone, func(partitions partitionMap) {
+		replacement.refreshPartitions(peers, partitions, true)
+	})
+	if !peers.containsNodeToRemove(node) {
+		peers.addNodesToRemove(node)
+	}
+	logger.Logger.Info("Move node %s %s from %s to %s", node.name, node.lookupName, node.host, replacement.host)
+}
+
+// nextMoveAddress returns the address after last in addresses, wrapping and
+// skipping current, or "" if there is none. last is matched by value because
+// DNS order can change between lookups.
+func nextMoveAddress(addresses []string, last, current string) string {
+	start := 0
+	for i, address := range addresses {
+		if sameIPLiteral(address, last) {
+			start = i + 1
+			break
+		}
+	}
+	for i := range addresses {
+		address := addresses[(start+i)%len(addresses)]
+		if !sameIPLiteral(address, current) {
+			return address
+		}
+	}
+	return ""
+}
+
+// moveTimeout bounds the dial and info requests of a move candidate so one
+// candidate fits in a tend: min(Timeout/2, TendInterval/2).
+func moveTimeout(policy *ClientPolicy) time.Duration {
+	timeout := policy.Timeout / 2
+	if half := policy.TendInterval / 2; half > 0 && (timeout <= 0 || half < timeout) {
+		timeout = half
+	}
+	return timeout
 }
 
 func sameIPLiteral(left, right string) bool {
