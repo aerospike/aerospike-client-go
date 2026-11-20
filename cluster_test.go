@@ -60,6 +60,7 @@ var _ = gg.Describe("Translation collision detection", gg.Label("discovery"), fu
 
 	gg.It("keeps the live node and marks only the newcomer on a clash", func() {
 		liveNode := &Node{name: "BB9010011AC4202", host: NewHost("gateway.example.com", 30001)}
+		liveNode.active.Set(true)
 		cluster := &Cluster{translatorName: "pass-through", nodesMap: *sm.New[string, *Node](4)}
 		cluster.nodes.Set([]*Node{liveNode})
 		cluster.nodesMap.Set(liveNode.name, liveNode)

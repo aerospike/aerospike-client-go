@@ -502,6 +502,59 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			gm.Expect(opened.GetNodes()).To(gm.HaveLen(1))
 		})
 
+		gg.It("does not move onto an address a healthy node owns", func() {
+			hostA := registerHostname("owned", first, second)
+			port := freePortOn(first, second)
+			a1 := startServer(first, port, nodeA)
+			a1.setPeers("1,3000,[[" + nodeB + ",,[" + second.String() + ":" + strconv.Itoa(port) + "]]]")
+			b := startServer(second, port, nodeB)
+			b.setPeers("1,3000,[[" + nodeA + ",,[" + hostA + ":" + strconv.Itoa(port) + "]]]")
+			opened := connectWith(hostA, port, 500*time.Millisecond, time.Hour)
+			gm.Expect(opened.GetNodes()).To(gm.HaveLen(2))
+			old := nodeNamed(opened, nodeA)
+			liveB := nodeNamed(opened, nodeB)
+
+			// B's tend connection stays B; the move candidate's new
+			// connection to the same address answers as A.
+			b.answerNewConnectionsAs(nodeA)
+			a1.close()
+
+			failTends(opened, old, 1, moveFailedTends)
+			gm.Expect(old.moveAddress).To(gm.Equal(second.String()))
+			gm.Expect(nodeNamed(opened, nodeB)).To(gm.BeIdenticalTo(liveB))
+			gm.Expect(liveB.failures.Get()).To(gm.Equal(0))
+		})
+
+		gg.It("does not move a node advertised by its hostname through the peer path sooner", func() {
+			// The failing node must not be on loopback: peerExists keeps a
+			// localhost node without looking at the peer hosts.
+			lan := nonLoopbackIPv4()
+			if lan == nil {
+				gg.Skip("no non-loopback IPv4 address to bind")
+			}
+			hostA := registerHostname("peer", lan, second)
+			portA := freePortOn(lan, second)
+			portB := freePortOn(lan, second)
+			peersOfA := "1,3000,[[" + nodeB + ",,[" + lan.String() + ":" + strconv.Itoa(portB) + "]]]"
+
+			a1 := startServer(lan, portA, nodeA)
+			a1.setPeers(peersOfA)
+			startServer(lan, portB, nodeB).setPeers("1,3000,[[" + nodeA + ",,[" + hostA + ":" + strconv.Itoa(portA) + "]]]")
+			opened := connectWith(hostA, portA, 500*time.Millisecond, time.Hour)
+			gm.Expect(opened.GetNodes()).To(gm.HaveLen(2))
+			old := nodeNamed(opened, nodeA)
+			gm.Expect(old.host.IsLocalhost()).To(gm.BeFalse())
+
+			startServer(second, portA, nodeA).setPeers(peersOfA)
+			a1.close()
+
+			failTends(opened, old, 1, moveFailedTends-1)
+
+			_ = opened.cluster.tend()
+			gm.Expect(nodeOnAddress(opened, nodeA, second)).To(gm.BeTrue())
+			gm.Expect(old.IsActive()).To(gm.BeFalse())
+		})
+
 		gg.It("looks up the hostname on the tend goroutine", func() {
 			const delay = 300 * time.Millisecond
 			hostname := registerHostname("slow", first, second)
@@ -720,6 +773,15 @@ func (server *stubNodeServer) setSilent() {
 	server.mu.Unlock()
 }
 
+// answerNewConnectionsAs makes connections accepted from now on report
+// nodeName, while open connections keep the old name: two nodes behind one
+// address.
+func (server *stubNodeServer) answerNewConnectionsAs(nodeName string) {
+	server.mu.Lock()
+	server.nodeName = nodeName
+	server.mu.Unlock()
+}
+
 func (server *stubNodeServer) close() {
 	server.listener.Close()
 	server.mu.Lock()
@@ -749,6 +811,7 @@ func (server *stubNodeServer) serveConnection(conn net.Conn) {
 
 	server.mu.Lock()
 	silent := server.silent
+	nodeName := server.nodeName
 	server.mu.Unlock()
 	if silent {
 		_, _ = io.Copy(io.Discard, conn)
@@ -772,7 +835,7 @@ func (server *stubNodeServer) serveConnection(conn net.Conn) {
 			payload[0] = 22
 			message = types.NewMessage(types.MSG_MESSAGE, payload)
 		} else {
-			message = types.NewMessage(types.MSG_INFO, server.info(body))
+			message = types.NewMessage(types.MSG_INFO, server.info(body, nodeName))
 		}
 		response, err := message.Serialize()
 		if err != nil {
@@ -785,7 +848,7 @@ func (server *stubNodeServer) serveConnection(conn net.Conn) {
 	}
 }
 
-func (server *stubNodeServer) info(request []byte) []byte {
+func (server *stubNodeServer) info(request []byte, nodeName string) []byte {
 	server.mu.Lock()
 	peers := server.peers
 	replicas := server.replicas
@@ -796,17 +859,18 @@ func (server *stubNodeServer) info(request []byte) []byte {
 		if command == "" {
 			continue
 		}
-		if value, ok := server.infoValue(command, peers, replicas); ok {
+
+		if value, ok := server.infoValue(command, peers, replicas, nodeName); ok {
 			out.WriteString(command + "\t" + value + "\n")
 		}
 	}
 	return out.Bytes()
 }
 
-func (server *stubNodeServer) infoValue(command, peers, replicas string) (string, bool) {
+func (server *stubNodeServer) infoValue(command, peers, replicas, nodeName string) (string, bool) {
 	switch command {
 	case "node":
-		return server.nodeName, true
+		return nodeName, true
 	case "partition-generation", "peers-generation":
 		return "1", true
 	case "build":

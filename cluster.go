@@ -621,15 +621,16 @@ func (clstr *Cluster) detectTranslationCollisions(peers *peers) {
 		return
 	}
 
-	liveNodes := clstr.GetNodes()
-	addressOwners := make(map[hostAndPort]string, len(newPeers)+len(liveNodes))
-	for _, liveNode := range liveNodes {
-		addressOwners[hostAndPort{host: liveNode.host.Name, port: liveNode.host.Port}] = liveNode.name
-	}
-
+	addressOwners := make(map[hostAndPort]string, len(newPeers))
 	for _, newPeer := range newPeers {
 		for _, host := range newPeer.hosts {
 			address := hostAndPort{host: host.Name, port: host.Port}
+			if owner := clstr.healthyNodeAt(address, newPeer.nodeName); owner != nil {
+				peers.collided.Set(newPeer.nodeName, owner.name)
+				clstr.warnAddressCollision(newPeer.nodeName, owner.name, address)
+				continue
+			}
+
 			ownerName, taken := addressOwners[address]
 			if !taken {
 				addressOwners[address] = newPeer.nodeName
@@ -644,9 +645,26 @@ func (clstr *Cluster) detectTranslationCollisions(peers *peers) {
 				// Both owners are new peers; neither becomes a node.
 				peers.collided.Set(ownerName, newPeer.nodeName)
 			}
-			logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, newPeer.nodeName, ownerName, host.Name, host.Port)
+			clstr.warnAddressCollision(newPeer.nodeName, ownerName, address)
 		}
 	}
+}
+
+// healthyNodeAt returns the node on address, or nil. Only an active node
+// without tend failures owns its address, so a failing node does not block a
+// newcomer or a move. The node named skipNodeName is ignored.
+func (clstr *Cluster) healthyNodeAt(address hostAndPort, skipNodeName string) *Node {
+	for _, node := range clstr.GetNodes() {
+		if node.name != skipNodeName && node.active.Get() && node.failures.Get() == 0 &&
+			node.host.Name == address.host && node.host.Port == address.port {
+			return node
+		}
+	}
+	return nil
+}
+
+func (clstr *Cluster) warnAddressCollision(nodeName, otherNodeName string, address hostAndPort) {
+	logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, nodeName, otherNodeName, address.host, address.port)
 }
 
 // notifyClusterViewChanged tells the translator's observer when the node set
@@ -721,6 +739,11 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 		logger.Logger.Debug("Address %s of %s is node %s, not node %s", nv.primaryHost, node.lookupName, nv.name, node.name)
 		return
 	}
+	target := hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}
+	if owner := clstr.healthyNodeAt(target, node.name); owner != nil {
+		clstr.warnAddressCollision(node.name, owner.name, target)
+		return
+	}
 
 	replacement := clstr.createNode(&nv)
 	peers.addNode(node.name, replacement)
@@ -785,7 +808,9 @@ func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
 
 		for _, host := range peer.hosts {
 			if host.Port == node.host.Port {
-				if host.Name == node.host.Name || (node.hostName != "" && host.Name == node.hostName) {
+				// A node on a hostname with several addresses is moved by
+				// moveFailedNode only.
+				if host.Name == node.host.Name || (node.hostName != "" && host.Name == node.hostName) || (node.lookupName != "" && host.Name == node.lookupName) {
 					// Main node host is also the same as one of the peer hosts.
 					// Peer should not be added.
 					if host.IsLocalhost() {
