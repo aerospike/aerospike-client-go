@@ -94,8 +94,9 @@ func expirationMillis(expiration time.Time) int64 {
 	return expiration.UnixMilli()
 }
 
-// CredentialsHook replaces the built-in credential chain when set.
-type CredentialsHook func() (*Credentials, error)
+// CredentialsHook replaces the built-in credential chain when set. timeout is
+// the time left of the refresh.
+type CredentialsHook func(timeout time.Duration) (Credentials, error)
 
 // Config is the validated settings for a Client.
 type Config struct {

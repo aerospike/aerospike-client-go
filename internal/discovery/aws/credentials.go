@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -68,6 +69,7 @@ func (chain *credentialChain) get(ctx context.Context) (*Credentials, error) {
 		return chain.cached, nil
 	}
 
+	previous := chain.cached
 	var credentials *Credentials
 	var err error
 	if chain.source == "" {
@@ -76,10 +78,10 @@ func (chain *credentialChain) get(ctx context.Context) (*Credentials, error) {
 		credentials, err = chain.load(ctx, chain.source)
 	}
 	if err != nil {
-		if chain.cached != nil && now.Before(chain.cached.Expiration) {
+		if previous != nil && now.Before(previous.Expiration) {
 			logger.Logger.Warn("AWS EC2 seed provider: credentials refresh from %s failed, using cached credentials until they expire: %s",
 				chain.source, err.Error())
-			return chain.cached, nil
+			return previous, nil
 		}
 		return nil, err
 	}
@@ -132,7 +134,7 @@ func (chain *credentialChain) resolve(ctx context.Context) (*Credentials, error)
 func (chain *credentialChain) load(ctx context.Context, from string) (*Credentials, error) {
 	switch from {
 	case sourceHook:
-		return chain.fromHook()
+		return chain.fromHook(ctx)
 	case sourceConfig:
 		return chain.config, nil
 	case sourceEnvironment:
@@ -148,7 +150,10 @@ func (chain *credentialChain) load(ctx context.Context, from string) (*Credentia
 	}
 }
 
-func (chain *credentialChain) fromHook() (credentials *Credentials, err error) {
+// fromHook reports a failed hook by its error type only, since its message may
+// hold a secret. A hook that returns after the deadline fails the refresh, but
+// its keys are cached for the next one.
+func (chain *credentialChain) fromHook(ctx context.Context) (credentials *Credentials, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			credentials = nil
@@ -156,18 +161,33 @@ func (chain *credentialChain) fromHook() (credentials *Credentials, err error) {
 		}
 	}()
 
-	credentials, err = chain.hook()
+	deadline, hasDeadline := ctx.Deadline()
+	var timeout time.Duration
+	if hasDeadline {
+		timeout = max(time.Until(deadline), time.Millisecond)
+	}
+
+	hookCredentials, err := chain.hook(timeout)
+	late := hasDeadline && !time.Now().Before(deadline)
+	if late {
+		if err == nil && validateCredentials(hookCredentials) == nil {
+			chain.cached = &hookCredentials
+		}
+		return nil, errHookTimeout
+	}
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, errHookTimeout
+		}
 		return nil, fmt.Errorf("AWS EC2 seed provider: credentials hook failed: %T", err)
 	}
-	if credentials == nil {
-		return nil, fmt.Errorf("AWS EC2 seed provider: credentials hook returned nil")
-	}
-	if err := validateCredentials(*credentials); err != nil {
+	if err := validateCredentials(hookCredentials); err != nil {
 		return nil, err
 	}
-	return credentials, nil
+	return &hookCredentials, nil
 }
+
+var errHookTimeout = errors.New("AWS EC2 seed provider: credentials hook did not finish within the refresh timeout")
 
 func (chain *credentialChain) environment() *Credentials {
 	key := chain.env.Getenv("AWS_ACCESS_KEY_ID")

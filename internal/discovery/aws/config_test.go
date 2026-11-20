@@ -3,6 +3,7 @@ package aws
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigZeroValuesBecomeDocumentedDefaults(t *testing.T) {
@@ -86,7 +87,7 @@ func TestConfigRejectsInvalidSettings(t *testing.T) {
 				Region:          "us-east-1",
 				Filters:         []Filter{{Name: "a", Values: []string{"b"}}},
 				Credentials:     &Credentials{AccessKeyID: "k", SecretAccessKey: "s"},
-				CredentialsHook: func() (*Credentials, error) { return nil, nil },
+				CredentialsHook: func(time.Duration) (Credentials, error) { return Credentials{}, nil },
 			},
 			message: "credentials and credentialsHook cannot both be set",
 		},

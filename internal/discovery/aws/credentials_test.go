@@ -402,8 +402,8 @@ func TestCredentialsPreferHookThenConfigThenEnvThenProfileThenWebIdentityThenECS
 	}
 
 	hook := cfg()
-	hook.CredentialsHook = func() (*Credentials, error) {
-		return &Credentials{AccessKeyID: "AKIAHOOK", SecretAccessKey: testSecret}, nil
+	hook.CredentialsHook = func(time.Duration) (Credentials, error) {
+		return Credentials{AccessKeyID: "AKIAHOOK", SecretAccessKey: testSecret}, nil
 	}
 	provider, err = NewClient(hook)
 	if err != nil {
@@ -515,13 +515,13 @@ func TestCredentialsHookReplacesTheChainAndRespectsExpiry(t *testing.T) {
 		Filters: []Filter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
 		Env:     env,
 		Timeout: 5 * time.Second,
-		CredentialsHook: func() (*Credentials, error) {
+		CredentialsHook: func(time.Duration) (Credentials, error) {
 			n := calls.Add(1)
 			expiry := time.Now().Add(60 * time.Minute)
 			if n == 1 {
 				expiry = time.Now().Add(4 * time.Minute)
 			}
-			return &Credentials{AccessKeyID: "ASIAHOOK", SecretAccessKey: testSecret, SessionToken: testToken, Expiration: expiry}, nil
+			return Credentials{AccessKeyID: "ASIAHOOK", SecretAccessKey: testSecret, SessionToken: testToken, Expiration: expiry}, nil
 		},
 	})
 	if err != nil {
@@ -543,43 +543,106 @@ func TestCredentialsHookReplacesTheChainAndRespectsExpiry(t *testing.T) {
 	}
 }
 
-func TestCredentialsHookNullAndPanicDoNotFallThrough(t *testing.T) {
+func TestCredentialsHookFailuresDoNotFallThrough(t *testing.T) {
+	cases := []struct {
+		intent  string
+		hook    CredentialsHook
+		message string
+	}{
+		{
+			intent:  "empty keys are rejected",
+			hook:    func(time.Duration) (Credentials, error) { return Credentials{}, nil },
+			message: "Invalid AWS EC2 seed provider credentials: access key id is empty",
+		},
+		{
+			intent: "an error is reported by its type, never its message",
+			hook: func(time.Duration) (Credentials, error) {
+				return Credentials{}, &vaultAuthFailure{detail: testSecret}
+			},
+			message: "AWS EC2 seed provider: credentials hook failed: *aws.vaultAuthFailure",
+		},
+		{
+			intent:  "a panic is reported by its type, never its value",
+			hook:    func(time.Duration) (Credentials, error) { panic(testSecret) },
+			message: "AWS EC2 seed provider: credentials hook failed: string",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.intent, func(t *testing.T) {
+			stub := startStubAWSServer()
+			defer stub.close()
+			env := newTestEnv(stub.url()).set("AWS_ACCESS_KEY_ID", "AKIAENV").set("AWS_SECRET_ACCESS_KEY", testSecret)
+			provider, err := NewClient(Config{
+				Region:          "us-east-1",
+				Filters:         []Filter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
+				Env:             env,
+				Timeout:         5 * time.Second,
+				CredentialsHook: tc.hook,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = provider.Lookup(provider.Config().Timeout)
+
+			if err == nil || err.Error() != tc.message {
+				t.Fatalf("error = %v, want %q", err, tc.message)
+			}
+			assertNoSecret(t, err.Error(), "")
+			if requests := len(stub.recorded()); requests != 0 {
+				t.Fatalf("the failed hook fell through to %d requests", requests)
+			}
+		})
+	}
+}
+
+func TestCredentialsHookGetsTheTimeLeftAndALateHookFailsTheRefresh(t *testing.T) {
 	stub := startStubAWSServer()
 	defer stub.close()
-	env := newTestEnv(stub.url())
+	const timeout = 300 * time.Millisecond
+	var hookTimeout time.Duration
+	var calls atomic.Int32
 	provider, err := NewClient(Config{
-		Region:          "us-east-1",
-		Filters:         []Filter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-		Env:             env,
-		Timeout:         5 * time.Second,
-		CredentialsHook: func() (*Credentials, error) { return nil, nil },
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = provider.Lookup(provider.Config().Timeout)
-	if err == nil || !strings.Contains(err.Error(), "credentials hook returned nil") {
-		t.Fatalf("got %v", err)
-	}
-
-	throwing, err := NewClient(Config{
 		Region:  "us-east-1",
 		Filters: []Filter{{Name: "tag:aerospike-cluster", Values: []string{"prod-a"}}},
-		Env:     env,
-		Timeout: 5 * time.Second,
-		CredentialsHook: func() (*Credentials, error) {
-			panic(testSecret)
+		Env:     newTestEnv(stub.url()),
+		Timeout: timeout,
+		CredentialsHook: func(timeLeft time.Duration) (Credentials, error) {
+			calls.Add(1)
+			hookTimeout = timeLeft
+			time.Sleep(timeLeft + 50*time.Millisecond)
+			return Credentials{AccessKeyID: "ASIALATE", SecretAccessKey: testSecret, Expiration: time.Now().Add(time.Hour)}, nil
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = throwing.Lookup(throwing.Config().Timeout)
-	if err == nil || !strings.Contains(err.Error(), "credentials hook failed:") {
-		t.Fatalf("got %v", err)
+
+	_, err = provider.Lookup(provider.Config().Timeout)
+
+	if hookTimeout <= 0 || hookTimeout > timeout || hookTimeout < timeout-100*time.Millisecond {
+		t.Fatalf("hook timeout is %v, want close to the %v refresh timeout", hookTimeout, timeout)
 	}
-	assertNoSecret(t, err.Error(), "")
+	want := "AWS EC2 seed provider: credentials hook did not finish within the refresh timeout"
+	if err == nil || err.Error() != want {
+		t.Fatalf("error = %v, want %q", err, want)
+	}
+	if requests := len(stub.recorded()); requests != 0 {
+		t.Fatalf("a late hook fell through to %d requests", requests)
+	}
+
+	if refreshAccessKey(t, provider, stub) != "ASIALATE" {
+		t.Fatal("the next refresh did not sign with the keys the late hook returned")
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("hook calls = %d, want the late keys reused without another call", calls.Load())
+	}
 }
+
+// vaultAuthFailure is a hook error whose message carries a secret.
+type vaultAuthFailure struct{ detail string }
+
+func (failure *vaultAuthFailure) Error() string { return "vault login failed: " + failure.detail }
 
 func refreshAccessKey(t *testing.T, provider *Client, stub *stubAWSServer) string {
 	t.Helper()

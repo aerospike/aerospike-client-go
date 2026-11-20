@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"os"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -128,7 +129,42 @@ var _ = gg.Describe("AwsEc2TagSeedCandidateProvider", gg.Label("discovery"), fun
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(got).To(gm.Equal(AwsAddressFieldPublicDNS))
 	})
+
+	gg.It("calls the credentials hook with the time left of the provider Timeout", func() {
+		server := startDescribeInstancesStub(describeOne("10.0.0.7"))
+		defer server.Close()
+		const timeout = 2 * time.Second
+		hook := &timeoutRecordingHook{}
+		provider, err := NewAwsEc2TagSeedCandidateProvider(AwsEc2TagSeedCandidateProviderConfig{
+			Region:          "us-east-1",
+			Filters:         []AwsFilter{AwsTagFilter("aerospike-cluster", "prod-a")},
+			Endpoint:        server.URL,
+			Timeout:         timeout,
+			CredentialsHook: hook,
+		})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		hosts, refreshErr := provider.RefreshSeedCandidates(&SeedCandidateContext{})
+
+		gm.Expect(refreshErr).ToNot(gm.HaveOccurred())
+		gm.Expect(hosts).To(gm.HaveLen(1))
+		gm.Expect(hosts[0].Name).To(gm.Equal("10.0.0.7"))
+		gm.Expect(hook.calls.Load()).To(gm.Equal(int32(1)))
+		gm.Expect(hook.timeout).To(gm.BeNumerically("~", timeout, 100*time.Millisecond))
+	})
 })
+
+// timeoutRecordingHook returns fixed keys and records the timeout it was given.
+type timeoutRecordingHook struct {
+	calls   atomic.Int32
+	timeout time.Duration
+}
+
+func (hook *timeoutRecordingHook) Get(request AwsCredentialsRequest) (AwsCredentials, error) {
+	hook.calls.Add(1)
+	hook.timeout = request.Timeout
+	return *awsStubCredentials(), nil
+}
 
 var _ = gg.Describe("AWS tags discovery configuration from YAML", gg.Label("discovery"), func() {
 

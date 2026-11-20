@@ -60,8 +60,18 @@ type AwsCredentials struct {
 	Expiration      time.Time
 }
 
-// AwsCredentialsHook replaces the built-in credential chain when set.
-type AwsCredentialsHook func() (*AwsCredentials, error)
+// AwsCredentialsRequest describes one call of an AwsCredentialsHook.
+type AwsCredentialsRequest struct {
+	// Timeout is the time left of the refresh. Get must return within it.
+	Timeout time.Duration
+}
+
+// AwsCredentialsHook supplies the keys that sign EC2 requests, replacing the
+// built-in credential chain. Get is called only when the cached keys have
+// expired. A failure is logged by its error type only.
+type AwsCredentialsHook interface {
+	Get(request AwsCredentialsRequest) (AwsCredentials, error)
+}
 
 // AwsEc2TagSeedCandidateProviderConfig holds the settings for NewAwsEc2TagSeedCandidateProvider.
 type AwsEc2TagSeedCandidateProviderConfig struct {
@@ -103,27 +113,27 @@ type awsEc2TagSeedCandidateProvider struct {
 
 // NewAwsEc2TagSeedCandidateProvider validates config and returns a seed
 // provider that lists running EC2 instances matching the filters.
-func NewAwsEc2TagSeedCandidateProvider(config AwsEc2TagSeedCandidateProviderConfig) (SeedCandidateProvider, Error) {
-	addressField, err := awsAddressField(config.AddressField)
+func NewAwsEc2TagSeedCandidateProvider(providerConfig AwsEc2TagSeedCandidateProviderConfig) (SeedCandidateProvider, Error) {
+	addressField, err := awsAddressField(providerConfig.AddressField)
 	if err != nil {
 		return nil, err
 	}
 
-	filters := make([]aws.Filter, len(config.Filters))
-	for i, filter := range config.Filters {
+	filters := make([]aws.Filter, len(providerConfig.Filters))
+	for i, filter := range providerConfig.Filters {
 		filters[i] = aws.Filter{Name: filter.Name, Values: append([]string(nil), filter.Values...)}
 	}
 
 	client, clientErr := aws.NewClient(aws.Config{
-		Region:          config.Region,
+		Region:          providerConfig.Region,
 		Filters:         filters,
 		AddressField:    addressField,
-		Port:            config.Port,
-		TLSName:         config.TLSName,
-		Timeout:         config.Timeout,
-		Endpoint:        config.Endpoint,
-		Credentials:     awsCredentials(config.Credentials),
-		CredentialsHook: awsCredentialsHook(config.CredentialsHook),
+		Port:            providerConfig.Port,
+		TLSName:         providerConfig.TLSName,
+		Timeout:         providerConfig.Timeout,
+		Endpoint:        providerConfig.Endpoint,
+		Credentials:     awsCredentials(providerConfig.Credentials),
+		CredentialsHook: awsCredentialsHook(providerConfig.CredentialsHook),
 	})
 	if clientErr != nil {
 		return nil, newError(types.PARAMETER_ERROR, clientErr.Error())
@@ -207,19 +217,17 @@ func awsCredentials(credentials *AwsCredentials) *aws.Credentials {
 	}
 }
 
+// awsCredentialsHook hands hook to the internal credential chain.
 func awsCredentialsHook(hook AwsCredentialsHook) aws.CredentialsHook {
 	if hook == nil {
 		return nil
 	}
-	return func() (*aws.Credentials, error) {
-		credentials, err := hook()
+	return func(timeout time.Duration) (aws.Credentials, error) {
+		credentials, err := hook.Get(AwsCredentialsRequest{Timeout: timeout})
 		if err != nil {
-			return nil, err
+			return aws.Credentials{}, err
 		}
-		if credentials == nil {
-			return nil, nil
-		}
-		return awsCredentials(credentials), nil
+		return *awsCredentials(&credentials), nil
 	}
 }
 
@@ -228,34 +236,34 @@ func awsProviderFromConfig(block *dynconfig.AwsConfig) (SeedCandidateProvider, E
 		return nil, newError(types.PARAMETER_ERROR, awsConfigPath+".region is required")
 	}
 
-	config := AwsEc2TagSeedCandidateProviderConfig{}
+	providerConfig := AwsEc2TagSeedCandidateProviderConfig{}
 	if block.Region != nil {
-		config.Region = *block.Region
+		providerConfig.Region = *block.Region
 	}
 	if block.Filters != nil {
-		config.Filters = awsFiltersFromConfig(*block.Filters)
+		providerConfig.Filters = awsFiltersFromConfig(*block.Filters)
 	}
 	if block.AddressField != nil {
 		field, err := parseAwsAddressField(*block.AddressField)
 		if err != nil {
 			return nil, err
 		}
-		config.AddressField = field
+		providerConfig.AddressField = field
 	}
 	if block.Port != nil {
-		config.Port = *block.Port
+		providerConfig.Port = *block.Port
 	}
 	if block.TLSName != nil {
-		config.TLSName = *block.TLSName
+		providerConfig.TLSName = *block.TLSName
 	}
 	if block.TimeoutMs != nil {
-		config.Timeout = time.Duration(*block.TimeoutMs) * time.Millisecond
+		providerConfig.Timeout = time.Duration(*block.TimeoutMs) * time.Millisecond
 	}
 	if block.Endpoint != nil {
-		config.Endpoint = *block.Endpoint
+		providerConfig.Endpoint = *block.Endpoint
 	}
 
-	provider, err := NewAwsEc2TagSeedCandidateProvider(config)
+	provider, err := NewAwsEc2TagSeedCandidateProvider(providerConfig)
 	if err != nil {
 		detail := err.Error()
 		if ae, ok := err.(*AerospikeError); ok {
