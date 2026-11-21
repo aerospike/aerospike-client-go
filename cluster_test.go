@@ -76,12 +76,29 @@ var _ = gg.Describe("Translation collision detection", gg.Label("discovery"), fu
 		gm.Expect(tendPeers.collided.Exists("BB9010011AC4202")).To(gm.BeFalse())
 	})
 
-	gg.It("claims each validated address exactly once", func() {
-		tendPeers := newPeers(8, 8)
+	gg.It("adds a node advertised twice once and neither of two nodes validated on one address", func() {
+		cluster := &Cluster{translatorName: "pass-through", nodesMap: *sm.New[string, *Node](4), clientPolicy: new(atomic.Pointer[ClientPolicy])}
+		cluster.clientPolicy.Store(NewClientPolicy())
 
-		gm.Expect(tendPeers.claimAddress(hostAndPort{host: "10.0.1.10", port: 3000}, "A")).To(gm.BeEmpty())
-		gm.Expect(tendPeers.claimAddress(hostAndPort{host: "10.0.1.10", port: 3000}, "A")).To(gm.BeEmpty())
-		gm.Expect(tendPeers.claimAddress(hostAndPort{host: "10.0.1.10", port: 3000}, "B")).To(gm.Equal("A"))
+		tendPeers := newPeers(8, 8)
+		tendPeers.appendPeers([]*peer{
+			newTestPeer("A", NewHost("10.0.1.10", 3000)),
+			newTestPeer("A", NewHost("10.0.1.10", 3000)),
+			newTestPeer("B", NewHost("10.0.1.11", 3000)),
+			newTestPeer("C", NewHost("10.0.1.11", 3000)),
+		})
+		candidates := tendPeers.peers()
+		for _, candidate := range candidates {
+			candidate.validated = &nodeValidator{name: candidate.nodeName, primaryHost: candidate.hosts[0]}
+		}
+
+		added := cluster.addValidatedPeers(tendPeers, candidates)
+
+		gm.Expect(added).To(gm.HaveLen(1))
+		gm.Expect(added[0].name).To(gm.Equal("A"))
+		gm.Expect(tendPeers.nodes()).To(gm.HaveKey("A"))
+		gm.Expect(tendPeers.nodes()).ToNot(gm.HaveKey("B"))
+		gm.Expect(tendPeers.nodes()).ToNot(gm.HaveKey("C"))
 	})
 })
 
