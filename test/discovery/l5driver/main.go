@@ -56,19 +56,14 @@ func run(args []string) int {
 
 	client, err := createClient(options)
 	if err != nil {
-		message := "client not created: " + err.Error()
-		output.writeNow("error", func(int64) line { return line{"message": message} })
-		fmt.Fprintln(os.Stderr, "ERROR: "+message)
-		return 3
+		return clientError(output, "client not created: "+err.Error())
 	}
 	defer client.Close()
 
 	stats := &loadStats{}
 	monitor, err := newRoutingMonitor(client, output, stats, options.namespace)
 	if err != nil {
-		output.writeNow("error", func(int64) line { return line{"message": err.Error()} })
-		fmt.Fprintln(os.Stderr, "ERROR: "+err.Error())
-		return 3
+		return clientError(output, err.Error())
 	}
 
 	stop := make(chan struct{})
@@ -84,13 +79,13 @@ func run(args []string) int {
 			readyOnce.Do(func() {
 				output.openWith(readyLine(options.shape))
 				background.Add(1)
-				go monitor.runPolls(stop, &background)
+				go repeatUntil(stop, &background, routingPollEvery, monitor.poll)
 			})
 		},
 	}
 
 	background.Add(1)
-	go monitor.runReachability(stop, &background)
+	go repeatUntil(stop, &background, reachabilityEvery, monitor.startChecks)
 	load.start()
 
 	commands := &commandRunner{
@@ -115,6 +110,37 @@ func run(args []string) int {
 	readyOnce.Do(func() {})
 	background.Wait()
 	return 0
+}
+
+// clientError reports a client that could not be built or used, and returns
+// its exit status.
+func clientError(output *driverOutput, message string) int {
+	output.writeNow("error", func(int64) line { return line{"message": message} })
+	fmt.Fprintln(os.Stderr, "ERROR: "+message)
+	return 3
+}
+
+// repeatUntil runs step at once and then every interval until stop closes.
+func repeatUntil(stop <-chan struct{}, done *sync.WaitGroup, interval time.Duration, step func()) {
+	defer done.Done()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		step()
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// waitUntil waits for done to close, until deadline.
+func waitUntil(done <-chan struct{}, deadline time.Time) {
+	select {
+	case <-done:
+	case <-time.After(time.Until(deadline)):
+	}
 }
 
 // createClient builds the client, turning a panic during construction into

@@ -65,11 +65,7 @@ func (stats *loadStats) addTo(object line) {
 	object["succeeded"] = stats.succeeded
 	object["failed"] = stats.failed
 	object["maxLatencyMs"] = stats.maxLatency.Milliseconds()
-	if stats.lastError == nil {
-		object["lastError"] = nil
-	} else {
-		object["lastError"] = *stats.lastError
-	}
+	object["lastError"] = nullable(stats.lastError)
 	stats.lock.Unlock()
 }
 
@@ -105,10 +101,7 @@ func (runner *loadRunner) waitStopped(deadline time.Time) {
 		runner.workers.Wait()
 		close(stopped)
 	}()
-	select {
-	case <-stopped:
-	case <-time.After(time.Until(deadline)):
-	}
+	waitUntil(stopped, deadline)
 }
 
 func (runner *loadRunner) runWorker(worker int) {

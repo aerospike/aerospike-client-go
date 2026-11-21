@@ -189,18 +189,14 @@ func tlsConfigTrusting(caFile string) (*tls.Config, error) {
 func parsePortMapFlag(value string) (map[string]string, error) {
 	portMap := map[string]string{}
 	for _, entry := range strings.Split(value, ",") {
-		separator := strings.IndexByte(entry, '=')
-		if separator <= 0 {
+		name, target, _ := strings.Cut(entry, "=")
+		if _, _, err := parseHostPort(target); name == "" || err != nil {
 			return nil, fmt.Errorf("--port-map entry must be NODE=HOST:PORT or HOST:PORT=HOST:PORT: %s", entry)
 		}
-		if _, _, err := parseHostPort(entry[separator+1:]); err != nil {
-			return nil, fmt.Errorf("--port-map entry must be NODE=HOST:PORT or HOST:PORT=HOST:PORT: %s", entry)
-		}
-		name := entry[:separator]
 		if _, duplicate := portMap[name]; duplicate {
 			return nil, fmt.Errorf("--port-map names %s twice", name)
 		}
-		portMap[name] = entry[separator+1:]
+		portMap[name] = target
 	}
 	return portMap, nil
 }
@@ -254,16 +250,18 @@ func (options *driverOptions) seed() *as.Host {
 // readPolicy and writePolicy make one attempt per command; the driver retries.
 func (options *driverOptions) readPolicy() *as.BasePolicy {
 	policy := as.NewPolicy()
-	policy.SocketTimeout = options.timeout
-	policy.TotalTimeout = options.timeout
-	policy.MaxRetries = 0
+	oneAttempt(policy, options.timeout)
 	return policy
 }
 
 func (options *driverOptions) writePolicy() *as.WritePolicy {
 	policy := as.NewWritePolicy(0, 0)
-	policy.SocketTimeout = options.timeout
-	policy.TotalTimeout = options.timeout
-	policy.MaxRetries = 0
+	oneAttempt(&policy.BasePolicy, options.timeout)
 	return policy
+}
+
+func oneAttempt(policy *as.BasePolicy, timeout time.Duration) {
+	policy.SocketTimeout = timeout
+	policy.TotalTimeout = timeout
+	policy.MaxRetries = 0
 }

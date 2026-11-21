@@ -33,25 +33,6 @@ const (
 	reachabilityBudget = time.Second
 )
 
-// keysByPartition takes keys prefix-0, prefix-1, ... in order and keeps the
-// first that falls in each partition, until every partition has one.
-func keysByPartition(namespace, set, prefix string) ([partitionCount]*as.Key, error) {
-	var keys [partitionCount]*as.Key
-	found := 0
-	for index := 0; found < partitionCount; index++ {
-		key, err := as.NewKey(namespace, set, prefix+"-"+strconv.Itoa(index))
-		if err != nil {
-			return keys, err
-		}
-		partition := key.PartitionId()
-		if keys[partition] == nil {
-			keys[partition] = key
-			found++
-		}
-	}
-	return keys, nil
-}
-
 // nodeView is what a snapshot reports for one node, apart from reachability.
 type nodeView struct {
 	node   *as.Node
@@ -273,38 +254,8 @@ func (monitor *routingMonitor) usable(nodeName string) bool {
 	return false
 }
 
-// runPolls polls the routing every 10 ms until stop closes.
-func (monitor *routingMonitor) runPolls(stop <-chan struct{}, done *sync.WaitGroup) {
-	defer done.Done()
-	ticker := time.NewTicker(routingPollEvery)
-	defer ticker.Stop()
-	for {
-		monitor.poll()
-		select {
-		case <-stop:
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-// runReachability starts a check of every node every 500 ms, each on its own
-// goroutine, skipping a node whose previous check is still running, until
-// stop closes.
-func (monitor *routingMonitor) runReachability(stop <-chan struct{}, done *sync.WaitGroup) {
-	defer done.Done()
-	ticker := time.NewTicker(reachabilityEvery)
-	defer ticker.Stop()
-	for {
-		monitor.startChecks()
-		select {
-		case <-stop:
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
+// startChecks starts a check of every node, each on its own goroutine,
+// skipping a node whose previous check is still running.
 func (monitor *routingMonitor) startChecks() {
 	nodes := monitor.client.GetNodes()
 	held := make(map[*as.Node]bool, len(nodes))

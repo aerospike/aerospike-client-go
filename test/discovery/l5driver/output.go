@@ -52,6 +52,19 @@ func (output *driverOutput) now() int64 {
 	return output.elapsed().Milliseconds()
 }
 
+// sleepUntil sleeps until elapsed reaches at.
+func (output *driverOutput) sleepUntil(at time.Duration) {
+	time.Sleep(time.Until(output.start.Add(at)))
+}
+
+// nullable is the value value points to, or JSON null when it is nil.
+func nullable[T any](value *T) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 // write stamps and writes a line, to stderr until ready is out.
 func (output *driverOutput) write(kind string, build func(t int64) line) {
 	output.atomically(func(t int64, emit func(string, line)) {
