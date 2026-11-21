@@ -1,0 +1,8 @@
+# Manifest for the driver harnesses in aerospike-client-conformance (l5-aws/DRIVER.md; l2-proxy and l3-kind run it unchanged).
+# Each command runs with bash on Amazon Linux 2023 from the repository root. L5_BUILD downloads everything the driver
+# and the L2 tests need: both are static binaries and run without network.
+L5_SETUP='{ command -v tar >/dev/null || sudo dnf install -y -q tar gzip; } && arch=$(uname -m); case $arch in x86_64) arch=amd64;; aarch64) arch=arm64;; *) echo "unsupported arch $arch" >&2; exit 2;; esac; curl -fsSL "https://go.dev/dl/go1.23.12.linux-${arch}.tar.gz" | sudo tar -C /usr/local -xzf -'
+L5_BUILD='export PATH=/usr/local/go/bin:$PATH CGO_ENABLED=0 GOPROXY=https://proxy.golang.org,direct; go build -mod=readonly -o test/discovery/l5driver/l5driver ./test/discovery/l5driver && go test -mod=readonly -c -o test/discovery/l2.test .'
+L5_DRIVER='test/discovery/l5driver/l5driver'
+# L2_RUN is the l2-proxy harness's hook for a client's own L2 tests (l2-proxy/README.md there).
+L2_RUN='test/discovery/l2_run.sh'
