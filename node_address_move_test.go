@@ -611,6 +611,87 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			return hung
 		}
 
+		gg.It("connects only to the first address when it answers", func() {
+			cluster := openCluster(2*time.Second, time.Hour)
+			live := startServer(first, port, nodeB)
+			other := startServer(second, port, nodeB)
+
+			nv, err, _ := validate(cluster, registerHostname("first", first, second))
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(nv.primaryHost.Name).To(gm.Equal(first.String()))
+			accepts, _ := live.acceptStats()
+			gm.Expect(accepts).To(gm.Equal(2), "one probe and one validation connection")
+			accepts, _ = other.acceptStats()
+			gm.Expect(accepts).To(gm.Equal(0))
+		})
+
+		gg.It("starts the next address after the stagger delay when an address hangs", func() {
+			hung := requireHung(1)
+			cluster := openCluster(2*time.Second, time.Hour)
+			startServer(first, port, nodeB)
+
+			nv, err, elapsed := validate(cluster, registerHostname("hung", hung[0], first))
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(nv.primaryHost.Name).To(gm.Equal(first.String()))
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", staggerDelay))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", time.Second))
+		})
+
+		gg.It("starts the next address at once when an address refuses", func() {
+			cluster := openCluster(2*time.Second, time.Hour)
+			startServer(first, port, nodeB)
+
+			nv, err, elapsed := validate(cluster, registerHostname("refused", second, first))
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(nv.primaryHost.Name).To(gm.Equal(first.String()))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", staggerDelay))
+		})
+
+		gg.It("starts every address within the bound", func() {
+			hung := requireHung(3)
+			const bound = 200 * time.Millisecond
+			cluster := openCluster(2*bound, time.Hour)
+			live := startServer(first, port, nodeB)
+
+			begin := time.Now()
+			_, err, _ := validate(cluster, registerHostname("last", hung[0], hung[1], hung[2], first))
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			_, accepted := live.acceptStats()
+			gm.Expect(accepted.Sub(begin)).To(gm.BeNumerically(">=", 3*bound/4), "the fourth address starts after three delays of bound/4")
+			gm.Expect(accepted.Sub(begin)).To(gm.BeNumerically("<", bound))
+		})
+
+		gg.It("fails within half the timeout when every address hangs", func() {
+			hung := requireHung(2)
+			const bound = 200 * time.Millisecond
+			cluster := openCluster(2*bound, time.Hour)
+			hostname := registerHostname("allhung", hung[0], hung[1])
+
+			_, err, elapsed := validate(cluster, hostname)
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.(*AerospikeError).ResultCode).To(gm.Equal(types.TIMEOUT))
+			gm.Expect(err.Error()).To(gm.ContainSubstring(fmt.Sprintf("No connection to %s completed for 2 addresses within %s", NewHost(hostname, port), bound)))
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", bound))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", bound+300*time.Millisecond))
+		})
+
+		gg.It("fails within the tend interval when it is below half the timeout", func() {
+			hung := requireHung(2)
+			const interval = 200 * time.Millisecond
+			cluster := openCluster(4*time.Second, interval)
+
+			_, err, elapsed := validate(cluster, registerHostname("interval", hung[0], hung[1]))
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", interval))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", interval+300*time.Millisecond))
+		})
+
 		gg.It("connects a hostname with one address as before", func() {
 			hung := requireHung(1)
 			const timeout = time.Second

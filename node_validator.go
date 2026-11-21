@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -101,6 +102,10 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
 		return err
 	}
 
+	if len(ndv.aliases) > 1 {
+		return ndv.validateAny(cluster, host)
+	}
+
 	var resultErr Error
 	for _, alias := range ndv.aliases {
 		if err := ndv.validateAlias(cluster, alias); err != nil {
@@ -112,6 +117,127 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
 	}
 
 	return resultErr
+}
+
+// validateAny validates the first alias whose TCP connect completes. Connects
+// start in alias order, the next one after the stagger delay or as soon as an
+// earlier connect fails, and all end by one deadline. When the connected alias
+// fails validation, the remaining aliases are tried the same way until that
+// deadline.
+func (ndv *nodeValidator) validateAny(cluster *Cluster, host *Host) Error {
+	bound := staggerBound(cluster.clientPolicy.Load())
+	delay := min(staggerDelay, bound/time.Duration(len(ndv.aliases)))
+	deadline := time.Now().Add(bound)
+
+	remaining := ndv.aliases
+	var resultErr Error
+	for {
+		var alias *Host
+		alias, remaining, resultErr = connectFirst(remaining, delay, deadline, resultErr)
+		if alias == nil {
+			break
+		}
+		if err := ndv.validateAlias(cluster, alias); err != nil {
+			resultErr = chainErrors(err, resultErr)
+			logger.Logger.Debug("Aliases %s failed: %s", alias, err)
+			continue
+		}
+		return nil
+	}
+
+	if len(remaining) > 0 {
+		resultErr = chainErrors(newError(types.TIMEOUT, fmt.Sprintf("No connection to %s completed for %d addresses within %s", host, len(ndv.aliases), bound)), resultErr)
+	}
+	return resultErr
+}
+
+const staggerDelay = 100 * time.Millisecond
+
+// staggerBound is min(Timeout/2, TendInterval), so no connect waits longer
+// than a single alias connect does.
+func staggerBound(policy *ClientPolicy) time.Duration {
+	bound := policy.Timeout / 2
+	if policy.TendInterval > 0 && (bound <= 0 || policy.TendInterval < bound) {
+		bound = policy.TendInterval
+	}
+	if bound <= 0 {
+		bound = 5 * time.Second
+	}
+	return bound
+}
+
+// connectFirst returns the first alias whose TCP connect completes, and the
+// aliases still worth trying: all but the returned and the failed ones. It
+// returns a nil alias once every connect failed or the deadline passed.
+// Connects start in order, the next one after delay or as soon as an earlier
+// one fails. Connects still running on return are cancelled. Each failed
+// connect is chained onto errs.
+func connectFirst(aliases []*Host, delay time.Duration, deadline time.Time, errs Error) (*Host, []*Host, Error) {
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	type result struct {
+		index int
+		err   error
+	}
+	results := make(chan result)
+	var dialer net.Dialer
+	failed := make([]bool, len(aliases))
+	remaining := func(skip int) []*Host {
+		rest := make([]*Host, 0, len(aliases))
+		for i, alias := range aliases {
+			if i != skip && !failed[i] {
+				rest = append(rest, alias)
+			}
+		}
+		return rest
+	}
+
+	startNext := time.NewTimer(0)
+	defer startNext.Stop()
+
+	next, pending := 0, 0
+	for {
+		var start <-chan time.Time
+		if next < len(aliases) {
+			start = startNext.C
+		} else if pending == 0 {
+			return nil, remaining(-1), errs
+		}
+
+		select {
+		case <-start:
+			index := next
+			next++
+			pending++
+			address := net.JoinHostPort(aliases[index].Name, strconv.Itoa(aliases[index].Port))
+			go func() {
+				conn, err := dialer.DialContext(ctx, "tcp", address)
+				if err == nil {
+					conn.Close()
+				}
+				select {
+				case results <- result{index: index, err: err}:
+				case <-ctx.Done():
+				}
+			}()
+			startNext.Reset(delay)
+		case r := <-results:
+			pending--
+			if r.err == nil {
+				return aliases[r.index], remaining(r.index), errs
+			}
+			if ctx.Err() != nil {
+				return nil, remaining(-1), errs
+			}
+			failed[r.index] = true
+			logger.Logger.Debug("Aliases %s failed: %s", aliases[r.index], r.err)
+			errs = chainErrors(errToAerospikeErr(nil, r.err), errs)
+			startNext.Reset(0)
+		case <-ctx.Done():
+			return nil, remaining(-1), errs
+		}
+	}
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) Error {
