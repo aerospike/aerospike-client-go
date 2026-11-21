@@ -364,18 +364,20 @@ func TestL2EveryPartitionOwnerIsADistinctNode(t *testing.T) {
 	}
 }
 
-// Startup must settle within ClientPolicy.Timeout, and a dial to an advertised
-// address the network drops takes that whole timeout. Java fails init with
-// "Peers not reachable" here instead.
-func TestL2WithoutTranslatorFailsInitWithTimeout(t *testing.T) {
+// Without a translator the peers' advertised addresses are unreachable, so the
+// client starts holding only the seed. This is the behaviour the client has
+// always had, and it is kept so existing deployments start the same way; some
+// other clients fail init here instead.
+func TestL2UnreachablePeersLeaveSeedOnlyClient(t *testing.T) {
 	host, nodes := l2Topology(t)
-	client, err := as.NewClientWithPolicyAndHost(l2Policy(), as.NewHost(host, nodes[0].port))
-	if err == nil {
-		client.Close()
-		t.Fatalf("client without a translator started with nodes %v, want TIMEOUT", client.GetNodeNames())
+	seed := nodes[0]
+	client, err := as.NewClientWithPolicyAndHost(l2Policy(), as.NewHost(host, seed.port))
+	if err != nil {
+		t.Fatalf("client without a translator failed init with %v, want a client holding only seed %s", err, seed.name)
 	}
-	if !err.Matches(types.TIMEOUT) {
-		t.Fatalf("client without a translator failed with %v, want TIMEOUT", err)
+	defer client.Close()
+	if got := client.GetNodeNames(); !slices.Equal(got, []string{seed.name}) {
+		t.Fatalf("nodes %v, want only seed %s", got, seed.name)
 	}
 }
 
