@@ -464,6 +464,9 @@ func TestL2NewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 
 	generation := l2PeersGeneration(t, host, first)
 	added := startL2Node(t, controlDir, host, nodes)
+	if added.address == "" {
+		t.Fatalf("%s started with no address", added.container)
+	}
 	upstreamPort := l2UpstreamPort(t, first.proxy)
 	port := addL2Listener(t, added.container, net.JoinHostPort(added.container, strconv.Itoa(upstreamPort)))
 	advertised := net.JoinHostPort(added.address, strconv.Itoa(upstreamPort))
@@ -1317,13 +1320,14 @@ func startL2NodeArgs(t *testing.T, controlDir, host string, nodes []l2Node, comm
 	return started
 }
 
-// startL2Extra asks the host to start a node. The caller stops it.
+// startL2Extra asks the host to start a node. The caller stops it. Address is
+// empty when the node exits at startup.
 func startL2Extra(t *testing.T, controlDir, command string) l2StartedNode {
 	t.Helper()
 	ack := l2Control(t, controlDir, command)
 	started := l2StartedNode{container: ack["container"], address: ack["address"]}
-	if started.container == "" || started.address == "" {
-		t.Fatalf("start acknowledgement %v has no container or address", ack)
+	if started.container == "" {
+		t.Fatalf("start acknowledgement %v has no container", ack)
 	}
 	return started
 }
