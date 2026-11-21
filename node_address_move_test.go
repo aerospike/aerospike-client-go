@@ -580,6 +580,75 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			gm.Expect(old.IsActive()).To(gm.BeFalse())
 		})
 	})
+
+	gg.Context("staggered connect for new peers", func() {
+		var port int
+
+		gg.BeforeEach(func() {
+			port = freePortOn(first, second)
+		})
+
+		// openCluster connects to a seed on its own port, so the servers on
+		// port only see the validation under test. Timeout and interval set
+		// the stagger bound.
+		openCluster := func(timeout, interval time.Duration) *Cluster {
+			seed := startServer(first, freePortOn(first), nodeA)
+			return connectWith(first.String(), seed.port(), timeout, interval).cluster
+		}
+
+		validate := func(cluster *Cluster, hostname string) (*nodeValidator, Error, time.Duration) {
+			nv := &nodeValidator{}
+			begin := time.Now()
+			err := nv.validateNode(cluster, NewHost(hostname, port))
+			return nv, err, time.Since(begin)
+		}
+
+		requireHung := func(n int) []net.IP {
+			hung := hungAddresses(n)
+			if hung == nil {
+				gg.Skip("TEST-NET addresses do not hang on this network")
+			}
+			return hung
+		}
+
+		gg.It("connects a hostname with one address as before", func() {
+			hung := requireHung(1)
+			const timeout = time.Second
+			cluster := openCluster(timeout, 100*time.Millisecond)
+
+			_, err, elapsed := validate(cluster, registerHostname("single", hung[0]))
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Error()).ToNot(gm.ContainSubstring("No connection to"))
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", timeout/2), "one address keeps the Timeout/2 dial, not the stagger bound")
+		})
+
+		gg.It("connects an IP literal as before", func() {
+			hung := requireHung(1)
+			const timeout = time.Second
+			cluster := openCluster(timeout, 100*time.Millisecond)
+
+			_, err, elapsed := validate(cluster, hung[0].String())
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Error()).ToNot(gm.ContainSubstring("No connection to"))
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", timeout/2), "an IP literal keeps the Timeout/2 dial, not the stagger bound")
+		})
+
+		gg.It("still adds every node of a seed hostname with several addresses", func() {
+			cluster := openCluster(2*time.Second, time.Hour)
+			startServer(first, port, nodeB)
+			startServer(second, port, nodeC)
+
+			nv := &nodeValidator{}
+			nodesToAdd := nodesToAddT{}
+			err := nv.seedNodes(cluster, NewHost(registerHostname("seed", first, second), port), nodesToAdd)
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(nodesToAdd).To(gm.HaveKey(nodeB))
+			gm.Expect(nodesToAdd).To(gm.HaveKey(nodeC))
+		})
+	})
 })
 
 // thirdAddress returns a local address other than first and second that can
@@ -668,6 +737,24 @@ func mustKey(namespace, set string, value int) *Key {
 	return key
 }
 
+// hungAddresses returns n TEST-NET addresses whose TCP connect does not
+// complete, or nil when the network answers them at once.
+func hungAddresses(n int) []net.IP {
+	ips := make([]net.IP, n)
+	for i := range ips {
+		ips[i] = net.IPv4(192, 0, 2, byte(i+1)).To4()
+	}
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(ips[0].String(), "3000"), 50*time.Millisecond)
+	if err == nil {
+		conn.Close()
+		return nil
+	}
+	if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+		return nil
+	}
+	return ips
+}
+
 func secondLoopback() net.IP {
 	ip := net.ParseIP("127.0.0.2")
 	if canBindIP(ip) {
@@ -716,10 +803,12 @@ type stubNodeServer struct {
 	nodeName string
 	replicas string
 
-	mu     sync.Mutex
-	peers  string
-	conns  []net.Conn
-	silent bool
+	mu          sync.Mutex
+	peers       string
+	conns       []net.Conn
+	silent      bool
+	accepts     int
+	firstAccept time.Time
 }
 
 func newStubNodeServer(ip net.IP, port int, nodeName string) (*stubNodeServer, error) {
@@ -801,9 +890,21 @@ func (server *stubNodeServer) serve() {
 		}
 		server.mu.Lock()
 		server.conns = append(server.conns, conn)
+		if server.accepts == 0 {
+			server.firstAccept = time.Now()
+		}
+		server.accepts++
 		server.mu.Unlock()
 		go server.serveConnection(conn)
 	}
+}
+
+// acceptStats returns how many connections the server accepted and when it
+// accepted the first.
+func (server *stubNodeServer) acceptStats() (int, time.Time) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	return server.accepts, server.firstAccept
 }
 
 func (server *stubNodeServer) serveConnection(conn net.Conn) {
