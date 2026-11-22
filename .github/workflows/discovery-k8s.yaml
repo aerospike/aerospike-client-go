@@ -56,6 +56,7 @@ jobs:
             multi-pod-per-host: true
             cluster-size: 1
             tls: false
+            expected-skips: TestL3PassThroughPerNode,TestL3PassThroughNetworkLoadBalancerPerPod,TestL3AdvertisedAddressSurvivesPodReschedule,TestL3PodOnRecreatedNodeAdvertisesClusterAddress
           - name: L3 discovery (k8s, TLS)
             nlb: false
             multi-pod-per-host: true
@@ -66,11 +67,13 @@ jobs:
             multi-pod-per-host: true
             cluster-size: 1
             tls: false
+            expected-skips: TestL3PassThroughPerNode,TestL3PassThroughNetworkLoadBalancerPerPod,TestL3PodOnRecreatedNodeAdvertisesClusterAddress
           - name: L3 discovery (k8s, networkLoadBalancer, one pod per node)
             nlb: true
             multi-pod-per-host: false
             cluster-size: 2
             tls: false
+            expected-skips: TestL3PassThroughPerNode,TestL3PassThroughSharedEndpoint
           - name: L3 discovery (k8s, networkLoadBalancer, TLS)
             nlb: true
             multi-pod-per-host: true
@@ -133,5 +136,6 @@ jobs:
           DISCOVERY_TLS_NAME: ${{ steps.tls.outputs.tls-name }}
           DISCOVERY_TLS_ENDPOINT_HOSTNAME: ${{ steps.tls.outputs.tls-endpoint-hostname }}
           L3_REREGISTER_KIND_CLUSTER: ${{ matrix.nlb && 'kind-ako' || '' }}
+          EXPECTED_SKIPS: ${{ matrix.expected-skips }}
           AEROSPIKE_ADMIN_PASSWORD: ${{ steps.kind-ako.outputs.admin-password }}
         run: bash .github/discovery/run-l3-suite.sh
