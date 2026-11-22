@@ -25,7 +25,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-const l2ReachableBlocker = " needs DISCOVERY_REACHABLE_NODE, a node advertising an address the client can reach (run_l2.sh L2_PROFILE=reachable, or the discovery-l2 workflow's reachable profile)"
+const l2ReachableBlocker = " needs DISCOVERY_REACHABLE_NODE, a node advertising an address the client can reach (l2-proxy/run.sh --profile reachable)"
 
 func TestL2ReachableUnmappedPeerPassesThroughUnchanged(t *testing.T) {
 	host, nodes := l2ReachableTopology(t)

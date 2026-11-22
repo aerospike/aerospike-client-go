@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-const l2UnresolvedAccessBlocker = "Unresolved access address needs DISCOVERY_UNRESOLVED_HOSTNAME and DISCOVERY_CONTROL_DIR (run_l2.sh L2_PROFILE=unresolved-access)"
+const l2UnresolvedAccessBlocker = "Unresolved access address needs DISCOVERY_UNRESOLVED_HOSTNAME and DISCOVERY_CONTROL_DIR (l2-proxy/run.sh --profile unresolved-access)"
 
 // A node advertising an unresolvable alternate-access-address joins verbatim on a fixed server.
 // A released server exits at startup and logs CRITICAL naming the hostname.

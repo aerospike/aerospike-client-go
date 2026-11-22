@@ -22,7 +22,7 @@ import (
 	as "github.com/aerospike/aerospike-client-go/v8"
 )
 
-const l2PortMapNoAccessBlocker = "Port map with no access address needs DISCOVERY_UNRESOLVED_HOSTNAME (run_l2.sh L2_PROFILE=unresolved-access)"
+const l2PortMapNoAccessBlocker = "Port map with no access address needs DISCOVERY_UNRESOLVED_HOSTNAME (l2-proxy/run.sh --profile unresolved-access)"
 
 // With no access address configured, a port map still reaches every node at its listener
 // and each key is served by its master.

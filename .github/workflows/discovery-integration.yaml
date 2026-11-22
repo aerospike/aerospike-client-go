@@ -1,15 +1,10 @@
 name: Discovery integration
 
-# Own workflow so the L2 runtime is not added to every build.yml matrix cell.
-#
-# CE (community, no feature key) runs on every pull request. EE (enterprise
-# with TLS, rows such as N-6 and N-17) runs on same-repo pull requests, on
-# push and on workflow_dispatch. Fork pull requests do not receive
-# FEATURES_CONF, so the gate job reports EE as a skipped layer instead.
-#
 # TLS certificate matching is an EE job. It starts one Enterprise container
-# per fixture certificate shape, so it uses the same FEATURES_CONF gate.
-# L3 (kind plus operator) lives in discovery-k8s.yaml and uses the same gate.
+# per fixture certificate shape. It runs on same-repo pull requests, on push
+# and on workflow_dispatch. Fork pull requests do not receive FEATURES_CONF,
+# so the gate job reports it as a skipped layer instead. The gate also
+# reports L3 (kind plus operator, discovery-k8s.yaml).
 
 permissions:
   id-token: write
@@ -24,7 +19,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # The only place the enterprise gate is decided, so a skip and its report cannot drift apart.
+  # The only place this workflow decides the enterprise gate, so a skip and its report cannot drift apart.
   gate:
     name: Skipped layers
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
@@ -44,7 +39,7 @@ jobs:
           set -euo pipefail
           layers='[]'
           if [[ "${ENTERPRISE}" != true ]]; then
-            layers=$(jq -cn '[{layer: "L2 EE", tests: "ee and ee cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"},{layer: "TLS certificate matching", tests: "certificate name matching against Enterprise servers", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3", tests: "kind plus operator shared-endpoint pass-through", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3 TLS", tests: "kind plus operator tls-name", reason: "fork pull requests get no FEATURES_CONF"}]')
+            layers=$(jq -cn '[{layer: "TLS certificate matching", tests: "certificate name matching against Enterprise servers", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3", tests: "kind plus operator shared-endpoint pass-through", reason: "fork pull requests get no FEATURES_CONF"},{layer: "L3 TLS", tests: "kind plus operator tls-name", reason: "fork pull requests get no FEATURES_CONF"}]')
           fi
           echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
@@ -53,83 +48,6 @@ jobs:
         uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@a30c0787dede434f15be3622e7007dc57b55209d # main
         with:
           layers: ${{ steps.gate.outputs.layers }}
-
-  # A job if is evaluated before the matrix, so the fork gate cannot live on a
-  # matrix cell. Community and enterprise stay two jobs.
-  l2-ce:
-    name: L2 discovery (ce${{ matrix.profile != 'default' && format(', {0}', matrix.profile) || '' }})
-    strategy:
-      fail-fast: false
-      matrix:
-        profile:
-          - default
-          - reachable
-          - pass-through-names
-          - pass-through-ports
-          - port-map-range
-          - low-mtu
-          - port-range
-          - idle-reset
-    uses: ./.github/workflows/discovery-l2.yaml
-    with:
-      subset: ce
-      server-container-repo: database-docker-virtual/aerospike-server
-      server-tag: latest
-      profile: ${{ matrix.profile }}
-    secrets: inherit
-
-  # The dev build advertises access addresses verbatim. Move to a release tag once one carries the fix.
-  l2-ce-unresolvable:
-    name: L2 discovery (ce, pass-through-ports, unresolvable hostnames)
-    uses: ./.github/workflows/discovery-l2.yaml
-    with:
-      subset: ce
-      server-container-repo: database-docker-dev-local/aerospike-server
-      server-tag: 8.2.1.0-35_20261103T045846Z
-      profile: pass-through-ports
-      unresolvable-hostnames: true
-    secrets: inherit
-
-  # The released server resolves access addresses at startup; the dev build above does not.
-  l2-ce-unresolved-access:
-    name: L2 discovery (ce, unresolved-access${{ matrix.verbatim && ', verbatim access address' || '' }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - server-container-repo: database-docker-virtual/aerospike-server
-            server-tag: 8.2.0.1
-            verbatim: false
-          - server-container-repo: database-docker-dev-local/aerospike-server
-            server-tag: 8.2.1.0-35_20261103T045846Z
-            verbatim: true
-    uses: ./.github/workflows/discovery-l2.yaml
-    with:
-      subset: ce
-      server-container-repo: ${{ matrix.server-container-repo }}
-      server-tag: ${{ matrix.server-tag }}
-      profile: unresolved-access
-      verbatim-access-address: ${{ matrix.verbatim }}
-    secrets: inherit
-
-  l2-ee:
-    name: L2 discovery (ee${{ matrix.profile != 'default' && format(', {0}', matrix.profile) || '' }})
-    needs: gate
-    if: needs.gate.outputs.enterprise == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        profile:
-          - default
-          - cn-only
-    uses: ./.github/workflows/discovery-l2.yaml
-    with:
-      subset: ee
-      server-container-repo: database-docker-dev-local/aerospike-server-enterprise
-      server-tag: 8.2.0.0
-      tls-listen-port-base: "43331"
-      profile: ${{ matrix.profile }}
-    secrets: inherit
 
   tls-matching:
     name: TLS certificate matching

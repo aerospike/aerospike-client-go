@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	l2PassThroughA = " needs DISCOVERY_PASS_THROUGH_BRANCH=A, each node advertising its own alternate-access-address hostname (run_l2.sh L2_PROFILE=pass-through-names)"
-	l2PassThroughB = " needs DISCOVERY_PASS_THROUGH_BRANCH=B and DISCOVERY_CONTROL_DIR, every node advertising one alternate-access-address hostname with its own port (run_l2.sh L2_PROFILE=pass-through-ports)"
+	l2PassThroughA = " needs DISCOVERY_PASS_THROUGH_BRANCH=A, each node advertising its own alternate-access-address hostname (l2-proxy/run.sh --profile pass-through-names)"
+	l2PassThroughB = " needs DISCOVERY_PASS_THROUGH_BRANCH=B and DISCOVERY_CONTROL_DIR, every node advertising one alternate-access-address hostname with its own port (l2-proxy/run.sh --profile pass-through-ports)"
 )
 
 // l2SingleAddressTranslator maps every endpoint to target. One-caller fake for N-18 custom.

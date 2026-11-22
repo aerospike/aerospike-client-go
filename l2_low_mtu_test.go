@@ -27,7 +27,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-const l2LowMtuBlocker = "F-2 needs DISCOVERY_CLIENT_NETWORK_MTU, a client network created with a small MTU (run_l2.sh L2_PROFILE=low-mtu)"
+const l2LowMtuBlocker = "F-2 needs DISCOVERY_CLIENT_NETWORK_MTU, a client network created with a small MTU (l2-proxy/run.sh --profile low-mtu)"
 
 func TestL2LowMtuLargeRecordNeverHangs(t *testing.T) {
 	host, nodes := l2LowMtuTopology(t)

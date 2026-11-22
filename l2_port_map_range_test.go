@@ -26,7 +26,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-const l2PortMapRangeBlocker = " needs DISCOVERY_PORT_MAP_RANGE, DISCOVERY_PORT_MAP_PORT_BASE and DISCOVERY_CONTROL_DIR, nodes on a fixed subnet with a listener per address of a range (run_l2.sh L2_PROFILE=port-map-range)"
+const l2PortMapRangeBlocker = " needs DISCOVERY_PORT_MAP_RANGE, DISCOVERY_PORT_MAP_PORT_BASE and DISCOVERY_CONTROL_DIR, nodes on a fixed subnet with a listener per address of a range (l2-proxy/run.sh --profile port-map-range)"
 
 func TestL2PortMapRangePrefilledJoinsNodeInRange(t *testing.T) {
 	host, nodes := l2PortMapRangeTopology(t)

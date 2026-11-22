@@ -23,7 +23,7 @@ import (
 	as "github.com/aerospike/aerospike-client-go/v8"
 )
 
-const l2CnOnlyProfile = " (run_l2.sh DISCOVERY_SUBSET=ee L2_PROFILE=cn-only)"
+const l2CnOnlyProfile = " (l2-proxy/run.sh --edition ee --profile cn-only)"
 
 func TestL2CnOnlyCertificateIsRejected(t *testing.T) {
 	skipUnlessL2(t)

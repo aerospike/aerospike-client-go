@@ -26,7 +26,7 @@ import (
 	as "github.com/aerospike/aerospike-client-go/v8"
 )
 
-const l2IdleResetBlocker = "F-1 needs DISCOVERY_IDLE_RESET (run_l2.sh L2_PROFILE=idle-reset)"
+const l2IdleResetBlocker = "F-1 needs DISCOVERY_IDLE_RESET (l2-proxy/run.sh --profile idle-reset)"
 
 func TestL2IdleResetAbsorbedByPool(t *testing.T) {
 	host, nodes := l2IdleResetTopology(t)

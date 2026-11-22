@@ -25,7 +25,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-const l2SourcePortBlocker = "F-3 needs DISCOVERY_PROXY_PORT_RANGE, Toxiproxy with a narrow net.ipv4.ip_local_port_range (run_l2.sh L2_PROFILE=port-range)"
+const l2SourcePortBlocker = "F-3 needs DISCOVERY_PROXY_PORT_RANGE, Toxiproxy with a narrow net.ipv4.ip_local_port_range (l2-proxy/run.sh --profile port-range)"
 
 func TestL2SourcePortExhaustionSurfacesErrorAndRecovers(t *testing.T) {
 	host, nodes := l2SourcePortTopology(t)

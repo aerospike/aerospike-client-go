@@ -1,0 +1,173 @@
+name: Discovery L2 proxy
+
+# Runs the l2-proxy profiles of aerospike-client-conformance against this commit
+# through the L5 driver, then the Go L2 tests of each profile through
+# test/discovery/l2_run.sh, the manifest's L2_RUN. Community runs every profile
+# on every pull request. Enterprise (default and cn-only, with server TLS) and
+# the development server that advertises access addresses verbatim need
+# FEATURES_CONF or JFrog OIDC, which fork pull requests do not get.
+
+permissions:
+  contents: read
+  id-token: write
+
+on:
+  pull_request:
+  push:
+    branches:
+      - stage
+      - CLIENT-5732-dev-pluggable-discovery # TODO: remove post testing
+  workflow_dispatch:
+
+jobs:
+  # The only place this workflow decides the enterprise gate, so a skip and its report cannot drift apart.
+  gate:
+    name: Skipped layers
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    outputs:
+      enterprise: ${{ steps.gate.outputs.enterprise }}
+    steps:
+      - name: Decide the enterprise gate
+        id: gate
+        env:
+          ENTERPRISE: >-
+            ${{
+              github.event_name == 'push'
+              || github.event_name == 'workflow_dispatch'
+              || github.event.pull_request.head.repo.full_name == github.repository
+            }}
+        run: |
+          set -euo pipefail
+          layers='[]'
+          if [[ "${ENTERPRISE}" != true ]]; then
+            layers=$(jq -cn '[
+              {layer: "L2 EE", tests: "ee default and cn-only profiles", reason: "fork pull requests get no FEATURES_CONF"},
+              {layer: "L2 verbatim access address", tests: "pass-through-ports with unresolvable hostnames and unresolved-access on the development server", reason: "fork pull requests get no JFrog OIDC"}
+            ]')
+          fi
+          echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
+          echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
+
+      - name: Report skipped layers
+        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@a30c0787dede434f15be3622e7007dc57b55209d # main
+        with:
+          layers: ${{ steps.gate.outputs.layers }}
+
+  # Go exemptions (drop once the harness supports declared results):
+  # pass-through-miss-...: Go keeps a seed-only client, as it always has.
+  # closed-listener-...: after the listener returns, MAX_ERROR_RATE keeps the node refused until the next tend.
+  default-rows:
+    name: Default rows
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    outputs:
+      rows: ${{ steps.rows.outputs.rows }}
+    env:
+      L2_EXEMPT_ROWS: pass-through-miss-without-route-client-not-created,closed-listener-node-returns-with-bounded-latency
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout conformance
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aerospike/aerospike-client-conformance
+          ref: a30c0787dede434f15be3622e7007dc57b55209d # main
+
+      - name: List the default rows that are not exempt
+        id: rows
+        shell: python
+        run: |
+          import os, sys
+          sys.path.insert(0, "l2-proxy")
+          import rows
+          names = [row.name for row in rows.ROWS["default"]]
+          exempt = os.environ["L2_EXEMPT_ROWS"].split(",")
+          unknown = [name for name in exempt if name not in names]
+          if unknown:
+              sys.exit("exempt rows not in the default profile: " + ",".join(unknown))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("rows=%s\n" % ",".join(name for name in names if name not in exempt))
+
+  # Every profile on Aerospike Community; unresolved-access runs on the released
+  # server, which resolves access addresses at startup. An empty rows input runs
+  # every row of the profile.
+  l2-proxy-ce:
+    name: L2 proxy (ce ${{ matrix.label }})
+    needs: default-rows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: default
+            profile: default
+            rows: ${{ needs.default-rows.outputs.rows }}
+          - label: other profiles
+            profile: reachable,pass-through-names,pass-through-ports,port-map-range,port-range,low-mtu,idle-reset,unresolved-access
+            rows: ""
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@a30c0787dede434f15be3622e7007dc57b55209d # main
+    with:
+      client-repository: ${{ github.repository }}
+      commit: ${{ github.event.pull_request.head.sha || github.sha }}
+      manifest: test/discovery/l5-aws.manifest
+      profile: ${{ matrix.profile }}
+      rows: ${{ matrix.rows }}
+      edition: ce
+      conformance-ref: a30c0787dede434f15be3622e7007dc57b55209d
+
+  l2-proxy-ee:
+    name: L2 proxy (ee ${{ matrix.profile }})
+    needs: [gate, default-rows]
+    if: needs.gate.outputs.enterprise == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: default
+            rows: ${{ needs.default-rows.outputs.rows }}
+          - profile: cn-only
+            rows: ""
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@a30c0787dede434f15be3622e7007dc57b55209d # main
+    with:
+      client-repository: ${{ github.repository }}
+      commit: ${{ github.event.pull_request.head.sha || github.sha }}
+      manifest: test/discovery/l5-aws.manifest
+      profile: ${{ matrix.profile }}
+      rows: ${{ matrix.rows }}
+      edition: ee
+      conformance-ref: a30c0787dede434f15be3622e7007dc57b55209d
+    secrets:
+      FEATURES_CONF: ${{ secrets.FEATURES_CONF }}
+
+  # The development build advertises access addresses verbatim. Move to a
+  # release tag once one carries the fix.
+  l2-proxy-ce-verbatim:
+    name: L2 proxy (ce verbatim ${{ matrix.profile }})
+    needs: gate
+    if: needs.gate.outputs.enterprise == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: pass-through-ports
+            unresolved-hostname: true
+            verbatim-access-address: false
+          - profile: unresolved-access
+            unresolved-hostname: false
+            verbatim-access-address: true
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@a30c0787dede434f15be3622e7007dc57b55209d # main
+    with:
+      client-repository: ${{ github.repository }}
+      commit: ${{ github.event.pull_request.head.sha || github.sha }}
+      manifest: test/discovery/l5-aws.manifest
+      profile: ${{ matrix.profile }}
+      edition: ce
+      server-image: aerospike.jfrog.io/database-docker-dev-local/aerospike-server:8.2.1.0-35_20261103T045846Z
+      registry: aerospike.jfrog.io
+      unresolved-hostname: ${{ matrix.unresolved-hostname }}
+      verbatim-access-address: ${{ matrix.verbatim-access-address }}
+      conformance-ref: a30c0787dede434f15be3622e7007dc57b55209d
+    secrets:
+      JFROG_OIDC_PROVIDER: ${{ secrets.JFROG_OIDC_PROVIDER }}
+      JFROG_OIDC_AUDIENCE: ${{ secrets.JFROG_OIDC_AUDIENCE }}
