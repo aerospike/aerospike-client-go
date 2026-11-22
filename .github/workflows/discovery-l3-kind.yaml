@@ -20,32 +20,11 @@ on:
 
 jobs:
   gate:
-    name: Profiles and skipped layers
+    name: Skipped layers
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     outputs:
       enterprise: ${{ steps.gate.outputs.enterprise }}
-      profiles: ${{ steps.profiles.outputs.profiles }}
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: .github/discovery/l3-kind-profiles.json
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-
-      - name: Read the profiles
-        id: profiles
-        run: |
-          set -euo pipefail
-          profiles=$(jq -ce 'if type == "array" and length > 0 and all(.[]; .profile | type == "string")
-            then . else error("expected a non-empty array of objects with a profile") end' \
-            .github/discovery/l3-kind-profiles.json)
-          echo "profiles=${profiles}" >> "${GITHUB_OUTPUT}"
-
       - name: Decide the enterprise gate
         id: gate
         env:
@@ -69,14 +48,39 @@ jobs:
         with:
           layers: ${{ steps.gate.outputs.layers }}
 
+  profiles:
+    name: Profiles
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    outputs:
+      profiles: ${{ steps.profiles.outputs.profiles }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/discovery/l3-kind-profiles.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: List one entry per profile
+        id: profiles
+        run: |
+          set -euo pipefail
+          profiles=$(jq -c '[.[] | del(.profiles) as $setup | .profiles[] | $setup + {profile: .}]' \
+            .github/discovery/l3-kind-profiles.json)
+          echo "profiles=${profiles}" >> "${GITHUB_OUTPUT}"
+
   l3-kind:
     name: L3 kind (${{ matrix.profile }})
-    needs: gate
+    needs: [gate, profiles]
     if: needs.gate.outputs.enterprise == 'true'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.gate.outputs.profiles) }}
+        include: ${{ fromJSON(needs.profiles.outputs.profiles) }}
     uses: aerospike/aerospike-client-conformance/.github/workflows/l3-kind.yaml@a30c0787dede434f15be3622e7007dc57b55209d # main
     with:
       client-repository: ${{ github.repository }}
