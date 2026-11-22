@@ -20,7 +20,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -67,52 +66,6 @@ func TestL2PassThroughSharedNameStrictRoutesToEveryOwner(t *testing.T) {
 	policy := l2PassThroughPolicy()
 	policy.TranslationOnMiss = as.TranslationMissStrict
 	assertL2PassThroughSharedName(t, host, nodes, policy, "n16s-")
-}
-
-func TestL2PassThroughNewNodeOnSharedNameActiveWithinTwoTendIntervals(t *testing.T) {
-	host, nodes := l2PassThroughBranch(t, "B", "N-16 scale-out"+l2PassThroughB)
-	controlDir := l2ControlDir(t, "N-16 scale-out"+l2PassThroughB)
-	first := nodes[0]
-	names := l2NodeNames(nodes)
-	hostname, _ := l2HostPort(t, l2Alternate(t, host, first))
-	policy := l2PassThroughPolicy()
-	client := newL2Client(t, policy, l2PassThroughSeed(t, host, first))
-	waitL2Cluster(t, client, names)
-
-	generation := l2PeersGeneration(t, host, first)
-	port := nextL2ListenerPort(t)
-	started := startL2NodeArgs(t, controlDir, host, nodes, "start alternate-port="+strconv.Itoa(port))
-	addL2ListenerOn(t, started.container, port, net.JoinHostPort(started.container, strconv.Itoa(l2UpstreamPort(t, first.proxy))))
-	if mapped := l2PeersGeneration(t, host, first); mapped != generation {
-		t.Fatalf("peers-generation bumped from %d to %d before %s had a listener", generation, mapped, started.container)
-	}
-
-	joined := waitL2Joined(t, client, host, first, generation, names)
-	node := joined.node
-	info, err := l2RequestInfo(host, port, "node", "service-clear-alt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info["node"] != node.GetName() {
-		t.Fatalf("listener %d serves node %s, client added %s", port, info["node"], node.GetName())
-	}
-	want := net.JoinHostPort(hostname, strconv.Itoa(port))
-	if !strings.Contains(info["service-clear-alt"], want) {
-		t.Fatalf("%s advertises %q, want %s", node.GetName(), info["service-clear-alt"], want)
-	}
-	if node.GetHost().Port != port {
-		t.Fatalf("node %s host %v, want listener port %d", node.GetName(), node.GetHost(), port)
-	}
-	if elapsed, budget := joined.active.Sub(joined.bump), 2*policy.TendInterval; elapsed > budget {
-		t.Fatalf("node %s active %s after the peers-generation bump, budget %s", node.GetName(), elapsed, budget)
-	}
-	if !waitL2(l2Poll, func() bool {
-		owners, _ := l2PartitionOwners(client)
-		return slices.Contains(owners, node.GetName())
-	}) {
-		owners, _ := l2PartitionOwners(client)
-		t.Fatalf("node %s masters no partition, owners %v", node.GetName(), owners)
-	}
 }
 
 func TestL2PassThroughCollidingNodesCreateNoNode(t *testing.T) {

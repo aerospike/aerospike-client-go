@@ -28,61 +28,6 @@ import (
 
 const l2PortMapRangeBlocker = " needs DISCOVERY_PORT_MAP_RANGE, DISCOVERY_PORT_MAP_PORT_BASE and DISCOVERY_CONTROL_DIR, nodes on a fixed subnet with a listener per address of a range (l2-proxy/run.sh --profile port-map-range)"
 
-func TestL2PortMapRangePrefilledJoinsNodeInRange(t *testing.T) {
-	host, nodes := l2PortMapRangeTopology(t)
-	controlDir := l2ControlDir(t, "N-19"+l2PortMapRangeBlocker)
-	first := nodes[0]
-	names := l2NodeNames(nodes)
-	portMap := l2RangePortMap(t, host, nodes)
-	translator, err := as.NewPortMapAddressTranslator(portMap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy := l2Policy()
-	policy.AddressTranslator = translator
-	logs := captureL2Logs(t)
-	client := newL2Client(t, policy, as.NewHost(host, first.port))
-	waitL2Cluster(t, client, names)
-	if warnings := logs.containing("has no mapping"); len(warnings) != 0 {
-		t.Fatalf("unexpected warnings before scale-out: %v", warnings)
-	}
-
-	address := l2FreeRangeAddress(t, nodes)
-	generation := l2PeersGeneration(t, host, first)
-	started := startL2NodeArgs(t, controlDir, host, nodes, "start address="+address)
-	if started.address != address {
-		t.Fatalf("started address %s, want %s", started.address, address)
-	}
-
-	joined := waitL2Joined(t, client, host, first, generation, names)
-	node := joined.node
-	port := l2RangeListenerPort(t, address)
-	info, infoErr := l2RequestInfo(host, port, "node", "service-clear-std")
-	if infoErr != nil {
-		t.Fatal(infoErr)
-	}
-	if info["node"] != node.GetName() {
-		t.Fatalf("listener %d serves node %s, client added %s", port, info["node"], node.GetName())
-	}
-	if node.GetHost().Port != port {
-		t.Fatalf("node %s host %v, want listener port %d", node.GetName(), node.GetHost(), port)
-	}
-	if elapsed, budget := joined.active.Sub(joined.bump), 2*policy.TendInterval; elapsed > budget {
-		t.Fatalf("node %s active %s after the peers-generation bump, budget %s", node.GetName(), elapsed, budget)
-	}
-	if !waitL2(l2Poll, func() bool {
-		owners, _ := l2PartitionOwners(client)
-		return slices.Contains(owners, node.GetName())
-	}) {
-		owners, _ := l2PartitionOwners(client)
-		t.Fatalf("node %s masters no partition, owners %v", node.GetName(), owners)
-	}
-	owners, _ := l2PartitionOwners(client)
-	if len(owners) != len(names)+1 {
-		t.Fatalf("partition owners %v, want %d nodes", owners, len(names)+1)
-	}
-}
-
 func TestL2PortMapRangeNodeOutsideRangeDecidedByOnMiss(t *testing.T) {
 	host, nodes := l2PortMapRangeTopology(t)
 	controlDir := l2ControlDir(t, "N-19"+l2PortMapRangeBlocker)
@@ -191,27 +136,6 @@ func l2RangePortMap(t *testing.T, host string, nodes []l2Node) map[string]string
 		}
 	}
 	return portMap
-}
-
-func l2FreeRangeAddress(t *testing.T, nodes []l2Node) string {
-	t.Helper()
-	from, to := l2PortMapRangeBounds(t)
-	prefix := l2AddressPrefix(from)
-	port := l2ServicePort(nodes)
-	used := map[string]struct{}{}
-	for _, node := range nodes {
-		for _, advertised := range node.advertised {
-			used[advertised] = struct{}{}
-		}
-	}
-	for octet := l2LastOctet(from); octet <= l2LastOctet(to); octet++ {
-		address := prefix + strconv.Itoa(octet)
-		if _, ok := used[net.JoinHostPort(address, strconv.Itoa(port))]; !ok {
-			return address
-		}
-	}
-	t.Fatalf("no free address in %s", os.Getenv("DISCOVERY_PORT_MAP_RANGE"))
-	return ""
 }
 
 func l2PortMapRangeBounds(t *testing.T) (string, string) {

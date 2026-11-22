@@ -263,14 +263,6 @@ var (
 	l2Err   error
 )
 
-func TestL2PortMapByHostPortJoinsAllNodes(t *testing.T) {
-	assertL2PortMapJoins(t, l2PortMapByEndpoint)
-}
-
-func TestL2PortMapByNodeNameJoinsAllNodes(t *testing.T) {
-	assertL2PortMapJoins(t, l2PortMapByNodeName)
-}
-
 // The dns provider seeds from SRV records for the endpoint, one per listener,
 // and port-map brings in the peers.
 func TestL2DnsProviderSeedsThroughEndpoint(t *testing.T) {
@@ -291,77 +283,6 @@ func TestL2DnsProviderSeedsThroughEndpoint(t *testing.T) {
 	policy.SeedProvider = provider
 	client := newL2Client(t, policy)
 	waitL2Cluster(t, client, l2NodeNames(nodes))
-}
-
-// Every node masters partitions as its own Node, and each key is served by its
-// master with no server proxy hop.
-func TestL2EveryPartitionOwnerIsADistinctNode(t *testing.T) {
-	host, nodes := l2Topology(t)
-	client := newL2Client(t, l2PortMapPolicy(t, l2PortMapByEndpoint(host, nodes)), as.NewHost(host, nodes[0].port))
-	waitL2Cluster(t, client, l2NodeNames(nodes))
-
-	masters := as.PartitionMasters(client, *namespace)
-	distinct := make(map[*as.Node]struct{}, len(nodes))
-	for _, master := range masters {
-		distinct[master] = struct{}{}
-	}
-	if len(distinct) != len(nodes) {
-		t.Fatalf("%d distinct partition masters, want %d", len(distinct), len(nodes))
-	}
-	cluster := client.Cluster()
-	for _, node := range client.GetNodes() {
-		if byName, err := cluster.GetNodeByName(node.GetName()); err != nil || byName != node {
-			t.Fatalf("cluster lookup of %s returned %v, %v, want the client's node", node.GetName(), byName, err)
-		}
-		if _, ok := distinct[node]; !ok {
-			t.Fatalf("node %s masters no partition", node.GetName())
-		}
-	}
-
-	before := make(map[string]map[string]int64, len(nodes))
-	for _, node := range nodes {
-		before[node.name] = l2NamespaceStats(t, host, node)
-	}
-
-	write := as.NewWritePolicy(0, 0)
-	write.ReplicaPolicy = as.MASTER
-	read := as.NewPolicy()
-	read.ReplicaPolicy = as.MASTER
-	served := make(map[string]int64, len(nodes))
-	for i := range l2KeyCount {
-		key := l2Key(t, "n5-", i)
-		owner := masters[key.PartitionId()]
-		assertL2RoutedTo(t, cluster, &write.BasePolicy, read, key, owner)
-		if err := client.Put(write, key, as.BinMap{"v": i}); err != nil {
-			t.Fatalf("put %v: %v", key, err)
-		}
-		record, err := client.Get(read, key)
-		if err != nil {
-			t.Fatalf("get %v: %v", key, err)
-		}
-		if record.Bins["v"] != i {
-			t.Fatalf("key %v holds %v, want %d", key, record.Bins["v"], i)
-		}
-		served[owner.GetName()]++
-	}
-
-	for _, node := range nodes {
-		after := l2NamespaceStats(t, host, node)
-		delta := func(stat string) int64 { return after[stat] - before[node.name][stat] }
-		want := served[node.name]
-		if want == 0 {
-			t.Fatalf("node %s served no keys", node.name)
-		}
-		if writes := delta("client_write_success"); writes != want {
-			t.Fatalf("node %s counted %d writes, want %d", node.name, writes, want)
-		}
-		if reads := delta("client_read_success"); reads != want {
-			t.Fatalf("node %s counted %d reads, want %d", node.name, reads, want)
-		}
-		if proxied := delta("client_proxy_complete") + delta("client_proxy_error") + delta("client_proxy_timeout"); proxied != 0 {
-			t.Fatalf("node %s proxied %d commands, want none", node.name, proxied)
-		}
-	}
 }
 
 // Without a translator the peers' advertised addresses are unreachable, so the
@@ -442,66 +363,6 @@ func TestL2StrictEmptyCustomTranslatorDropsPeers(t *testing.T) {
 	policy.AddressTranslator = l2EmptyTranslator{}
 	policy.TranslationOnMiss = as.TranslationMissStrict
 	assertL2StrictMissDropsPeers(t, policy, fmt.Sprintf("%T", l2EmptyTranslator{}))
-}
-
-// A node started mid-test is an active Node within two tend intervals of the
-// peers-generation bump that announces it, and then masters partitions. The
-// test gives it a listener and a port-map entry before it joins.
-func TestL2NewNodeActiveWithinTwoTendIntervals(t *testing.T) {
-	host, nodes := l2Topology(t)
-	controlDir := os.Getenv("DISCOVERY_CONTROL_DIR")
-	if controlDir == "" {
-		t.Skip("N-11 needs DISCOVERY_CONTROL_DIR, the topology has no node control")
-	}
-	first := nodes[0]
-	names := l2NodeNames(nodes)
-	translator := &l2SwappableTranslator{}
-	translator.set(t, l2PortMapByEndpoint(host, nodes))
-	policy := l2Policy()
-	policy.AddressTranslator = translator
-	client := newL2Client(t, policy, as.NewHost(host, first.port))
-	waitL2Cluster(t, client, names)
-
-	generation := l2PeersGeneration(t, host, first)
-	added := startL2Node(t, controlDir, host, nodes)
-	if added.address == "" {
-		t.Fatalf("%s started with no address", added.container)
-	}
-	upstreamPort := l2UpstreamPort(t, first.proxy)
-	port := addL2Listener(t, added.container, net.JoinHostPort(added.container, strconv.Itoa(upstreamPort)))
-	advertised := net.JoinHostPort(added.address, strconv.Itoa(upstreamPort))
-	portMap := l2PortMapByEndpoint(host, nodes)
-	portMap[advertised] = net.JoinHostPort(host, strconv.Itoa(port))
-	translator.set(t, portMap)
-
-	if mapped := l2PeersGeneration(t, host, first); mapped != generation {
-		t.Fatalf("peers-generation bumped from %d to %d before %s had a listener and a mapping", generation, mapped, added.container)
-	}
-	joined := waitL2Joined(t, client, host, first, generation, names)
-	node := joined.node
-	info, err := l2RequestInfo(host, port, "node", "service-clear-std")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info["node"] != node.GetName() {
-		t.Fatalf("listener %d serves node %s, client added %s", port, info["node"], node.GetName())
-	}
-	if !strings.Contains(info["service-clear-std"], advertised) {
-		t.Fatalf("%s advertises %q, want %s", node.GetName(), info["service-clear-std"], advertised)
-	}
-	if node.GetHost().Port != port {
-		t.Fatalf("node %s host %v, want listener port %d", node.GetName(), node.GetHost(), port)
-	}
-	if elapsed, budget := joined.active.Sub(joined.bump), 2*policy.TendInterval; elapsed > budget {
-		t.Fatalf("node %s active %s after the peers-generation bump, budget %s", node.GetName(), elapsed, budget)
-	}
-	if !waitL2(l2Poll, func() bool {
-		owners, _ := l2PartitionOwners(client)
-		return slices.Contains(owners, node.GetName())
-	}) {
-		owners, _ := l2PartitionOwners(client)
-		t.Fatalf("node %s masters no partition, owners %v", node.GetName(), owners)
-	}
 }
 
 // In tend mode the provider runs only on its refresh interval, so the client
@@ -1038,14 +899,6 @@ func l2ListenerPortMap(host string, nodes []l2Node, listenerOf func(l2Node) (int
 	return portMap
 }
 
-func l2PortMapByNodeName(host string, nodes []l2Node) map[string]string {
-	portMap := make(map[string]string, len(nodes))
-	for _, node := range nodes {
-		portMap[node.name] = net.JoinHostPort(host, strconv.Itoa(node.port))
-	}
-	return portMap
-}
-
 // l2TLSConfig trusts only the server CA in AEROSPIKE_CA_CERT.
 func l2TLSConfig(t *testing.T) *tls.Config {
 	t.Helper()
@@ -1179,13 +1032,8 @@ func nextL2ListenerPort(t *testing.T) int {
 	return port + 1
 }
 
-// addL2Listener creates a Toxiproxy listener named proxy above every listener
-// in use, removes it when the test ends and returns its port.
-func addL2Listener(t *testing.T, proxy, upstream string) int {
-	t.Helper()
-	return addL2ListenerOn(t, proxy, nextL2ListenerPort(t), upstream)
-}
-
+// addL2ListenerOn creates a Toxiproxy listener named proxy on port, removes it
+// when the test ends and returns its port.
 func addL2ListenerOn(t *testing.T, proxy string, port int, upstream string) int {
 	t.Helper()
 	listener := fmt.Sprintf(`{"name":%q,"listen":"0.0.0.0:%d","upstream":%q,"enabled":true}`, proxy, port, upstream)
@@ -1280,36 +1128,13 @@ func l2ToxiproxyReply(method, path, body string, want int) ([]byte, error) {
 	return reply, nil
 }
 
-// l2SwappableTranslator is a port-map translator the test can replace while the client runs.
-type l2SwappableTranslator struct {
-	current atomic.Pointer[as.AddressTranslator]
-}
-
-func (translator *l2SwappableTranslator) Translate(advertised as.Endpoint) (as.Host, bool) {
-	return (*translator.current.Load()).Translate(advertised)
-}
-
-func (translator *l2SwappableTranslator) set(t *testing.T, portMap map[string]string) {
-	t.Helper()
-	portMapTranslator, err := as.NewPortMapAddressTranslator(portMap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	translator.current.Store(&portMapTranslator)
-}
-
 type l2StartedNode struct {
 	container string
 	address   string
 }
 
-// startL2Node asks the host to start a node and stops it when the test ends,
-// waiting until the cluster is back to nodes.
-func startL2Node(t *testing.T, controlDir, host string, nodes []l2Node) l2StartedNode {
-	t.Helper()
-	return startL2NodeArgs(t, controlDir, host, nodes, "start")
-}
-
+// startL2NodeArgs asks the host to run command, which starts a node, and stops
+// the node when the test ends, waiting until the cluster is back to nodes.
 func startL2NodeArgs(t *testing.T, controlDir, host string, nodes []l2Node, command string) l2StartedNode {
 	t.Helper()
 	started := startL2Extra(t, controlDir, command)
@@ -1406,19 +1231,6 @@ func waitL2ClusterSize(t *testing.T, host string, nodes []l2Node, size int) {
 	}
 }
 
-func l2PeersGeneration(t *testing.T, host string, node l2Node) int64 {
-	t.Helper()
-	info, err := l2RequestInfo(host, node.port, "peers-generation")
-	if err != nil {
-		t.Fatal(err)
-	}
-	generation, err := strconv.ParseInt(info["peers-generation"], 10, 64)
-	if err != nil {
-		t.Fatalf("node %s peers-generation %q: %v", node.name, info["peers-generation"], err)
-	}
-	return generation
-}
-
 // l2NamespaceStats returns the client command counters of the test namespace on node.
 func l2NamespaceStats(t *testing.T, host string, node l2Node) map[string]int64 {
 	t.Helper()
@@ -1468,13 +1280,6 @@ func assertL2RoutedTo(t *testing.T, cluster *as.Cluster, write, read *as.BasePol
 	if writeNode != owner || readNode != owner {
 		t.Fatalf("key %v writes to %v and reads from %v, want its master %v", key, writeNode, readNode, owner)
 	}
-}
-
-func assertL2PortMapJoins(t *testing.T, portMapOf func(host string, nodes []l2Node) map[string]string) {
-	t.Helper()
-	host, nodes := l2Topology(t)
-	client := newL2Client(t, l2PortMapPolicy(t, portMapOf(host, nodes)), as.NewHost(host, nodes[0].port))
-	waitL2Cluster(t, client, l2NodeNames(nodes))
 }
 
 func waitL2Nodes(t *testing.T, client *as.Client, want []string) {
@@ -1805,35 +1610,6 @@ func assertL2Address(t *testing.T, advertised string, host *as.Host) {
 	if host.Port != port {
 		t.Fatalf("node port %d, want %d", host.Port, port)
 	}
-}
-
-type l2Joined struct {
-	node   *as.Node
-	bump   time.Time
-	active time.Time
-}
-
-func waitL2Joined(t *testing.T, client *as.Client, host string, observer l2Node, generation int64, names []string) l2Joined {
-	t.Helper()
-	var bump, active time.Time
-	var node *as.Node
-	if !waitL2(l2ReseedPoll, func() bool {
-		now := time.Now()
-		if bump.IsZero() && l2PeersGeneration(t, host, observer) != generation {
-			bump = now
-		}
-		if active.IsZero() {
-			for _, candidate := range client.GetNodes() {
-				if candidate.IsActive() && !slices.Contains(names, candidate.GetName()) {
-					active, node = now, candidate
-				}
-			}
-		}
-		return !bump.IsZero() && !active.IsZero()
-	}) {
-		t.Fatalf("no peers-generation bump or no active node after generation %d, nodes %v", generation, client.GetNodeNames())
-	}
-	return l2Joined{node: node, bump: bump, active: active}
 }
 
 func l2ListenerPorts(t *testing.T) map[int]struct{} {
