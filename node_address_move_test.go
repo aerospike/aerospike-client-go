@@ -349,7 +349,7 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		otherNodeStays(ipLiteral)
 	})
 
-	gg.It("does not move when the hostname has one address", func() {
+	gg.It("removes rather than moves a node whose hostname has only the failed address", func() {
 		otherNodeStays(singleAddress)
 	})
 
@@ -553,6 +553,58 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			_ = opened.cluster.tend()
 			gm.Expect(nodeOnAddress(opened, nodeA, second)).To(gm.BeTrue())
 			gm.Expect(old.IsActive()).To(gm.BeFalse())
+		})
+
+		gg.It("moves a node advertised by its hostname when the hostname now resolves to one new address", func() {
+			// The failing node must not be on loopback: peerExists keeps a
+			// localhost node without looking at the peer hosts.
+			lan := nonLoopbackIPv4()
+			if lan == nil {
+				gg.Skip("no non-loopback IPv4 address to bind")
+			}
+			hostB := registerHostname("single", lan)
+			portA := freePortOn(first, second)
+			portB := freePortOn(lan, second)
+			peersOfA := "1,3000,[[" + nodeB + ",,[" + hostB + ":" + strconv.Itoa(portB) + "]]]"
+			peersOfB := "1,3000,[[" + nodeA + ",,[" + first.String() + ":" + strconv.Itoa(portA) + "]]]"
+
+			startServer(first, portA, nodeA).setPeers(peersOfA)
+			b1 := startServer(lan, portB, nodeB)
+			b1.setPeers(peersOfB)
+			opened := connectWith(first.String(), portA, 500*time.Millisecond, time.Hour)
+			gm.Expect(opened.GetNodes()).To(gm.HaveLen(2))
+			old := nodeNamed(opened, nodeB)
+			gm.Expect(old.lookupName).To(gm.Equal(hostB))
+			gm.Expect(old.host.IsLocalhost()).To(gm.BeFalse())
+
+			startServer(second, portB, nodeB).setPeers(peersOfB)
+			setAddresses(hostB, second)
+			b1.close()
+
+			failTends(opened, old, 1, moveFailedTends-1)
+
+			_ = opened.cluster.tend()
+			gm.Expect(nodeOnAddress(opened, nodeB, second)).To(gm.BeTrue())
+			gm.Expect(old.IsActive()).To(gm.BeFalse())
+			gm.Expect(opened.GetNodes()).To(gm.HaveLen(2))
+			gm.Expect(nodeNamed(opened, nodeB).lookupName).To(gm.Equal(hostB))
+		})
+
+		gg.It("does not replace a node with itself when its hostname still resolves only to the failed address", func() {
+			hostname := registerHostname("same", first)
+			port := freePortOn(first, second)
+			live := startServer(first, port, nodeA)
+			opened := connectWith(hostname, port, 500*time.Millisecond, time.Hour)
+			old := nodeNamed(opened, nodeA)
+			gm.Expect(old.lookupName).To(gm.Equal(hostname))
+
+			lookups := lookupCount(hostname)
+			live.close()
+
+			failTends(opened, old, 1, moveFailedTends+1)
+			gm.Expect(lookupCount(hostname)).To(gm.Equal(lookups+2), "tends 3 and 4 look up the hostname")
+			gm.Expect(old.moveAddress).To(gm.BeEmpty())
+			gm.Expect(opened.GetNodes()).To(gm.HaveLen(1))
 		})
 
 		gg.It("looks up the hostname on the tend goroutine", func() {

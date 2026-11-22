@@ -758,7 +758,7 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 	}
 
 	addresses, err := lookupHost(node.lookupName)
-	if err != nil || len(addresses) <= 1 {
+	if err != nil || len(addresses) == 0 {
 		return
 	}
 
