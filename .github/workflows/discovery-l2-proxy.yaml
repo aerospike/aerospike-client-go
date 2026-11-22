@@ -169,5 +169,5 @@ jobs:
       verbatim-access-address: ${{ matrix.verbatim-access-address }}
       conformance-ref: a30c0787dede434f15be3622e7007dc57b55209d
     secrets:
-      JFROG_OIDC_PROVIDER: ${{ secrets.JFROG_OIDC_PROVIDER }}
-      JFROG_OIDC_AUDIENCE: ${{ secrets.JFROG_OIDC_AUDIENCE }}
+      JFROG_OIDC_PROVIDER: ${{ vars.OIDC_PROVIDER }}
+      JFROG_OIDC_AUDIENCE: ${{ vars.OIDC_AUDIENCE }}
