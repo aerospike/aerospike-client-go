@@ -1,0 +1,8 @@
+[
+  {"profile": "default", "ako-version": "4.7.0"},
+  {"profile": "per-node", "ako-version": "4.5.0"},
+  {"profile": "tls", "ako-version": "4.5.0"},
+  {"profile": "nlb", "ako-version": "4.8.0-dev1", "ako-helm-repo": "https://aerospike.github.io/aerospike-kubernetes-operator", "cluster-chart-version": "4.7.0"},
+  {"profile": "nlb-per-pod", "ako-version": "4.8.0-dev1", "ako-helm-repo": "https://aerospike.github.io/aerospike-kubernetes-operator", "cluster-chart-version": "4.7.0"},
+  {"profile": "nlb-tls", "ako-version": "4.8.0-dev1", "ako-helm-repo": "https://aerospike.github.io/aerospike-kubernetes-operator", "cluster-chart-version": "4.7.0"}
+]

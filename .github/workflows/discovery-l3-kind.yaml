@@ -1,0 +1,91 @@
+name: Discovery L3 kind
+
+# Runs each l3-kind profile of aerospike-client-conformance against this commit
+# through the L5 driver, one job per entry of .github/discovery/l3-kind-profiles.json.
+# Every profile needs the Enterprise feature key (FEATURES_CONF), which fork
+# pull requests do not get.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - stage
+  push:
+    branches:
+      - CLIENT-5848-l5-driver # TODO: temp, remove post testing
+      - CLIENT-5732-dev-pluggable-discovery # TODO: temp, remove post testing
+  workflow_dispatch:
+
+jobs:
+  gate:
+    name: Profiles and skipped layers
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    outputs:
+      enterprise: ${{ steps.gate.outputs.enterprise }}
+      profiles: ${{ steps.profiles.outputs.profiles }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/discovery/l3-kind-profiles.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read the profiles
+        id: profiles
+        run: |
+          set -euo pipefail
+          profiles=$(jq -ce 'if type == "array" and length > 0 and all(.[]; .profile | type == "string")
+            then . else error("expected a non-empty array of objects with a profile") end' \
+            .github/discovery/l3-kind-profiles.json)
+          echo "profiles=${profiles}" >> "${GITHUB_OUTPUT}"
+
+      - name: Decide the enterprise gate
+        id: gate
+        env:
+          ENTERPRISE: >-
+            ${{
+              github.event_name == 'push'
+              || github.event_name == 'workflow_dispatch'
+              || github.event.pull_request.head.repo.full_name == github.repository
+            }}
+        run: |
+          set -euo pipefail
+          layers='[]'
+          if [[ "${ENTERPRISE}" != true ]]; then
+            layers=$(jq -cn '[{layer: "L3 kind", tests: "every l3-kind profile", reason: "fork pull requests get no FEATURES_CONF"}]')
+          fi
+          echo "enterprise=${ENTERPRISE}" >> "${GITHUB_OUTPUT}"
+          echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
+
+      - name: Report skipped layers
+        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@a30c0787dede434f15be3622e7007dc57b55209d # main
+        with:
+          layers: ${{ steps.gate.outputs.layers }}
+
+  l3-kind:
+    name: L3 kind (${{ matrix.profile }})
+    needs: gate
+    if: needs.gate.outputs.enterprise == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.gate.outputs.profiles) }}
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l3-kind.yaml@a30c0787dede434f15be3622e7007dc57b55209d # main
+    with:
+      client-repository: ${{ github.repository }}
+      commit: ${{ github.event.pull_request.head.sha || github.sha }}
+      manifest: test/discovery/l5-aws.manifest
+      profile: ${{ matrix.profile }}
+      ako-version: ${{ matrix.ako-version }}
+      ako-helm-repo: ${{ matrix.ako-helm-repo }}
+      cluster-chart-version: ${{ matrix.cluster-chart-version }}
+      conformance-ref: a30c0787dede434f15be3622e7007dc57b55209d
+    secrets:
+      FEATURES_CONF: ${{ secrets.FEATURES_CONF }}
