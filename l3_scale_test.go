@@ -599,7 +599,8 @@ func newL3Load(client *as.Client) *l3Load {
 		go func(thread int) {
 			defer load.wg.Done()
 			for i := 0; !load.stop.Load(); i++ {
-				key, err := as.NewKey(ns, l3ScaleSet, fmt.Sprintf("load-%d", (thread+i*l3LoadThreads)%l3LoadKeys))
+				// Get reads the key the previous Put wrote: the client counts a miss as a transaction error.
+				key, err := as.NewKey(ns, l3ScaleSet, fmt.Sprintf("load-%d", (thread+(i/2)*l3LoadThreads)%l3LoadKeys))
 				if err != nil {
 					load.failed.Add(1)
 					load.err.Store(err.Error())
