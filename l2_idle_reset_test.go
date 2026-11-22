@@ -64,6 +64,10 @@ func TestL2IdleResetAbsorbedByPool(t *testing.T) {
 	if failures := load.failures(); len(failures) != 0 {
 		t.Fatalf("warmup errors: %v", failures[0].err)
 	}
+	// On the idle-reset profile the listener cycle came a few milliseconds after the warmup, so a
+	// pooled connection could still be inside the checkout check's skip window and fail the command.
+	// Let every pooled connection age past it, as a real idle timeout would.
+	time.Sleep(25 * time.Millisecond)
 
 	probes := make([]*net.TCPConn, 0, len(nodes))
 	t.Cleanup(func() {
