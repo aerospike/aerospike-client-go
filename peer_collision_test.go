@@ -101,6 +101,13 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 		return found
 	}
 
+	expectAliasLogged := func(capture *warnLogCapture, aliasName, nodeName string) {
+		gm.Expect(collisionsFor(capture, aliasName)).To(gm.ContainElement(gm.ContainSubstring(nodeName)),
+			"the peer that reached another node should be logged as a collision naming both")
+		gm.Expect(capture.snapshot()).ToNot(gm.ContainElement(gm.ContainSubstring("both validated as node")),
+			"the peer advertised as the node must not be logged as a name clash")
+	}
+
 	clusterWithLiveNode := func(active bool, failures int) *Cluster {
 		liveNode := &Node{name: liveName, host: NewHost("gateway.example.com", 30001)}
 		liveNode.active.Set(active)
@@ -248,5 +255,70 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 		}
 		gm.Expect(strings.Join(sameName, "\n")).To(gm.ContainSubstring(firstPeerName), "the first peer should be logged as a name clash")
 		gm.Expect(strings.Join(sameName, "\n")).To(gm.ContainSubstring(secondPeerName), "the second peer should be logged as a name clash")
+	})
+
+	gg.It("adds the peer advertised as the node when another peer validates as it on the same address", func() {
+		seed := startServer(0, seedName)
+		other := startServer(0, otherName)
+		other.setPeers(peerList(peerEntry(seedName, loopback.String(), seed.port())))
+		own := registerHostname("own", loopback)
+		alias := registerHostname("alias", loopback)
+		seed.setPeers(peerList(
+			peerEntry(otherName, own, other.port()),
+			peerEntry(secondPeerName, alias, other.port()),
+		))
+
+		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
+		capture := captureWarnLogs()
+		client := connect(seed)
+		for range 2 {
+			_ = client.cluster.tend()
+		}
+
+		gm.Expect(nodeNamed(client, otherName)).ToNot(gm.BeNil(), "the peer advertised as the node should add it")
+		gm.Expect(nodeNamed(client, secondPeerName)).To(gm.BeNil(), "the peer that only reached that node must not add a node")
+		gm.Expect(client.GetNodes()).To(gm.HaveLen(2), "only the seed and the node should be nodes")
+		expectAliasLogged(capture, secondPeerName, otherName)
+	})
+
+	gg.It("adds the peer advertised as the node when another peer validates as it on a different address", func() {
+		seed := startServer(0, seedName)
+		ownServer := startServer(0, otherName)
+		aliasServer := startServer(0, otherName)
+		ownServer.setPeers(peerList(peerEntry(seedName, loopback.String(), seed.port())))
+		aliasServer.setPeers(peerList(peerEntry(seedName, loopback.String(), seed.port())))
+		seed.setPeers(peerList(
+			peerEntry(otherName, loopback.String(), ownServer.port()),
+			peerEntry(secondPeerName, loopback.String(), aliasServer.port()),
+		))
+
+		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
+		capture := captureWarnLogs()
+		client := connect(seed)
+		for range 2 {
+			_ = client.cluster.tend()
+		}
+
+		node := nodeNamed(client, otherName)
+		gm.Expect(node).ToNot(gm.BeNil(), "the peer advertised as the node should add it")
+		gm.Expect(node.host.Port).To(gm.Equal(ownServer.port()), "the node should be on the address advertised under its own name")
+		gm.Expect(nodeNamed(client, secondPeerName)).To(gm.BeNil(), "the peer that only reached that node must not add a node")
+		gm.Expect(client.GetNodes()).To(gm.HaveLen(2), "only the seed and the node should be nodes")
+		expectAliasLogged(capture, secondPeerName, otherName)
+	})
+
+	gg.It("adds neither the peer advertised as a node nor a peer that validated as another node on its address", func() {
+		shared := NewHost("lb.example.com", 3000)
+		owner := &peer{nodeName: otherName, validated: &nodeValidator{name: otherName, primaryHost: shared}}
+		alias := &peer{nodeName: secondPeerName, validated: &nodeValidator{name: otherName, primaryHost: shared}}
+		stranger := &peer{nodeName: firstPeerName, validated: &nodeValidator{name: firstPeerName, primaryHost: shared}}
+		cluster := &Cluster{translatorName: "pass-through", nodesMap: *sm.New[string, *Node](4)}
+
+		capture := captureWarnLogs()
+		added := cluster.addValidatedPeers(newPeers(8, 8), []*peer{owner, alias, stranger})
+
+		gm.Expect(added).To(gm.BeEmpty(), "two node names on one address must add neither node")
+		gm.Expect(collisionsFor(capture, otherName)).ToNot(gm.BeEmpty(), "the peer advertised as the node should be logged as a collision")
+		gm.Expect(collisionsFor(capture, firstPeerName)).ToNot(gm.BeEmpty(), "the peer that validated as another node should be logged as a collision")
 	})
 })

@@ -638,7 +638,10 @@ func (clstr *Cluster) detectTranslationCollisions(peers *peers) {
 // addValidatedPeers creates the nodes of the peers validated this tend and
 // returns them. A peer that validated as a node the cluster already holds, or
 // whose validated address or node name another validated peer shares, is not
-// added; neither side of a clash between peers is added. Runs on the tend
+// added; neither side of a clash between peers is added. When peers validate
+// as the same node and one of them is advertised under that node's name, that
+// peer is added and the others are not, unless a peer that validated as a
+// different node shares its address. Runs on the tend
 // goroutine after validation, so the outcome does not depend on which peer
 // validated first.
 func (clstr *Cluster) addValidatedPeers(peers *peers, candidates []*peer) []*Node {
@@ -664,13 +667,24 @@ func (clstr *Cluster) addValidatedPeers(peers *peers, candidates []*peer) []*Nod
 			clstr.warnAddressCollision(candidate.nodeName, existing.name, address)
 			continue
 		}
-		if other := otherPeer(byAddress[address], candidate); other != nil {
-			clstr.warnAddressCollision(candidate.nodeName, other.nodeName, address)
-			continue
-		}
-		if other := otherPeer(byName[nv.name], candidate); other != nil {
-			logger.Logger.Warn("Peer nodes %s and %s both validated as node %s. Neither is added", candidate.nodeName, other.nodeName, nv.name)
-			continue
+		if owner := peerNamed(byName[nv.name], nv.name); owner != nil {
+			if owner != candidate {
+				clstr.warnAddressCollision(candidate.nodeName, owner.nodeName, address)
+				continue
+			}
+			if other := otherPeerNamedOtherwise(byAddress[address], candidate, nv.name); other != nil {
+				clstr.warnAddressCollision(candidate.nodeName, other.nodeName, address)
+				continue
+			}
+		} else {
+			if other := otherPeer(byAddress[address], candidate); other != nil {
+				clstr.warnAddressCollision(candidate.nodeName, other.nodeName, address)
+				continue
+			}
+			if other := otherPeer(byName[nv.name], candidate); other != nil {
+				logger.Logger.Warn("Peer nodes %s and %s both validated as node %s. Neither is added", candidate.nodeName, other.nodeName, nv.name)
+				continue
+			}
 		}
 
 		node := clstr.createNode(nv)
@@ -689,6 +703,27 @@ func (clstr *Cluster) addValidatedPeers(peers *peers, candidates []*peer) []*Nod
 func otherPeer(list []*peer, self *peer) *peer {
 	for _, candidate := range list {
 		if candidate != self {
+			return candidate
+		}
+	}
+	return nil
+}
+
+// peerNamed returns the peer in list advertised under name, or nil.
+func peerNamed(list []*peer, name string) *peer {
+	for _, candidate := range list {
+		if candidate.nodeName == name {
+			return candidate
+		}
+	}
+	return nil
+}
+
+// otherPeerNamedOtherwise returns a peer in list other than self that
+// validated as a node other than name, or nil.
+func otherPeerNamedOtherwise(list []*peer, self *peer, name string) *peer {
+	for _, candidate := range list {
+		if candidate != self && candidate.validated.name != name {
 			return candidate
 		}
 	}
