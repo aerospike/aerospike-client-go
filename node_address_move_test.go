@@ -253,6 +253,11 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		for i, name := range names {
 			ports[i] = freePortOn(first, second)
 			dead = append(dead, startServer(first, ports[i], name))
+			// Only the node closed last owns partitions, so a tend between the
+			// closes keeps every node.
+			if i < len(names)-1 {
+				dead[i].setOwnsPartitions(false)
+			}
 		}
 
 		for i := range names {
@@ -273,6 +278,9 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		for i, name := range names {
 			standby := startServer(second, ports[i], name)
 			standby.setPeers(peersFor(hostname, names, ports, i))
+			if i < len(names)-1 {
+				standby.setOwnsPartitions(false)
+			}
 		}
 
 		begin := time.Now()
@@ -286,6 +294,10 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 		}
 		gm.Expect(time.Since(begin)).To(gm.BeNumerically("<", moveBound))
 		gm.Eventually(func() int { return len(opened.GetNodes()) }, 10*time.Second, 20*time.Millisecond).Should(gm.Equal(len(names)))
+
+		gm.Eventually(func() bool {
+			return nodeOwnsPartitions(opened, names[len(names)-1], second)
+		}, 10*time.Second, 5*time.Millisecond).Should(gm.BeTrue())
 
 		record, err := opened.Get(nil, mustKey(namespace, "set", 1))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -418,11 +430,10 @@ func newStubNodeServer(ip net.IP, port int, nodeName string) (*stubNodeServer, e
 		return nil, err
 	}
 
-	bitmap := bytes.Repeat([]byte{0xff}, 4096/8)
 	server := &stubNodeServer{
 		listener: listener,
 		nodeName: nodeName,
-		replicas: "test:0,1," + base64.StdEncoding.EncodeToString(bitmap) + ";",
+		replicas: stubReplicas(true),
 		peers:    "1,3000,[]",
 	}
 	go server.serve()
@@ -431,6 +442,23 @@ func newStubNodeServer(ip net.IP, port int, nodeName string) (*stubNodeServer, e
 
 func (server *stubNodeServer) port() int {
 	return server.listener.Addr().(*net.TCPAddr).Port
+}
+
+// stubReplicas is a replicas reply that claims every partition of the test
+// namespace, or none.
+func stubReplicas(ownsPartitions bool) string {
+	fill := byte(0x00)
+	if ownsPartitions {
+		fill = 0xff
+	}
+	bitmap := bytes.Repeat([]byte{fill}, 4096/8)
+	return "test:0,1," + base64.StdEncoding.EncodeToString(bitmap) + ";"
+}
+
+func (server *stubNodeServer) setOwnsPartitions(ownsPartitions bool) {
+	server.mu.Lock()
+	server.replicas = stubReplicas(ownsPartitions)
+	server.mu.Unlock()
 }
 
 func (server *stubNodeServer) setPeers(peers string) {
@@ -499,6 +527,7 @@ func (server *stubNodeServer) serveConnection(conn net.Conn) {
 func (server *stubNodeServer) info(request []byte) []byte {
 	server.mu.Lock()
 	peers := server.peers
+	replicas := server.replicas
 	server.mu.Unlock()
 
 	var out bytes.Buffer
@@ -506,14 +535,14 @@ func (server *stubNodeServer) info(request []byte) []byte {
 		if command == "" {
 			continue
 		}
-		if value, ok := server.infoValue(command, peers); ok {
+		if value, ok := server.infoValue(command, peers, replicas); ok {
 			out.WriteString(command + "\t" + value + "\n")
 		}
 	}
 	return out.Bytes()
 }
 
-func (server *stubNodeServer) infoValue(command, peers string) (string, bool) {
+func (server *stubNodeServer) infoValue(command, peers, replicas string) (string, bool) {
 	switch command {
 	case "node":
 		return server.nodeName, true
@@ -522,7 +551,7 @@ func (server *stubNodeServer) infoValue(command, peers string) (string, bool) {
 	case "build":
 		return "8.1.0.0", true
 	case "replicas":
-		return server.replicas, true
+		return replicas, true
 	case "peers-clear-std":
 		return peers, true
 	default:
