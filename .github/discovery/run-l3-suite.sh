@@ -4,6 +4,8 @@
 # TCP-checks the ingress and service NodePorts, then runs TestL3* (skipping
 # TestL3Tls* unless DISCOVERY_TLS_* is set). A cluster that never came up
 # fails here instead of looking like a run whose tests all skipped.
+# L3_REREGISTER_KIND_CLUSTER names the kind cluster whose deleted Nodes
+# reregister-kind-nodes.sh registers again while the tests run.
 set -euo pipefail
 
 host="${DISCOVERY_ENDPOINT_HOSTNAME:?DISCOVERY_ENDPOINT_HOSTNAME is required}"
@@ -47,7 +49,13 @@ check_ports "service node" "$node_ports"
 export KUBECONFIG="$kubeconfig"
 export AEROSPIKE_TEST_SKIP_SUITE_CLIENT=1
 export CGO_ENABLED=0
-if [[ -n "${DISCOVERY_TLS_CA_FILE:-}" ]]; then
-  exec go test -count=1 -timeout 20m -run '^TestL3Tls' -v .
+if [[ -n "${L3_REREGISTER_KIND_CLUSTER:-}" ]]; then
+  bash "$(dirname "$0")/reregister-kind-nodes.sh" "$L3_REREGISTER_KIND_CLUSTER" &
+  watcher=$!
+  trap 'kill "$watcher" 2>/dev/null || true' EXIT
 fi
-exec go test -count=1 -timeout 20m -run '^TestL3' -skip '^TestL3Tls' -v .
+if [[ -n "${DISCOVERY_TLS_CA_FILE:-}" ]]; then
+  go test -count=1 -timeout 20m -run '^TestL3Tls' -v .
+else
+  go test -count=1 -timeout 20m -run '^TestL3' -skip '^TestL3Tls' -v .
+fi

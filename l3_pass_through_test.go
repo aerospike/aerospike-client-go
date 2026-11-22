@@ -28,11 +28,12 @@ import (
 )
 
 const (
-	l3Set         = "l3-pass-through"
-	l3RoutingWait = 120 * time.Second
-	l3Skip        = "Kubernetes pass-through needs a kind cluster running the Aerospike Kubernetes Operator: run the discovery-k8s workflow (DISCOVERY_KUBECONFIG is not set)"
-	l3SharedSkip  = "shared-endpoint pass-through needs multiPodPerHost: true with every node labelled with one endpoint hostname (the discovery-k8s workflow)"
-	l3PerNodeSkip = "per-node pass-through needs multiPodPerHost: false with each kind worker labelled with its own endpoint hostname. The discovery-k8s workflow builds the shared-endpoint cluster"
+	l3Set           = "l3-pass-through"
+	l3RoutingWait   = 120 * time.Second
+	l3Skip          = "Kubernetes pass-through needs a kind cluster running the Aerospike Kubernetes Operator: run the discovery-k8s workflow (DISCOVERY_KUBECONFIG is not set)"
+	l3SharedSkip    = "shared-endpoint pass-through needs multiPodPerHost: true with every pod advertising one endpoint hostname (the l3, l3-nlb or l3-tls cluster of the discovery-k8s workflow)"
+	l3PerNodeSkip   = "per-node pass-through needs configuredIP and multiPodPerHost: false with each kind worker labelled with its own endpoint hostname. The discovery-k8s workflow builds no such cluster"
+	l3NLBPerPodSkip = "networkLoadBalancer pass-through with one pod per node needs networkLoadBalancer and multiPodPerHost: false (the l3-nlb-per-pod cluster of the discovery-k8s workflow)"
 )
 
 // Shared-endpoint: pass-through client seeded at ingress holds one node per
@@ -43,13 +44,8 @@ func TestL3PassThroughSharedEndpoint(t *testing.T) {
 	if !cluster.multiPodPerHost(t) {
 		t.Skip(l3SharedSkip)
 	}
-	hostname := strings.TrimSpace(os.Getenv("DISCOVERY_ENDPOINT_HOSTNAME"))
-	if hostname == "" {
-		t.Fatal("DISCOVERY_ENDPOINT_HOSTNAME is not set")
-	}
-	if got := cluster.get(t, ".spec.aerospikeNetworkPolicy.alternateAccess"); got != "configuredIP" {
-		t.Fatalf("alternateAccess %q, want configuredIP", got)
-	}
+	hostname := l3EndpointHostname(t)
+	l3RequireSharedEndpoint(t, cluster, hostname)
 
 	cluster.ensureSize(t, l3MinPods)
 	pods := cluster.pods(t)
@@ -65,17 +61,31 @@ func TestL3PassThroughSharedEndpoint(t *testing.T) {
 func TestL3PassThroughPerNode(t *testing.T) {
 	skipUnlessL3(t)
 	cluster := l3FindCluster(t)
-	if cluster.multiPodPerHost(t) {
+	if cluster.multiPodPerHost(t) || cluster.alternateAccess(t) != l3ConfiguredIP {
 		t.Skip(l3PerNodeSkip)
-	}
-	if got := cluster.get(t, ".spec.aerospikeNetworkPolicy.alternateAccess"); got != "configuredIP" {
-		t.Fatalf("alternateAccess %q, want configuredIP", got)
 	}
 	pods := cluster.pods(t)
 	if len(pods) < l3MinPods {
 		t.Fatalf("%d pods, want at least %d", len(pods), l3MinPods)
 	}
 	expected := l3PerNodeAdvertised(t, cluster, pods)
+	l3AssertRouted(t, pods, expected)
+}
+
+// networkLoadBalancer, one pod per worker: no node label, no hostPort, each pod
+// at the AerospikeCluster address and its own Service NodePort.
+func TestL3PassThroughNetworkLoadBalancerPerPod(t *testing.T) {
+	skipUnlessL3(t)
+	cluster := l3FindCluster(t)
+	if !cluster.networkLoadBalancer(t) || cluster.multiPodPerHost(t) {
+		t.Skip(l3NLBPerPodSkip)
+	}
+	hostname := l3EndpointHostname(t)
+	l3RequireSharedEndpoint(t, cluster, hostname)
+
+	cluster.ensureSize(t, l3MinPods)
+	pods := cluster.pods(t)
+	expected := l3LoadBalancerPerPodAdvertised(t, cluster, hostname, pods)
 	l3AssertRouted(t, pods, expected)
 }
 
@@ -86,17 +96,43 @@ func skipUnlessL3(t *testing.T) {
 	}
 }
 
-// hostname:NodePort per pod. Worker labels must match hostname, NodePorts unique.
+func l3EndpointHostname(t *testing.T) string {
+	t.Helper()
+	hostname := strings.TrimSpace(os.Getenv("DISCOVERY_ENDPOINT_HOSTNAME"))
+	if hostname == "" {
+		t.Fatal("DISCOVERY_ENDPOINT_HOSTNAME is not set")
+	}
+	return hostname
+}
+
+// Every pod advertises hostname: from the node label under configuredIP, from
+// loadBalancerAlternateAccessAddress under networkLoadBalancer.
+func l3RequireSharedEndpoint(t *testing.T, cluster l3Cluster, hostname string) {
+	t.Helper()
+	switch access := cluster.alternateAccess(t); access {
+	case l3ConfiguredIP:
+	case l3NetworkLoadBalancer:
+		if got := cluster.loadBalancerAddress(t); got != hostname {
+			t.Fatalf("loadBalancerAlternateAccessAddress %q, want %s", got, hostname)
+		}
+	default:
+		t.Fatalf("alternateAccess %q, want %s or %s", access, l3ConfiguredIP, l3NetworkLoadBalancer)
+	}
+}
+
+// hostname:NodePort per pod, NodePorts unique. Under configuredIP every
+// worker label must be hostname.
 func l3HostnameNodePorts(t *testing.T, cluster l3Cluster, hostname string, pods []l3Pod) map[string]string {
 	t.Helper()
 	port := cluster.servicePort(t)
+	labelled := cluster.alternateAccess(t) == l3ConfiguredIP
 	expected := make(map[string]string, len(pods))
 	nodePorts := make(map[int]string, len(pods))
 	for _, pod := range pods {
-		label := cluster.nodeLabel(t, pod.node)
+		label := l3NodeLabel(t, pod.node, l3AlternateAccessLabel)
 		nodePort := cluster.nodePort(t, pod.name, port)
 		t.Logf("pod %s label=%s serviceNodePort=%d", pod, label, nodePort)
-		if label != hostname {
+		if labelled && label != hostname {
 			t.Fatalf("worker %s label %q, want shared hostname %s", pod.node, label, hostname)
 		}
 		if nodePort <= 0 {
@@ -128,15 +164,39 @@ func l3SharedAdvertised(t *testing.T, cluster l3Cluster, hostname string, pods [
 	return expected
 }
 
+// hostname:NodePort per pod, one pod per worker and no hostPort.
+func l3LoadBalancerPerPodAdvertised(t *testing.T, cluster l3Cluster, hostname string, pods []l3Pod) map[string]string {
+	t.Helper()
+	l3AssertOnePodPerWorker(t, pods)
+	port := cluster.servicePort(t)
+	for _, pod := range pods {
+		if got := cluster.hostPort(t, pod.name, port); got != 0 {
+			t.Fatalf("pod %s hostPort for %d is %d, want none", pod.name, port, got)
+		}
+	}
+	return l3HostnameNodePorts(t, cluster, hostname, pods)
+}
+
+func l3AssertOnePodPerWorker(t *testing.T, pods []l3Pod) {
+	t.Helper()
+	workers := make(map[string]string, len(pods))
+	for _, pod := range pods {
+		if other, dup := workers[pod.node]; dup {
+			t.Fatalf("worker %s runs both %s and %s, want one pod per worker", pod.node, other, pod.name)
+		}
+		workers[pod.node] = pod.name
+	}
+}
+
 // worker-label:hostPort per pod. One pod and one hostname per worker.
 func l3PerNodeAdvertised(t *testing.T, cluster l3Cluster, pods []l3Pod) map[string]string {
 	t.Helper()
+	l3AssertOnePodPerWorker(t, pods)
 	port := cluster.servicePort(t)
 	expected := make(map[string]string, len(pods))
-	workers := make(map[string]string, len(pods))
 	labels := make(map[string]string, len(pods))
 	for _, pod := range pods {
-		label := cluster.nodeLabel(t, pod.node)
+		label := l3NodeLabel(t, pod.node, l3AlternateAccessLabel)
 		hostPort := cluster.hostPort(t, pod.name, port)
 		t.Logf("pod %s label=%s hostPort=%d", pod, label, hostPort)
 		if label == "" {
@@ -145,13 +205,9 @@ func l3PerNodeAdvertised(t *testing.T, cluster l3Cluster, pods []l3Pod) map[stri
 		if hostPort <= 0 {
 			t.Fatalf("pod %s has no hostPort for %d", pod.name, port)
 		}
-		if other, dup := workers[pod.node]; dup {
-			t.Fatalf("worker %s runs both %s and %s, want one pod per worker", pod.node, other, pod.name)
-		}
 		if other, dup := labels[label]; dup {
 			t.Fatalf("label %s is on both %s and %s, want one hostname per worker", label, other, pod.node)
 		}
-		workers[pod.node] = pod.name
 		labels[label] = pod.node
 		expected[pod.name] = net.JoinHostPort(label, strconv.Itoa(hostPort))
 	}
@@ -425,10 +481,7 @@ func l3Policy() *as.ClientPolicy {
 
 func l3Seeds(t *testing.T) []*as.Host {
 	t.Helper()
-	hostname := strings.TrimSpace(os.Getenv("DISCOVERY_ENDPOINT_HOSTNAME"))
-	if hostname == "" {
-		t.Fatal("DISCOVERY_ENDPOINT_HOSTNAME is not set")
-	}
+	hostname := l3EndpointHostname(t)
 	if strings.TrimSpace(os.Getenv("DISCOVERY_INGRESS_PORTS")) != "" {
 		return []*as.Host{as.NewHost(hostname, l3CSVPorts(t, "DISCOVERY_INGRESS_PORTS")[0])}
 	}

@@ -8,10 +8,19 @@
 # GITHUB_OUTPUT (when set) and to standard output. The CA and server keys are
 # deleted once the secret holds them.
 #
+# Under alternateAccess networkLoadBalancer it also sets
+# loadBalancerTLSAlternateAccessAddress. When that differs from
+# loadBalancerAlternateAccessAddress, it first adds a CoreDNS hosts entry for
+# it at the node address the clear one has, and on a GitHub Actions runner the
+# same line to /etc/hosts, and writes it as tls-endpoint-hostname.
+#
 # Optional environment:
 #   L3_TLS_DIR        directory for the generated files
 #                     (default: ${RUNNER_TEMP:-/tmp}/discovery-l3-tls)
 #   L3_TLS_TIMEOUT    seconds to wait for Completed (default: 900)
+#   DISCOVERY_TLS_ENDPOINT_HOSTNAME
+#                     loadBalancerTLSAlternateAccessAddress under
+#                     networkLoadBalancer (default: loadBalancerAlternateAccessAddress)
 set -euo pipefail
 
 TLS_NAME=aerospike-tls
@@ -44,6 +53,19 @@ mapfile -t clusters < <(kubectl get aerospikecluster --all-namespaces \
 ((${#clusters[@]} == 1)) || error "expected one AerospikeCluster, found: ${clusters[*]}"
 read -r namespace name <<< "${clusters[0]}"
 
+policy() {
+  kubectl -n "$namespace" get aerospikecluster "$name" -o "jsonpath={.spec.aerospikeNetworkPolicy.$1}"
+}
+
+alternate_access="$(policy alternateAccess)"
+tls_endpoint=""
+if [[ "$alternate_access" == networkLoadBalancer ]]; then
+  clear_endpoint="$(policy loadBalancerAlternateAccessAddress)"
+  [[ -n "$clear_endpoint" ]] || error "networkLoadBalancer without loadBalancerAlternateAccessAddress"
+  tls_endpoint="${DISCOVERY_TLS_ENDPOINT_HOSTNAME:-$clear_endpoint}"
+  [[ "$tls_endpoint" =~ ^[A-Za-z0-9.-]+$ ]] || error "Refusing unexpected TLS endpoint hostname: $tls_endpoint"
+fi
+
 mkdir -p "$tls_dir"
 tls_dir="$(cd "$tls_dir" && pwd)"
 (
@@ -66,6 +88,31 @@ kubectl -n "$namespace" create secret generic "$TLS_SECRET" \
   --dry-run=client -o yaml | kubectl apply -f -
 rm -f "$tls_dir/ca.key" "$tls_dir/server.key"
 
+# The server resolves its access addresses at startup, so the name resolves before any pod restarts with TLS.
+if [[ -n "$tls_endpoint" && "$tls_endpoint" != "$clear_endpoint" ]]; then
+  corefile="$(kubectl -n kube-system get cm coredns -o jsonpath='{.data.Corefile}')"
+  ip="$(awk -v name="$clear_endpoint" 'NF == 2 && $2 == name { print $1; exit }' <<< "$corefile")"
+  [[ -n "$ip" ]] || error "CoreDNS has no hosts entry for $clear_endpoint"
+  if ! awk -v name="$tls_endpoint" 'NF == 2 && $2 == name { found = 1 } END { exit ! found }' <<< "$corefile"; then
+    awk -v name="$clear_endpoint" -v entry="        $ip $tls_endpoint" \
+      '{ print } NF == 2 && $2 == name { print entry }' <<< "$corefile" > "$tls_dir/Corefile"
+    kubectl -n kube-system create configmap coredns --from-file="Corefile=$tls_dir/Corefile" \
+      --dry-run=client -o yaml | kubectl apply -f -
+    kubectl -n kube-system rollout restart deploy/coredns
+    kubectl -n kube-system rollout status deploy/coredns --timeout=180s
+  fi
+  if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+    echo "$ip $tls_endpoint" | sudo tee -a /etc/hosts >/dev/null
+  fi
+  echo "CoreDNS resolves $tls_endpoint to $ip, as $clear_endpoint"
+fi
+
+lb_tls_patch=""
+if [[ -n "$tls_endpoint" ]]; then
+  lb_tls_patch=',
+  {"op": "add", "path": "/spec/aerospikeNetworkPolicy/loadBalancerTLSAlternateAccessAddress", "value": "'"$tls_endpoint"'"}'
+fi
+
 cat > "$tls_dir/patch.json" <<EOF
 [
   {"op": "add", "path": "/spec/storage/volumes/-", "value": {
@@ -80,10 +127,10 @@ cat > "$tls_dir/patch.json" <<EOF
   {"op": "add", "path": "/spec/aerospikeConfig/network/service/tls-name", "value": "$TLS_NAME"},
   {"op": "add", "path": "/spec/aerospikeConfig/network/service/tls-port", "value": $TLS_PORT},
   {"op": "add", "path": "/spec/aerospikeConfig/network/service/tls-authenticate-client", "value": "false"},
-  {"op": "add", "path": "/spec/aerospikeNetworkPolicy/tlsAccess", "value": "$(kubectl -n "$namespace" get aerospikecluster "$name" -o jsonpath='{.spec.aerospikeNetworkPolicy.access}')"},
-  {"op": "add", "path": "/spec/aerospikeNetworkPolicy/tlsAlternateAccess", "value": "$(kubectl -n "$namespace" get aerospikecluster "$name" -o jsonpath='{.spec.aerospikeNetworkPolicy.alternateAccess}')"},
+  {"op": "add", "path": "/spec/aerospikeNetworkPolicy/tlsAccess", "value": "$(policy access)"},
+  {"op": "add", "path": "/spec/aerospikeNetworkPolicy/tlsAlternateAccess", "value": "$alternate_access"},
   {"op": "add", "path": "/spec/operatorClientCert", "value": {
-    "secretCertSource": {"secretName": "$TLS_SECRET", "caCertsFilename": "ca.crt"}}}
+    "secretCertSource": {"secretName": "$TLS_SECRET", "caCertsFilename": "ca.crt"}}}$lb_tls_patch
 ]
 EOF
 kubectl -n "$namespace" patch aerospikecluster "$name" --type json --patch-file "$tls_dir/patch.json"
@@ -112,3 +159,6 @@ echo "AerospikeCluster $namespace/$name serves TLS: tls-name=$tls_name phase=$ph
 
 write_output ca-file "$tls_dir/ca.crt"
 write_output tls-name "$TLS_NAME"
+if [[ -n "$tls_endpoint" ]]; then
+  write_output tls-endpoint-hostname "$tls_endpoint"
+fi

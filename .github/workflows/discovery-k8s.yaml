@@ -1,16 +1,20 @@
 name: Discovery k8s
 
-# Kind plus AKO takes 3-5 minutes, so L3 runs as its own job.
-# The job needs the Enterprise feature key (FEATURES_CONF). Fork pull
+# Kind plus AKO takes 3-5 minutes, so L3 runs as its own job, one per cluster
+# shape. Every job needs the Enterprise feature key (FEATURES_CONF). Fork pull
 # requests do not receive repository secrets, so the jobs are skipped and
-# discovery-integration.yaml reports L3 and L3 TLS as skipped layers.
+# discovery-integration.yaml reports the L3 layers as skipped.
 #
 # The tests run on the runner. setup-kind-ako writes the endpoint hostname
 # into the runner hosts file, aimed at the kind node.
 #
-# The l3-tls job builds the same cluster at two pods and runs
-# enable-l3-tls.sh, which serves TLS from a secret with a certificate for the
-# cluster tls-name, before the suite.
+# The TLS jobs build the cluster at two pods and run enable-l3-tls.sh, which
+# serves TLS from a secret with a certificate for the cluster tls-name, before
+# the suite.
+#
+# The networkLoadBalancer jobs do not block while AKO_VERSION_NLB is a dev
+# build. kind does not register a deleted Node again on its own, so their
+# suite runs reregister-kind-nodes.sh alongside.
 #
 # A schedule runs from the default branch. That run checks out stage.
 
@@ -27,12 +31,52 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:
 
+env:
+  AKO_VERSION_CONFIGURED_IP: 4.5.0
+  # networkLoadBalancer alternate access first ships in AKO 4.8.0. Its dev
+  # build ships no aerospike-cluster chart, so 4.7.0 renders the cluster, and
+  # only the operator chart repository serves it.
+  AKO_VERSION_NLB: 4.8.0-dev1
+  CLUSTER_CHART_VERSION_NLB: 4.7.0
+  AKO_HELM_REPO_NLB: https://aerospike.github.io/aerospike-kubernetes-operator
+
 jobs:
   l3:
-    name: L3 discovery (k8s)
+    name: ${{ matrix.name }}
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     timeout-minutes: 45
+    continue-on-error: ${{ matrix.nlb }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: L3 discovery (k8s)
+            nlb: false
+            multi-pod-per-host: true
+            cluster-size: 1
+            tls: false
+          - name: L3 discovery (k8s, TLS)
+            nlb: false
+            multi-pod-per-host: true
+            cluster-size: 2
+            tls: true
+          - name: L3 discovery (k8s, networkLoadBalancer)
+            nlb: true
+            multi-pod-per-host: true
+            cluster-size: 1
+            tls: false
+          - name: L3 discovery (k8s, networkLoadBalancer, one pod per node)
+            nlb: true
+            multi-pod-per-host: false
+            cluster-size: 2
+            tls: false
+          - name: L3 discovery (k8s, networkLoadBalancer, TLS)
+            nlb: true
+            multi-pod-per-host: true
+            cluster-size: 2
+            tls: true
+            tls-endpoint-hostname: as-endpoint-tls.test
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -61,61 +105,22 @@ jobs:
 
       - name: Setup kind and AKO
         id: kind-ako
-        uses: aerospike/shared-workflows/.github/actions/setup-kind-ako@308f37e0cd5c7a6386a99ea7afc379d5a4ea9256 # v5.1.0
+        uses: aerospike/shared-workflows/.github/actions/setup-kind-ako@3ad1bc4b8c4ca7e5b7661aab5cd9151def0e763a
         with:
           features-content: ${{ secrets.FEATURES_CONF }}
-
-      - name: Run K suite
-        env:
-          DISCOVERY_ENDPOINT_HOSTNAME: ${{ steps.kind-ako.outputs.endpoint-hostname }}
-          DISCOVERY_INGRESS_PORTS: ${{ steps.kind-ako.outputs.ingress-ports }}
-          DISCOVERY_SERVICE_NODE_PORTS: ${{ steps.kind-ako.outputs.service-node-ports }}
-          DISCOVERY_KUBECONFIG: ${{ steps.kind-ako.outputs.kubeconfig }}
-          AEROSPIKE_ADMIN_PASSWORD: ${{ steps.kind-ako.outputs.admin-password }}
-        run: bash .github/discovery/run-l3-suite.sh
-
-  l3-tls:
-    name: L3 discovery (k8s, TLS)
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
-    timeout-minutes: 45
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event_name == 'schedule' && 'stage' || github.sha }}
-
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Require the Enterprise feature key
-        env:
-          FEATURES_CONF: ${{ secrets.FEATURES_CONF }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${FEATURES_CONF}" ]]; then
-            echo "::error::FEATURES_CONF is required to start the Enterprise cluster. L3 does not run on fork pull requests."
-            exit 1
-          fi
-
-      - name: Setup kind and AKO
-        id: kind-ako
-        uses: aerospike/shared-workflows/.github/actions/setup-kind-ako@308f37e0cd5c7a6386a99ea7afc379d5a4ea9256 # v5.1.0
-        with:
-          features-content: ${{ secrets.FEATURES_CONF }}
-          cluster-size: 2
+          ako-version: ${{ matrix.nlb && env.AKO_VERSION_NLB || env.AKO_VERSION_CONFIGURED_IP }}
+          ako-helm-repo: ${{ matrix.nlb && env.AKO_HELM_REPO_NLB || '' }}
+          cluster-chart-version: ${{ matrix.nlb && env.CLUSTER_CHART_VERSION_NLB || '' }}
+          alternate-access: ${{ matrix.nlb && 'networkLoadBalancer' || 'configuredIP' }}
+          multi-pod-per-host: ${{ matrix.multi-pod-per-host }}
+          cluster-size: ${{ matrix.cluster-size }}
 
       - name: Serve TLS on the AerospikeCluster
         id: tls
+        if: ${{ matrix.tls }}
         env:
           KUBECONFIG: ${{ steps.kind-ako.outputs.kubeconfig }}
+          DISCOVERY_TLS_ENDPOINT_HOSTNAME: ${{ matrix.tls-endpoint-hostname }}
         run: bash .github/discovery/enable-l3-tls.sh
 
       - name: Run K suite
@@ -126,5 +131,7 @@ jobs:
           DISCOVERY_KUBECONFIG: ${{ steps.kind-ako.outputs.kubeconfig }}
           DISCOVERY_TLS_CA_FILE: ${{ steps.tls.outputs.ca-file }}
           DISCOVERY_TLS_NAME: ${{ steps.tls.outputs.tls-name }}
+          DISCOVERY_TLS_ENDPOINT_HOSTNAME: ${{ steps.tls.outputs.tls-endpoint-hostname }}
+          L3_REREGISTER_KIND_CLUSTER: ${{ matrix.nlb && 'kind-ako' || '' }}
           AEROSPIKE_ADMIN_PASSWORD: ${{ steps.kind-ako.outputs.admin-password }}
         run: bash .github/discovery/run-l3-suite.sh

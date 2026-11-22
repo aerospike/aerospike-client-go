@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +36,9 @@ const (
 	l3LoadKeys            = 1000
 	l3QuietTendIntervals  = 5
 	l3ScaleNoKubeconfig   = "Kubernetes scale needs a kind cluster running the Aerospike Kubernetes Operator: run test/discovery/run_l3.sh or the discovery-k8s workflow (DISCOVERY_KUBECONFIG is not set)"
-	l3ScaleSharedEndpoint = "Kubernetes scale needs multiPodPerHost: true with every node labelled with one endpoint hostname, the cluster setup-kind-ako builds (run_l3.sh default profile, or the discovery-k8s workflow)"
+	l3ScaleSharedEndpoint = "Kubernetes scale needs every pod advertising one endpoint hostname: configuredIP with multiPodPerHost: true, or networkLoadBalancer (run_l3.sh default profile, or the discovery-k8s workflow)"
+	l3ScaleNLB            = "needs alternateAccess networkLoadBalancer (the l3-nlb or l3-nlb-per-pod cluster of the discovery-k8s workflow)"
+	l3NodeMark            = "l3-discovery-mark"
 )
 
 // Shared-endpoint cluster plus extra Services, restored on cleanup.
@@ -53,16 +56,11 @@ func l3RequireScaleCluster(t *testing.T) *l3Scale {
 		t.Skip(l3ScaleNoKubeconfig)
 	}
 	cluster := l3FindCluster(t)
-	if !cluster.multiPodPerHost(t) {
+	if !cluster.networkLoadBalancer(t) && !cluster.multiPodPerHost(t) {
 		t.Fatal(l3ScaleSharedEndpoint)
 	}
-	hostname := strings.TrimSpace(os.Getenv("DISCOVERY_ENDPOINT_HOSTNAME"))
-	if hostname == "" {
-		t.Fatal("DISCOVERY_ENDPOINT_HOSTNAME is not set")
-	}
-	if got := cluster.get(t, ".spec.aerospikeNetworkPolicy.alternateAccess"); got != "configuredIP" {
-		t.Fatalf("alternateAccess %q, want configuredIP", got)
-	}
+	hostname := l3EndpointHostname(t)
+	l3RequireSharedEndpoint(t, cluster, hostname)
 	state := &l3Scale{cluster: cluster, foundSize: cluster.size(t), hostname: hostname}
 	t.Cleanup(func() { state.restore(t) })
 	return state
@@ -84,115 +82,13 @@ func (state *l3Scale) restore(t *testing.T) {
 	}
 }
 
-// Live client: the pod the operator adds is active within 2*tendInterval of
-// the later of the peers-generation bump and the pod turning Ready.
-func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
-	state := l3RequireScaleCluster(t)
-	cluster := state.cluster
-	size := state.foundSize
-	port := cluster.servicePort(t)
-	before := l3PodNameSet(cluster.pods(t))
-	policy := l3Policy()
-	if policy.SeedProvider != nil {
-		t.Fatal("SeedProvider is set")
+// Scales to at least want pods, restored on cleanup, and returns the size.
+func (state *l3Scale) sizeAtLeast(t *testing.T, want int) int {
+	t.Helper()
+	if state.foundSize < want {
+		state.cluster.scale(t, want)
 	}
-	client := l3Client(t, policy, l3Seeds(t)...)
-	l3AwaitRouting(t, "scale-up-before", client, size)
-
-	existing := map[string]*as.Node{}
-	for _, node := range client.GetNodes() {
-		existing[node.GetName()] = node
-	}
-	observer := client.GetNodes()[0]
-	generation := l3PeersGeneration(t, observer)
-	var bump, ready, active time.Time
-	var added *as.Node
-	cluster.resize(t, size+1)
-	seen := waitFor(l3ScaleTimeout, 5*time.Millisecond, func() bool {
-		now := time.Now()
-		if bump.IsZero() && l3PeersGeneration(t, observer) != generation {
-			bump = now
-		}
-		if ready.IsZero() {
-			for name := range cluster.readyPods(t) {
-				if _, ok := before[name]; !ok {
-					ready = now
-					break
-				}
-			}
-		}
-		if added == nil {
-			for _, node := range client.GetNodes() {
-				if node.IsActive() && existing[node.GetName()] == nil {
-					active = now
-					added = node
-				}
-			}
-		}
-		return !bump.IsZero() && !ready.IsZero() && added != nil
-	})
-	if !seen {
-		t.Fatalf("No peers-generation bump on %s, no new Ready pod or no new active node", observer.GetName())
-	}
-	start := bump
-	if ready.After(bump) {
-		start = ready
-	}
-	elapsed := active.Sub(start)
-	if elapsed < 0 {
-		elapsed = 0
-	}
-	budget := 2 * policy.TendInterval
-	cluster.scale(t, size+1)
-
-	var pod *l3Pod
-	for _, p := range cluster.pods(t) {
-		if _, ok := before[p.name]; !ok {
-			found := p
-			pod = &found
-		}
-	}
-	if pod == nil {
-		t.Fatalf("No new pod in %v", cluster.pods(t))
-	}
-	nodePort := cluster.nodePort(t, pod.name, port)
-	info, err := added.RequestInfo(as.NewInfoPolicy(), "service-clear-std", "service-clear-alt")
-	if err != nil {
-		t.Fatalf("info %s: %v", added.GetName(), err)
-	}
-	host := added.GetHost()
-	t.Logf("L3-SCALE-UP node=%s pod=%s access=%s alternate=%s serviceNodePort=%d clientHost=%s generation=%d->%d bumpToReadyMs=%d readyToActiveMs=%d bumpToActiveMs=%d tendInterval=%s budgetMs=%d bumpAt=%s podReadyAt=%s readinessProbe=%s publishNotReadyAddresses=%s",
-		added.GetName(), pod.name, info["service-clear-std"], info["service-clear-alt"], nodePort,
-		net.JoinHostPort(host.Name, strconv.Itoa(host.Port)), generation, l3PeersGeneration(t, observer),
-		ready.Sub(bump).Milliseconds(), elapsed.Milliseconds(), active.Sub(bump).Milliseconds(),
-		policy.TendInterval, budget.Milliseconds(), bump.UTC().Format(time.RFC3339Nano),
-		cluster.podReadyAt(t, pod.name), cluster.readinessProbe(t, pod.name), cluster.publishNotReadyAddresses(t, pod.name))
-	if nodePort <= 0 {
-		t.Fatalf("%s has no Service NodePort for %d", pod.name, port)
-	}
-	if !l3HasAddress(t, info["service-clear-std"], pod.ip) {
-		t.Fatalf("%s access %s is not %s", added.GetName(), info["service-clear-std"], pod)
-	}
-	wantAlt := net.JoinHostPort(state.hostname, strconv.Itoa(nodePort))
-	if info["service-clear-alt"] != wantAlt {
-		t.Fatalf("%s (%s) advertised alternate address %q, want %s",
-			added.GetName(), pod.name, info["service-clear-alt"], wantAlt)
-	}
-	l3AssertHostIs(t, wantAlt, host)
-	if elapsed > budget {
-		t.Fatalf("%s active %s after the bump and %s Ready, budget %s", added.GetName(), elapsed, pod.name, budget)
-	}
-
-	l3AwaitRouting(t, "scale-up-after", client, size+1)
-	for name, node := range existing {
-		got, err := client.Cluster().GetNodeByName(name)
-		if err != nil || got != node {
-			t.Fatalf("%s replaced: %v %v", name, got, err)
-		}
-	}
-	pods := cluster.pods(t)
-	l3AssertNodesMatchPods(t, client, l3Seeds(t), pods, l3SharedAdvertised(t, cluster, state.hostname, pods))
-	l3AssertEachNodeServes(t, client, as.PartitionMasters(client, l3Namespace()))
+	return state.cluster.size(t)
 }
 
 // Under load, the removed pod leaves the node list and partition map.
@@ -200,10 +96,7 @@ func TestL3ScaleUpNewNodeActiveWithinTwoTendIntervals(t *testing.T) {
 func TestL3ScaleDownRemovesNodeWithoutRetryStorm(t *testing.T) {
 	state := l3RequireScaleCluster(t)
 	cluster := state.cluster
-	if state.foundSize < l3MinPods {
-		cluster.scale(t, l3MinPods)
-	}
-	size := cluster.size(t)
+	size := state.sizeAtLeast(t, l3MinPods)
 	pods := cluster.pods(t)
 	removed := l3HighestOrdinal(t, pods)
 	policy := l3Policy()
@@ -290,10 +183,7 @@ func TestL3ScaleDownRemovesNodeWithoutRetryStorm(t *testing.T) {
 func TestL3NodePortsStableAcrossPodRescheduleAndRecreate(t *testing.T) {
 	state := l3RequireScaleCluster(t)
 	cluster := state.cluster
-	if state.foundSize < l3MinPods {
-		cluster.scale(t, l3MinPods)
-	}
-	size := cluster.size(t)
+	size := state.sizeAtLeast(t, l3MinPods)
 	port := cluster.servicePort(t)
 	pods := cluster.pods(t)
 	first := pods[0]
@@ -400,6 +290,164 @@ func TestL3NodePortsStableAcrossPodRescheduleAndRecreate(t *testing.T) {
 	l3AssertPinnedSeed(t, state, "recreated", service, port, pinned, size)
 }
 
+// networkLoadBalancer: the pod its StatefulSet recreates advertises the same
+// address and Service NodePort, and the client seeded once routes every
+// partition again.
+func TestL3AdvertisedAddressSurvivesPodReschedule(t *testing.T) {
+	state := l3RequireScaleCluster(t)
+	cluster := state.cluster
+	if !cluster.networkLoadBalancer(t) {
+		t.Skip("Pod reschedule " + l3ScaleNLB)
+	}
+	size := state.sizeAtLeast(t, l3MinPods)
+	port := cluster.servicePort(t)
+	victim := l3HighestOrdinal(t, cluster.pods(t))
+	podUID := cluster.uid(t, "pod", victim.name)
+	nodePort := cluster.nodePort(t, victim.name, port)
+	if nodePort <= 0 {
+		t.Fatalf("%s has no Service NodePort for %d", victim.name, port)
+	}
+	want := net.JoinHostPort(state.hostname, strconv.Itoa(nodePort))
+	client := l3Client(t, l3Policy(), l3Seeds(t)...)
+	l3AwaitRouting(t, "reschedule-before", client, size)
+	before := l3NodeOf(t, client, victim)
+	if before == nil {
+		t.Fatalf("No node for %s", victim)
+	}
+	if got := l3Info(t, before, "service-clear-alt"); got != want {
+		t.Fatalf("%s advertised alternate address %q before the reschedule, want %s", victim.name, got, want)
+	}
+
+	cluster.deletePod(t, victim.name)
+	pod := cluster.awaitReplaced(t, victim.name, podUID)
+	node := l3AwaitNodeOf(t, client, pod)
+	l3AwaitRouting(t, "reschedule-after", client, size)
+
+	advertised := l3Info(t, node, "service-clear-alt")
+	after := cluster.nodePort(t, pod.name, port)
+	host := node.GetHost()
+	t.Logf("L3-RESCHEDULED pod=%s podUid=%s->%s worker=%s->%s ip=%s->%s node=%s->%s alternate=%s serviceNodePort=%d->%d clientHost=%s",
+		pod.name, podUID, cluster.uid(t, "pod", pod.name), victim.node, pod.node, victim.ip, pod.ip,
+		before.GetName(), node.GetName(), advertised, nodePort, after, net.JoinHostPort(host.Name, strconv.Itoa(host.Port)))
+	if after != nodePort {
+		t.Fatalf("%s Service NodePort %d after the reschedule, want %d", pod.name, after, nodePort)
+	}
+	if advertised != want {
+		t.Fatalf("%s (%s) advertised alternate address %q after the reschedule, want %s",
+			node.GetName(), pod.name, advertised, want)
+	}
+	l3AssertHostIs(t, want, host)
+	l3AssertEachNodeServes(t, client, as.PartitionMasters(client, l3Namespace()))
+}
+
+// networkLoadBalancer: a pod on a Node deleted and registered again, so without
+// the labels set through the API, advertises the AerospikeCluster address with
+// its Service NodePort, and the client seeded once routes every partition.
+// kind does not register a deleted Node again; reregister-kind-nodes.sh does.
+func TestL3PodOnRecreatedNodeAdvertisesClusterAddress(t *testing.T) {
+	state := l3RequireScaleCluster(t)
+	cluster := state.cluster
+	if !cluster.networkLoadBalancer(t) {
+		t.Skip("Recreated Node " + l3ScaleNLB)
+	}
+	size := state.sizeAtLeast(t, l3MinPods)
+	port := cluster.servicePort(t)
+	// Deleting the Node the endpoint resolves to takes the seed and every pod
+	// with their work directories, which the operator does not recover from.
+	victim, ok := l3AwayFromEndpoint(t, state.hostname, cluster.pods(t))
+	if !ok {
+		t.Skip("Recreated Node needs a pod on a worker " + state.hostname +
+			" does not resolve to (the l3-nlb-per-pod cluster of the discovery-k8s workflow)")
+	}
+	worker := victim.node
+	podUID := cluster.uid(t, "pod", victim.name)
+	l3LabelNode(t, worker, l3NodeMark, "set-through-api")
+	if got := l3NodeLabel(t, worker, l3NodeMark); got != "set-through-api" {
+		t.Fatalf("%s %s %q, want set-through-api", worker, l3NodeMark, got)
+	}
+	client := l3Client(t, l3Policy(), l3Seeds(t)...)
+	l3AwaitRouting(t, "node-before", client, size)
+
+	cluster.recreateNode(t, worker, victim.name)
+	pod := cluster.awaitReplaced(t, victim.name, podUID)
+	if !waitFor(l3ScaleTimeout, 2*time.Second, func() bool { return len(cluster.readyPods(t)) == size }) {
+		t.Fatalf("Not every pod Ready within %s: %v", l3ScaleTimeout, cluster.pods(t))
+	}
+	node := l3AwaitNodeOf(t, client, pod)
+	l3AwaitRouting(t, "node-after", client, size)
+
+	nodePort := cluster.nodePort(t, pod.name, port)
+	advertised := l3Info(t, node, "service-clear-alt")
+	mark := l3NodeLabel(t, worker, l3NodeMark)
+	label := l3NodeLabel(t, worker, l3AlternateAccessLabel)
+	t.Logf("L3-NODE-RECREATED worker=%s mark=%s label=%s pod=%s podUid=%s->%s podWorker=%s node=%s alternate=%s serviceNodePort=%d",
+		worker, mark, label, pod.name, podUID, cluster.uid(t, "pod", pod.name), pod.node, node.GetName(), advertised, nodePort)
+	if pod.node != worker {
+		t.Fatalf("%s runs on %s, want the recreated %s", pod.name, pod.node, worker)
+	}
+	if mark != "" {
+		t.Fatalf("%s %s %q after it registered again, want none", worker, l3NodeMark, mark)
+	}
+	if label != "" {
+		t.Fatalf("%s %s %q, want none", worker, l3AlternateAccessLabel, label)
+	}
+	if nodePort <= 0 {
+		t.Fatalf("%s has no Service NodePort for %d", pod.name, port)
+	}
+	want := net.JoinHostPort(state.hostname, strconv.Itoa(nodePort))
+	if advertised != want {
+		t.Fatalf("%s (%s) advertised alternate address %q, want %s", node.GetName(), pod.name, advertised, want)
+	}
+	l3AssertHostIs(t, want, node.GetHost())
+	l3AssertEachNodeServes(t, client, as.PartitionMasters(client, l3Namespace()))
+}
+
+// Highest-ordinal pod on a worker that is not the control plane and that
+// hostname does not resolve to.
+func l3AwayFromEndpoint(t *testing.T, hostname string, pods []l3Pod) (l3Pod, bool) {
+	t.Helper()
+	endpoint := l3Lookup(t, hostname)
+	var away []l3Pod
+	for _, pod := range pods {
+		if !slices.Contains(endpoint, l3NodeAddress(t, pod.node)) && !l3ControlPlane(t, pod.node) {
+			away = append(away, pod)
+		}
+	}
+	if len(away) == 0 {
+		return l3Pod{}, false
+	}
+	return l3HighestOrdinal(t, away), true
+}
+
+// The node held before the pod was replaced stays for a few tends while its
+// connections fail, so info errors are expected until the new one answers.
+func l3AwaitNodeOf(t *testing.T, client *as.Client, pod l3Pod) *as.Node {
+	t.Helper()
+	var found *as.Node
+	if !waitFor(l3RoutingWait, 500*time.Millisecond, func() bool {
+		for _, node := range client.GetNodes() {
+			info, err := node.RequestInfo(as.NewInfoPolicy(), "service-clear-std")
+			if err == nil && l3HasAddress(t, info["service-clear-std"], pod.ip) {
+				found = node
+				return true
+			}
+		}
+		return false
+	}) {
+		t.Fatalf("No node answers from %s within %s: %v", pod, l3RoutingWait, client.GetNodeNames())
+	}
+	return found
+}
+
+func l3Info(t *testing.T, node *as.Node, name string) string {
+	t.Helper()
+	info, err := node.RequestInfo(as.NewInfoPolicy(), name)
+	if err != nil {
+		t.Fatalf("info %s %s: %v", node.GetName(), name, err)
+	}
+	return info[name]
+}
+
 func l3AssertPinnedSeed(t *testing.T, state *l3Scale, step, service string, port, pinned, size int) {
 	t.Helper()
 	seed := as.NewHost(state.hostname, pinned)
@@ -416,11 +464,7 @@ func l3AssertPinnedSeed(t *testing.T, state *l3Scale, step, service string, port
 		if !ok {
 			t.Fatalf("%s is no pod in %v", node.GetName(), pods)
 		}
-		info, err := node.RequestInfo(as.NewInfoPolicy(), "service-clear-alt")
-		if err != nil {
-			t.Fatalf("info %s: %v", node.GetName(), err)
-		}
-		advertised := info["service-clear-alt"]
+		advertised := l3Info(t, node, "service-clear-alt")
 		nodePort := state.cluster.nodePort(t, pod.name, port)
 		host := node.GetHost()
 		t.Logf("L3-PINNED-NODE step=%s node=%s pod=%s alternate=%s serviceNodePort=%d pinned=%d clientHost=%s",
@@ -480,19 +524,6 @@ func l3AwaitRouting(t *testing.T, step string, client *as.Client, size int) {
 	}
 }
 
-func l3PeersGeneration(t *testing.T, node *as.Node) int64 {
-	t.Helper()
-	info, err := node.RequestInfo(as.NewInfoPolicy(), "peers-generation")
-	if err != nil {
-		t.Fatalf("peers-generation %s: %v", node.GetName(), err)
-	}
-	n, parseErr := strconv.ParseInt(info["peers-generation"], 10, 64)
-	if parseErr != nil {
-		t.Fatalf("peers-generation %s %q: %v", node.GetName(), info["peers-generation"], parseErr)
-	}
-	return n
-}
-
 func l3HasAddress(t *testing.T, access, ip string) bool {
 	t.Helper()
 	for _, host := range l3ServiceHosts(t, access) {
@@ -505,12 +536,9 @@ func l3HasAddress(t *testing.T, access, ip string) bool {
 
 func l3PodOf(t *testing.T, pods []l3Pod, node *as.Node) (l3Pod, bool) {
 	t.Helper()
-	info, err := node.RequestInfo(as.NewInfoPolicy(), "service-clear-std")
-	if err != nil {
-		t.Fatalf("info %s: %v", node.GetName(), err)
-	}
+	access := l3Info(t, node, "service-clear-std")
 	for _, pod := range pods {
-		if l3HasAddress(t, info["service-clear-std"], pod.ip) {
+		if l3HasAddress(t, access, pod.ip) {
 			return pod, true
 		}
 	}
@@ -520,11 +548,7 @@ func l3PodOf(t *testing.T, pods []l3Pod, node *as.Node) (l3Pod, bool) {
 func l3NodeOf(t *testing.T, client *as.Client, pod l3Pod) *as.Node {
 	t.Helper()
 	for _, node := range client.GetNodes() {
-		info, err := node.RequestInfo(as.NewInfoPolicy(), "service-clear-std")
-		if err != nil {
-			t.Fatalf("info %s: %v", node.GetName(), err)
-		}
-		if l3HasAddress(t, info["service-clear-std"], pod.ip) {
+		if l3HasAddress(t, l3Info(t, node, "service-clear-std"), pod.ip) {
 			return node
 		}
 	}

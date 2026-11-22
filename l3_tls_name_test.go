@@ -43,11 +43,8 @@ var l3TlsPeer = regexp.MustCompile(`\[([0-9A-Fa-f]+),([^,\[\]]*),\[((?:[^\[\]]|\
 func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *testing.T) {
 	l3RequireTlsCluster(t)
 	cluster := l3FindCluster(t)
-	endpoint := strings.TrimSpace(os.Getenv("DISCOVERY_ENDPOINT_HOSTNAME"))
+	endpoint := l3EndpointHostname(t)
 	tlsName := strings.TrimSpace(os.Getenv("DISCOVERY_TLS_NAME"))
-	if endpoint == "" {
-		t.Fatal("DISCOVERY_ENDPOINT_HOSTNAME is not set")
-	}
 	if got := cluster.get(t, ".spec.aerospikeConfig.network.service['tls-name']"); got != tlsName {
 		t.Fatalf("AerospikeCluster tls-name %q, want %s", got, tlsName)
 	}
@@ -58,29 +55,40 @@ func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *test
 			cluster.get(t, ".spec.aerospikeNetworkPolicy.alternateAccess"))
 	}
 
+	nlb := cluster.networkLoadBalancer(t)
+	tlsAddress := l3RequireTlsAddress(t, cluster, endpoint)
+	t.Logf("L3-TLS-ADDRESSES alternateAccess=%s clear=%s tls=%s", cluster.alternateAccess(t), endpoint, tlsAddress)
+
 	cluster.ensureSize(t, l3MinPods)
 	l3AssertTlsCertificate(t, cluster, tlsName, endpoint)
 
 	tlsPort := l3Atoi(t, "tls-port", cluster.get(t, ".spec.aerospikeConfig.network.service['tls-port']"))
+	port := cluster.servicePort(t)
 	pods := cluster.pods(t)
 	if len(pods) < l3MinPods {
 		t.Fatalf("%d pods, want at least %d", len(pods), l3MinPods)
 	}
 	podsByIP := make(map[string]l3Pod, len(pods))
 	expected := make(map[string]string, len(pods))
+	expectedClear := make(map[string]string, len(pods))
 	for _, pod := range pods {
 		nodePort := cluster.nodePort(t, pod.name, tlsPort)
-		t.Logf("L3-TLS-POD %s tlsServiceNodePort=%d", pod, nodePort)
+		clearNodePort := cluster.nodePort(t, pod.name, port)
+		t.Logf("L3-TLS-POD %s tlsServiceNodePort=%d serviceNodePort=%d", pod, nodePort, clearNodePort)
 		if nodePort <= 0 {
 			t.Fatalf("pod %s has no Service NodePort for %d", pod.name, tlsPort)
 		}
+		if clearNodePort <= 0 {
+			t.Fatalf("pod %s has no Service NodePort for %d", pod.name, port)
+		}
 		podsByIP[pod.ip] = pod
-		expected[pod.name] = net.JoinHostPort(endpoint, strconv.Itoa(nodePort))
+		expected[pod.name] = net.JoinHostPort(tlsAddress, strconv.Itoa(nodePort))
+		expectedClear[pod.name] = net.JoinHostPort(endpoint, strconv.Itoa(clearNodePort))
 	}
 
 	policy := l3TlsPolicy(t)
 	seedPort := cluster.nodePort(t, pods[0].name, tlsPort)
-	seed := &as.Host{Name: endpoint, TLSName: tlsName, Port: seedPort}
+	seed := &as.Host{Name: tlsAddress, TLSName: tlsName, Port: seedPort}
 	captureL2Logs(t)
 	client := l3Client(t, policy, seed)
 
@@ -101,7 +109,7 @@ func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *test
 		nodeNames[node.GetName()] = struct{}{}
 	}
 	for _, node := range client.GetNodes() {
-		info, err := node.RequestInfo(as.NewInfoPolicy(), "service-tls-std", "service-tls-alt", "peers-tls-alt")
+		info, err := node.RequestInfo(as.NewInfoPolicy(), "service-tls-std", "service-tls-alt", "peers-tls-alt", "service-clear-alt")
 		if err != nil {
 			t.Fatalf("info %s: %v", node.GetName(), err)
 		}
@@ -114,10 +122,14 @@ func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *test
 		}
 		matched[pod.name] = struct{}{}
 		peers := l3ParseTlsPeers(info["peers-tls-alt"])
-		t.Logf("L3-TLS-NAME pod=%s node=%s tlsAlternate=%s expected=%s clientTlsName=%s peersTlsAlt=%s",
-			pod.name, node.GetName(), info["service-tls-alt"], expected[pod.name], node.GetHost().TLSName, info["peers-tls-alt"])
+		t.Logf("L3-TLS-NAME pod=%s node=%s tlsAlternate=%s expected=%s clearAlternate=%s expectedClear=%s clientTlsName=%s peersTlsAlt=%s",
+			pod.name, node.GetName(), info["service-tls-alt"], expected[pod.name], info["service-clear-alt"],
+			expectedClear[pod.name], node.GetHost().TLSName, info["peers-tls-alt"])
 		if info["service-tls-alt"] != expected[pod.name] {
 			t.Fatalf("pod %s TLS alternate address %q, want %s", pod.name, info["service-tls-alt"], expected[pod.name])
+		}
+		if nlb && info["service-clear-alt"] != expectedClear[pod.name] {
+			t.Fatalf("pod %s clear alternate address %q, want %s", pod.name, info["service-clear-alt"], expectedClear[pod.name])
 		}
 		if node.GetHost().TLSName != tlsName {
 			t.Fatalf("node %s client tls-name %q, want %s", node.GetName(), node.GetHost().TLSName, tlsName)
@@ -143,7 +155,7 @@ func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *test
 	}
 	l3AssertEachNodeServes(t, client, masters)
 
-	wrong := &as.Host{Name: endpoint, TLSName: endpoint, Port: seedPort}
+	wrong := &as.Host{Name: tlsAddress, TLSName: tlsAddress, Port: seedPort}
 	bad, err := as.NewClientWithPolicyAndHost(policy, wrong)
 	if err == nil {
 		bad.Close()
@@ -151,8 +163,8 @@ func TestL3TlsSharedCertificateCarriesTlsNameAndClientValidatesAgainstIt(t *test
 			wrong.Name, wrong.TLSName, tlsName, bad.GetNodeNames())
 	}
 	var mismatch x509.HostnameError
-	if !errors.As(err, &mismatch) || mismatch.Host != endpoint {
-		t.Fatalf("TLS seed with tls-name %s failed with %v, want a certificate name mismatch", endpoint, err)
+	if !errors.As(err, &mismatch) || mismatch.Host != tlsAddress {
+		t.Fatalf("TLS seed with tls-name %s failed with %v, want a certificate name mismatch", tlsAddress, err)
 	}
 	t.Logf("L3-TLS-FQDN-REJECTED seed=%s:%d tls-name=%s error=%v", wrong.Name, wrong.Port, wrong.TLSName, err)
 }
@@ -165,6 +177,25 @@ func l3RequireTlsCluster(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("DISCOVERY_TLS_CA_FILE")) == "" || strings.TrimSpace(os.Getenv("DISCOVERY_TLS_NAME")) == "" {
 		t.Fatal(l3TlsProfile)
 	}
+}
+
+// Address every pod advertises as its TLS alternate: the endpoint under
+// configuredIP; under networkLoadBalancer loadBalancerTLSAlternateAccessAddress,
+// which is DISCOVERY_TLS_ENDPOINT_HOSTNAME when set and may differ from the clear one.
+func l3RequireTlsAddress(t *testing.T, cluster l3Cluster, endpoint string) string {
+	t.Helper()
+	if !cluster.networkLoadBalancer(t) {
+		return endpoint
+	}
+	l3RequireSharedEndpoint(t, cluster, endpoint)
+	want := endpoint
+	if tlsEndpoint := strings.TrimSpace(os.Getenv("DISCOVERY_TLS_ENDPOINT_HOSTNAME")); tlsEndpoint != "" {
+		want = tlsEndpoint
+	}
+	if got := cluster.loadBalancerTLSAddress(t); got != want {
+		t.Fatalf("loadBalancerTLSAlternateAccessAddress %q, want %s", got, want)
+	}
+	return want
 }
 
 func l3TlsPolicy(t *testing.T) *as.ClientPolicy {

@@ -31,9 +31,14 @@ import (
 )
 
 const (
-	l3KubectlTimeout = 120 * time.Second
-	l3ScaleTimeout   = 900 * time.Second
-	l3MinPods        = 2
+	l3KubectlTimeout        = 120 * time.Second
+	l3ScaleTimeout          = 900 * time.Second
+	l3NodeRegisterTimeout   = 300 * time.Second
+	l3MinPods               = 2
+	l3AlternateAccessLabel  = "aerospike.com/configured-alternate-access-address"
+	l3ConfiguredIP          = "configuredIP"
+	l3NetworkLoadBalancer   = "networkLoadBalancer"
+	l3ControlPlaneNodeLabel = "node-role.kubernetes.io/control-plane"
 )
 
 // Pod as the API server reports it.
@@ -82,6 +87,28 @@ func (cluster l3Cluster) size(t *testing.T) int {
 func (cluster l3Cluster) multiPodPerHost(t *testing.T) bool {
 	t.Helper()
 	return cluster.get(t, ".spec.podSpec.multiPodPerHost") == "true"
+}
+
+func (cluster l3Cluster) alternateAccess(t *testing.T) string {
+	t.Helper()
+	return cluster.get(t, ".spec.aerospikeNetworkPolicy.alternateAccess")
+}
+
+func (cluster l3Cluster) networkLoadBalancer(t *testing.T) bool {
+	t.Helper()
+	return cluster.alternateAccess(t) == l3NetworkLoadBalancer
+}
+
+// Clear alternate address every pod advertises under networkLoadBalancer.
+func (cluster l3Cluster) loadBalancerAddress(t *testing.T) string {
+	t.Helper()
+	return cluster.get(t, ".spec.aerospikeNetworkPolicy.loadBalancerAlternateAccessAddress")
+}
+
+// TLS alternate address every pod advertises under networkLoadBalancer.
+func (cluster l3Cluster) loadBalancerTLSAddress(t *testing.T) string {
+	t.Helper()
+	return cluster.get(t, ".spec.aerospikeNetworkPolicy.loadBalancerTLSAlternateAccessAddress")
 }
 
 func (cluster l3Cluster) servicePort(t *testing.T) int {
@@ -141,34 +168,70 @@ func (cluster l3Cluster) hostPort(t *testing.T, pod string, port int) int {
 	return l3Atoi(t, "hostPort", strings.Fields(value)[0])
 }
 
-func (cluster l3Cluster) nodeLabel(t *testing.T, node string) string {
+func l3NodeLabel(t *testing.T, node, label string) string {
 	t.Helper()
 	return strings.TrimSpace(l3Kubectl(t, "get", "node", node, "-o",
-		`jsonpath={.metadata.labels.aerospike\.com/configured-alternate-access-address}`))
+		"jsonpath={.metadata.labels."+strings.ReplaceAll(label, ".", `\.`)+"}"))
+}
+
+func l3LabelNode(t *testing.T, node, label, value string) {
+	t.Helper()
+	l3Kubectl(t, "label", "node", node, label+"="+value, "--overwrite")
+}
+
+// UID of the Node, or "" when it does not exist.
+func l3NodeUID(t *testing.T, node string) string {
+	t.Helper()
+	return strings.TrimSpace(l3Kubectl(t, "get", "node", node, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}"))
+}
+
+func l3NodeAddress(t *testing.T, node string) string {
+	t.Helper()
+	return strings.TrimSpace(l3Kubectl(t, "get", "node", node, "-o",
+		`jsonpath={.status.addresses[?(@.type=="InternalIP")].address}`))
+}
+
+func l3NodeNames(t *testing.T) []string {
+	t.Helper()
+	return l3Lines(l3Kubectl(t, "get", "nodes", "-o", `jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}`))
+}
+
+func l3ControlPlane(t *testing.T, node string) bool {
+	t.Helper()
+	return slices.Contains(l3Lines(l3Kubectl(t, "get", "nodes", "-l", l3ControlPlaneNodeLabel, "-o", "name")), "node/"+node)
+}
+
+// Delete node and pod on it, then wait until its kubelet registers the Node
+// again with a new UID. Every other Node is cordoned until cleanup, otherwise
+// the replacement pod schedules elsewhere before node is back.
+func (cluster l3Cluster) recreateNode(t *testing.T, node, pod string) {
+	t.Helper()
+	oldUID := l3NodeUID(t, node)
+	for _, other := range l3NodeNames(t) {
+		if other != node {
+			l3Kubectl(t, "cordon", other)
+			t.Cleanup(func() { l3Kubectl(t, "uncordon", other) })
+		}
+	}
+	start := time.Now()
+	l3Kubectl(t, "delete", "node", node, "--wait=true")
+	// No kubelet confirms a graceful delete, and pod garbage collection races
+	// the kubelet restart that registers the Node again.
+	l3Kubectl(t, "-n", cluster.namespace, "delete", "pod", pod, "--force", "--grace-period=0", "--ignore-not-found")
+	var uid string
+	if !waitFor(l3NodeRegisterTimeout, time.Second, func() bool {
+		uid = l3NodeUID(t, node)
+		return uid != "" && uid != oldUID
+	}) {
+		t.Fatalf("%s not registered again within %s", node, l3NodeRegisterTimeout)
+	}
+	t.Logf("L3-NODE-REREGISTERED node=%s uid=%s->%s afterMs=%d", node, oldUID, uid, time.Since(start).Milliseconds())
 }
 
 func (cluster l3Cluster) uid(t *testing.T, kind, object string) string {
 	t.Helper()
 	return strings.TrimSpace(l3Kubectl(t, "-n", cluster.namespace, "get", kind, object, "--ignore-not-found",
 		"-o", "jsonpath={.metadata.uid}"))
-}
-
-func (cluster l3Cluster) podReadyAt(t *testing.T, pod string) string {
-	t.Helper()
-	return strings.TrimSpace(l3Kubectl(t, "-n", cluster.namespace, "get", "pod", pod, "-o",
-		`jsonpath={.status.conditions[?(@.type=="Ready")].lastTransitionTime}`))
-}
-
-func (cluster l3Cluster) readinessProbe(t *testing.T, pod string) string {
-	t.Helper()
-	return strings.TrimSpace(l3Kubectl(t, "-n", cluster.namespace, "get", "pod", pod, "-o",
-		`jsonpath={.spec.containers[?(@.name=="aerospike-server")].readinessProbe}`))
-}
-
-func (cluster l3Cluster) publishNotReadyAddresses(t *testing.T, service string) string {
-	t.Helper()
-	return strings.TrimSpace(l3Kubectl(t, "-n", cluster.namespace, "get", "service", service, "-o",
-		"jsonpath={.spec.publishNotReadyAddresses}"))
 }
 
 func (cluster l3Cluster) readyEndpoints(t *testing.T, service string) int {
@@ -188,6 +251,40 @@ func (cluster l3Cluster) readyEndpoints(t *testing.T, service string) int {
 func (cluster l3Cluster) deletePod(t *testing.T, pod string) {
 	t.Helper()
 	l3Kubectl(t, "-n", cluster.namespace, "delete", "pod", pod, "--wait=true")
+}
+
+// Wait until pod exists with a UID other than oldUID and is Ready.
+func (cluster l3Cluster) awaitReplaced(t *testing.T, name, oldUID string) l3Pod {
+	t.Helper()
+	if !waitFor(l3ScaleTimeout, 2*time.Second, func() bool {
+		uid := cluster.uid(t, "pod", name)
+		_, ready := cluster.readyPods(t)[name]
+		return uid != "" && uid != oldUID && ready
+	}) {
+		t.Fatalf("%s not Ready again within %s: %v", name, l3ScaleTimeout, cluster.pods(t))
+	}
+	for _, pod := range cluster.pods(t) {
+		if pod.name == name {
+			return pod
+		}
+	}
+	t.Fatalf("%s not in %v", name, cluster.pods(t))
+	return l3Pod{}
+}
+
+// A spread pod's Service NodePort answers only on its own node under Local,
+// and the endpoint hostname resolves to one node.
+func (cluster l3Cluster) serveNodePortsOnEveryNode(t *testing.T) {
+	t.Helper()
+	podService := regexp.MustCompile("^" + regexp.QuoteMeta(cluster.name) + `-\d+-\d+$`)
+	for _, service := range l3Lines(l3Kubectl(t, "-n", cluster.namespace, "get", "service", "-o",
+		`jsonpath={range .items[?(@.spec.externalTrafficPolicy=="Local")]}{.metadata.name}{"\n"}{end}`)) {
+		if podService.MatchString(service) {
+			l3Kubectl(t, "-n", cluster.namespace, "patch", "service", service, "-p",
+				`{"spec":{"externalTrafficPolicy":"Cluster"}}`)
+			t.Logf("L3-SERVICE-EVERY-NODE service=%s", service)
+		}
+	}
 }
 
 func (cluster l3Cluster) createPodNodePortService(t *testing.T, service, pod string, port, nodePort int) {
@@ -272,18 +369,16 @@ func (cluster l3Cluster) ensureSize(t *testing.T, want int) {
 	cluster.scale(t, want)
 }
 
-// Patch spec.size without waiting for the operator.
-func (cluster l3Cluster) resize(t *testing.T, size int) {
-	t.Helper()
-	l3Kubectl(t, "-n", cluster.namespace, "patch", "aerospikecluster", cluster.name, "--type", "merge",
-		"-p", fmt.Sprintf(`{"spec":{"size":%d}}`, size))
-}
-
 func (cluster l3Cluster) scale(t *testing.T, size int) {
 	t.Helper()
-	cluster.resize(t, size)
+	spread := !cluster.multiPodPerHost(t)
+	l3Kubectl(t, "-n", cluster.namespace, "patch", "aerospikecluster", cluster.name, "--type", "merge",
+		"-p", fmt.Sprintf(`{"spec":{"size":%d}}`, size))
 	var state string
 	if !waitFor(l3ScaleTimeout, 2*time.Second, func() bool {
+		if spread {
+			cluster.serveNodePortsOnEveryNode(t)
+		}
 		pods := cluster.pods(t)
 		state = cluster.get(t, ".status.size") + " " + cluster.get(t, ".status.phase") + " " + fmt.Sprint(pods)
 		if cluster.get(t, ".status.size") != strconv.Itoa(size) || cluster.get(t, ".status.phase") != "Completed" {
