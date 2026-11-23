@@ -628,3 +628,40 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(count1).To(gm.BeNumerically(">", 0))
 	})
 })
+
+// A node that has opened its service port but not finished its first partition
+// balance answers queries with PARTITION_UNAVAILABLE and no flags. These specs
+// replay such replies into the query command. No server needed.
+var _ = gg.Describe("Query PARTITION_UNAVAILABLE reply", func() {
+
+	const partitionID = 7
+
+	gg.It("raises PARTITION_UNAVAILABLE for a reply without PARTITION_DONE instead of a record", func() {
+		outcome := as.ReplayQueryReplies(partitionID, as.QueryReplyWire(ast.PARTITION_UNAVAILABLE, false, false, 0))
+
+		gm.Expect(outcome.Err).To(gm.HaveOccurred())
+		gm.Expect(outcome.Err.Matches(ast.PARTITION_UNAVAILABLE)).To(gm.BeTrue(), outcome.Err.Error())
+		gm.Expect(outcome.Records).To(gm.BeZero())
+		gm.Expect(outcome.PartsUnavailable).To(gm.BeZero())
+	})
+
+	gg.It("marks the partition for retry on a reply with PARTITION_DONE", func() {
+		outcome := as.ReplayQueryReplies(partitionID,
+			as.QueryReplyWire(ast.PARTITION_UNAVAILABLE, false, true, partitionID),
+			as.QueryReplyWire(0, true, false, 0),
+		)
+
+		gm.Expect(outcome.Err).ToNot(gm.HaveOccurred())
+		gm.Expect(outcome.Records).To(gm.BeZero())
+		gm.Expect(outcome.PartsUnavailable).To(gm.Equal(1))
+		gm.Expect(outcome.PartitionRetry).To(gm.BeTrue())
+	})
+
+	gg.It("raises PARTITION_UNAVAILABLE for a reply with INFO3_LAST instead of ending the stream silently", func() {
+		outcome := as.ReplayQueryReplies(partitionID, as.QueryReplyWire(ast.PARTITION_UNAVAILABLE, true, false, 0))
+
+		gm.Expect(outcome.Err).To(gm.HaveOccurred())
+		gm.Expect(outcome.Err.Matches(ast.PARTITION_UNAVAILABLE)).To(gm.BeTrue(), outcome.Err.Error())
+		gm.Expect(outcome.Records).To(gm.BeZero())
+	})
+})
