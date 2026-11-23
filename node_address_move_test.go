@@ -16,8 +16,10 @@ package aerospike
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -720,6 +722,47 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Eventually(runningConnects, time.Second, 20*time.Millisecond).Should(gm.BeZero())
+		})
+
+		gg.It("returns a hung connect as soon as it is cancelled", func() {
+			hung := requireHung(1)
+			const cancelAfter = 100 * time.Millisecond
+			ctx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(cancelAfter, cancel)
+
+			var dialer net.Dialer
+			begin := time.Now()
+			conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(hung[0].String(), strconv.Itoa(port)))
+			elapsed := time.Since(begin)
+			if conn != nil {
+				conn.Close()
+			}
+
+			gg.AddReportEntry("cancelled connect", fmt.Sprintf("returned after %s: %v", elapsed, err))
+			gm.Expect(errors.Is(err, context.Canceled)).To(gm.BeTrue(), "%v", err)
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", cancelAfter))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", cancelAfter+200*time.Millisecond))
+		})
+
+		gg.It("returns a hung connect at its deadline", func() {
+			hung := requireHung(1)
+			const deadline = 200 * time.Millisecond
+			ctx, cancel := context.WithTimeout(context.Background(), deadline)
+			defer cancel()
+
+			var dialer net.Dialer
+			begin := time.Now()
+			conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(hung[0].String(), strconv.Itoa(port)))
+			elapsed := time.Since(begin)
+			if conn != nil {
+				conn.Close()
+			}
+
+			gg.AddReportEntry("connect past its deadline", fmt.Sprintf("returned after %s: %v", elapsed, err))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.(net.Error).Timeout()).To(gm.BeTrue(), "%v", err)
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", deadline))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", deadline+200*time.Millisecond))
 		})
 
 		gg.It("starts the next address at once when an address refuses", func() {
