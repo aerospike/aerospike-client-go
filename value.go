@@ -113,6 +113,8 @@ func tryConcreteValue(v any) Value {
 		if int64(val) >= 0 {
 			return LongValue(int64(val))
 		}
+	case uint64:
+		return uint64Value(val)
 	case bool:
 		return BoolValue(val)
 	case MapIter:
@@ -120,7 +122,7 @@ func tryConcreteValue(v any) Value {
 	case ListIter:
 		return NewListerValue(val)
 	case AerospikeBlob:
-		return NewBlobValue(val)
+		return blobValue(val)
 
 	/*
 		The following cases will try to avoid using reflection by matching against the
@@ -422,6 +424,10 @@ type OpResults []any
 
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
+//
+// A uint64 that overflows int64 is not stored; the command using it returns a PARAMETER_ERROR.
+// Unsigned values of 2^63 or more (uint, uint64, and inside slices and maps) will be rejected
+// in the next major release. Cast them with int64(v) to store their two's complement explicitly.
 // This method is a convenience method, and should not be used
 // when absolute performance is required unless for the reason mentioned below.
 //
@@ -442,18 +448,26 @@ type OpResults []any
 // To completely avoid reflection in the library,
 // use the build tag: as_performance while building your program.
 func NewValue(v any) Value {
+	value, err := newValueOrError(v)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// newValueOrError is NewValue for callers that can return an error instead of panicking.
+func newValueOrError(v any) (Value, Error) {
 	if value := tryConcreteValue(v); value != nil {
-		return value
+		return value, nil
 	}
 
 	if newValueReflect != nil {
 		if res := newValueReflect(v); res != nil {
-			return res
+			return res, nil
 		}
 	}
 
-	// panic for anything that is not supported.
-	panic(newError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
+	return nil, newError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String()))
 }
 
 // NullValue is an empty value.
@@ -590,6 +604,14 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 		panic(err)
 	}
 
+	return NewBytesValue(buf)
+}
+
+func blobValue(object AerospikeBlob) Value {
+	buf, err := object.EncodeBlob()
+	if err != nil {
+		return invalidValue{newErrorAndWrap(err, types.SERIALIZE_ERROR)}
+	}
 	return NewBytesValue(buf)
 }
 
@@ -1321,3 +1343,20 @@ func unwrapValue(v any) any {
 
 	return v
 }
+
+func uint64Value(v uint64) Value {
+	if int64(v) >= 0 {
+		return LongValue(int64(v))
+	}
+	return invalidValue{newError(types.PARAMETER_ERROR, fmt.Sprintf("uint64 value %d overflows int64; cast it to int64 explicitly", v))}
+}
+
+// invalidValue defers a conversion error to command execution, for constructors that cannot return an error.
+type invalidValue struct{ err Error }
+
+func (vl invalidValue) EstimateSize() (int, Error)      { return 0, vl.err }
+func (vl invalidValue) write(cmd BufferEx) (int, Error) { return 0, vl.err }
+func (vl invalidValue) pack(cmd BufferEx) (int, Error)  { return 0, vl.err }
+func (vl invalidValue) GetType() int                    { return ParticleType.NULL }
+func (vl invalidValue) GetObject() any                  { return nil }
+func (vl invalidValue) String() string                  { return vl.err.Error() }

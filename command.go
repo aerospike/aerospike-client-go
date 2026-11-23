@@ -3036,7 +3036,11 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) Error {
 
 func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value any) Error {
 	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
-	sz, err := NewValue(value).EstimateSize()
+	v, err := newValueOrError(value)
+	if err != nil {
+		return err
+	}
+	sz, err := v.EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -3399,7 +3403,10 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val any, o
 		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than %d bytes.", name, maxBinNameLength))
 	}
 
-	v := NewValue(val)
+	v, err := newValueOrError(val)
+	if err != nil {
+		return err
+	}
 
 	valueLength, err := v.EstimateSize()
 	if err != nil {
