@@ -33,6 +33,10 @@ type Bin struct {
 
 // NewBin generates a new Bin instance, specifying bin name and string value.
 // For servers configured as "single-bin", enter an empty name.
+//
+// A uint64 that overflows int64 is not stored; the command using the bin returns a PARAMETER_ERROR.
+// Unsigned values of 2^63 or more (uint, uint64, and inside slices and maps) will be rejected
+// in the next major release. Cast them with int64(v) to store their two's complement explicitly.
 func NewBin(name string, value any) *Bin {
 	return &Bin{
 		Name:  name,

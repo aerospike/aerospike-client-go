@@ -3971,8 +3971,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
-			// chain the errors
-			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			// chain the errors; nothing was sent on this attempt, so only earlier attempts can leave it in doubt
+			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter-1)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.

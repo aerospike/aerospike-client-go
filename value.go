@@ -610,7 +610,7 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 func blobValue(object AerospikeBlob) Value {
 	buf, err := object.EncodeBlob()
 	if err != nil {
-		return invalidValue{newErrorAndWrap(err, types.SERIALIZE_ERROR)}
+		return invalidValue{code: types.SERIALIZE_ERROR, cause: err}
 	}
 	return NewBytesValue(buf)
 }
@@ -1348,15 +1348,27 @@ func uint64Value(v uint64) Value {
 	if int64(v) >= 0 {
 		return LongValue(int64(v))
 	}
-	return invalidValue{newError(types.PARAMETER_ERROR, fmt.Sprintf("uint64 value %d overflows int64; cast it to int64 explicitly", v))}
+	return invalidValue{code: types.PARAMETER_ERROR, msg: fmt.Sprintf("uint64 value %d overflows int64; cast it to int64 explicitly", v)}
 }
 
 // invalidValue defers a conversion error to command execution, for constructors that cannot return an error.
-type invalidValue struct{ err Error }
+type invalidValue struct {
+	code  types.ResultCode
+	msg   string
+	cause error
+}
 
-func (vl invalidValue) EstimateSize() (int, Error)      { return 0, vl.err }
-func (vl invalidValue) write(cmd BufferEx) (int, Error) { return 0, vl.err }
-func (vl invalidValue) pack(cmd BufferEx) (int, Error)  { return 0, vl.err }
+// err builds a new error on every call: commands annotate the error they get, and one Value can be shared by concurrent commands.
+func (vl invalidValue) err() Error {
+	if vl.cause != nil {
+		return newErrorAndWrap(vl.cause, vl.code)
+	}
+	return newError(vl.code, vl.msg)
+}
+
+func (vl invalidValue) EstimateSize() (int, Error)      { return 0, vl.err() }
+func (vl invalidValue) write(cmd BufferEx) (int, Error) { return 0, vl.err() }
+func (vl invalidValue) pack(cmd BufferEx) (int, Error)  { return 0, vl.err() }
 func (vl invalidValue) GetType() int                    { return ParticleType.NULL }
 func (vl invalidValue) GetObject() any                  { return nil }
-func (vl invalidValue) String() string                  { return vl.err.Error() }
+func (vl invalidValue) String() string                  { return vl.err().Error() }

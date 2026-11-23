@@ -118,6 +118,10 @@ func NewKeyWithDigest(namespace string, setName string, key any, digest []byte) 
 		userKey:   NewValue(key),
 	}
 
+	if v, ok := newKey.userKey.(invalidValue); ok {
+		return nil, v.err()
+	}
+
 	if err := newKey.SetDigest(digest); err != nil {
 		return nil, err
 	}

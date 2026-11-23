@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -60,6 +61,9 @@ func TestExecuteAtClosesConnectionWhenBinValueCannotBeEncoded(t *testing.T) {
 			if err == nil || !err.Matches(tc.code) {
 				t.Fatalf("executeAt got %v, want %v", err, tc.code)
 			}
+			if err.IsInDoubt() {
+				t.Error("error is in doubt although nothing was sent")
+			}
 			if cmd.connPutBack {
 				t.Error("connection was returned to the pool")
 			}
@@ -77,5 +81,38 @@ func TestNewBinWithFailingBlobDoesNotPanic(t *testing.T) {
 	bin := NewBin("bin", failingBlob{})
 	if _, err := bin.Value.EstimateSize(); err == nil || !err.Matches(types.SERIALIZE_ERROR) {
 		t.Fatalf("EstimateSize got %v, want SERIALIZE_ERROR", err)
+	}
+}
+
+// A Value shared by concurrent commands, such as a query filter sent to every
+// node, must hand each command its own error to annotate.
+func TestSharedInvalidValueReturnsDistinctErrors(t *testing.T) {
+	shared := NewValue(uint64(1 << 63))
+
+	errs := make([]Error, 2)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			cmd := newBufferProbeCommand(t, "", false)
+			cmd.binMap = BinMap{"bin": shared}
+			errs[i] = cmd.executeAt(cmd, cmd.policy.GetBasePolicy(), time.Now().Add(time.Minute), 1)
+		}(i)
+	}
+	wg.Wait()
+
+	if errs[0] == nil || errs[1] == nil {
+		t.Fatalf("executeAt got %v and %v, want errors", errs[0], errs[1])
+	}
+	if errs[0] == errs[1] {
+		t.Error("concurrent commands shared one error instance")
+	}
+}
+
+func TestNewKeyWithDigestRejectsUint64OverflowingInt64(t *testing.T) {
+	_, err := NewKeyWithDigest("test", "set", uint64(1<<63), make([]byte, 20))
+	if err == nil || !err.Matches(types.PARAMETER_ERROR) {
+		t.Fatalf("NewKeyWithDigest got %v, want PARAMETER_ERROR", err)
 	}
 }

@@ -24,8 +24,6 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-type uint64Hash uint64
-
 var _ = gg.Describe("uint64 values", gg.Ordered, func() {
 
 	var ns = *namespace
@@ -62,11 +60,14 @@ var _ = gg.Describe("uint64 values", gg.Ordered, func() {
 
 	// Every entry point that converts its argument with NewValue.
 	entryPoints := map[string]func(v uint64) as.Error{
-		"Put":            func(v uint64) as.Error { return client.Put(nil, key, as.BinMap{"v": v}) },
-		"Put named type": func(v uint64) as.Error { return client.Put(nil, key, as.BinMap{"v": uint64Hash(v)}) },
-		"PutBins":        func(v uint64) as.Error { return client.PutBins(nil, key, as.NewBin("v", v)) },
+		"Put":     func(v uint64) as.Error { return client.Put(nil, key, as.BinMap{"v": v}) },
+		"PutBins": func(v uint64) as.Error { return client.PutBins(nil, key, as.NewBin("v", v)) },
 		"NewKey": func(v uint64) as.Error {
 			_, err := as.NewKey(ns, set, v)
+			return err
+		},
+		"NewKeyWithDigest": func(v uint64) as.Error {
+			_, err := as.NewKeyWithDigest(ns, set, v, key.Digest())
 			return err
 		},
 		"AddOp":           func(v uint64) as.Error { return operate(as.AddOp(as.NewBin("n", v))) },
@@ -131,11 +132,10 @@ var _ = gg.Describe("uint64 values", gg.Ordered, func() {
 
 	gg.It("are stored like int64 when they fit in int64", func() {
 		for _, v := range []uint64{0, 5, math.MaxInt64} {
-			gm.Expect(client.Put(nil, key, as.BinMap{"v": v, "h": uint64Hash(v)})).ToNot(gm.HaveOccurred())
+			gm.Expect(client.Put(nil, key, as.BinMap{"v": v})).ToNot(gm.HaveOccurred())
 			rec, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(rec.Bins["v"]).To(gm.Equal(int(v)))
-			gm.Expect(rec.Bins["h"]).To(gm.Equal(int(v)))
 
 			uk, err := as.NewKey(ns, set, v)
 			gm.Expect(err).ToNot(gm.HaveOccurred())

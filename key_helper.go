@@ -138,7 +138,7 @@ func (vb *keyWriter) Write(b []byte) (int, Error) {
 func (vb *keyWriter) writeKey(val Value) Error {
 	switch v := val.(type) {
 	case invalidValue:
-		return v.err
+		return v.err()
 	case IntegerValue:
 		vb.WriteInt64(int64(v))
 		return nil
