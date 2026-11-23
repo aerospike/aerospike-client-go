@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -573,5 +574,50 @@ func TestResetRestartsMaxLatencyAndReplies(t *testing.T) {
 	runner.stats.addTo(object)
 	if object["maxLatencyMs"] != int64(0) {
 		t.Fatalf("maxLatencyMs after reset = %v", object["maxLatencyMs"])
+	}
+}
+
+func TestCountConnectionsToKeepsOnlyThisProcessesEstablishedConnections(t *testing.T) {
+	row := func(remote, state, inode string) string {
+		return "   0: 0100007F:9C40 " + remote + " " + state + " 00000000:00000000 00:00000000 00000000  1000        0 " + inode + " 1 0000000000000000 20 4 30 10 -1\n"
+	}
+	table := "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n" +
+		row("E601490A:7BDE", "01", "101") + // 10.73.1.230:31710, established, this process
+		row("E601490A:7BDE", "0A", "102") + // listening
+		row("7A02490A:7BDE", "01", "999") + // 10.73.2.122:31710, another process
+		row("E601490A:7A12", "01", "104") + // 10.73.1.230:31250, another port
+		row("0000000000000000FFFF00005A00490A:7BDE", "01", "103") // ::ffff:10.73.0.90:31710, this process
+	owned := map[string]bool{"101": true, "102": true, "103": true, "104": true}
+	connections := map[string]int{}
+
+	countConnectionsTo(table, 31710, owned, connections)
+
+	if len(connections) != 2 || connections["10.73.1.230"] != 1 || connections["10.73.0.90"] != 1 {
+		t.Fatalf("connections %v, want 10.73.1.230 and 10.73.0.90 once each", connections)
+	}
+}
+
+func TestConnectedAddressReadsTheProcessesOwnOpenConnection(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("/proc/self/net/tcp is Linux only")
+	}
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	if address := connectedAddress(port); address != nil {
+		t.Fatalf("address %s before any connection", *address)
+	}
+
+	conn, err := net.Dial("tcp4", listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	if address := connectedAddress(port); address == nil || *address != "127.0.0.1" {
+		t.Fatalf("address %v, want 127.0.0.1", address)
 	}
 }

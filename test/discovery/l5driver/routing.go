@@ -15,10 +15,13 @@
 package main
 
 import (
-	"context"
+	"encoding/hex"
 	"net"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -284,20 +287,18 @@ func (monitor *routingMonitor) startChecks() {
 }
 
 // checkNode asks the node for its name over a pooled connection, as a
-// command would, and resolves the host it connects to.
+// command would, and reports the address the client's connections to it use.
+// A host name is never resolved here: a lookup answers what a new connection
+// might pick, not what the open ones are connected to.
 func checkNode(node *as.Node) reachability {
 	result := reachability{reachable: answersWithName(node)}
-	host := node.GetHost().Name
-	if net.ParseIP(host) != nil {
-		result.address = &host
+	host := node.GetHost()
+	if net.ParseIP(host.Name) != nil {
+		hostIP := host.Name
+		result.address = &hostIP
 		return result
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), reachabilityBudget)
-	addresses, err := net.DefaultResolver.LookupHost(ctx, host)
-	cancel()
-	if err == nil && len(addresses) > 0 {
-		result.address = &addresses[0]
-	}
+	result.address = connectedAddress(host.Port)
 	return result
 }
 
@@ -317,4 +318,93 @@ func answersWithName(node *as.Node) bool {
 	}
 	node.PutConnection(conn)
 	return info["node"] == node.GetName()
+}
+
+// tcpStateEstablished is the state of an established connection in
+// /proc/net/tcp.
+const tcpStateEstablished = "01"
+
+// connectedAddress returns the remote IP that most of this process's
+// established connections to port use, or nil when it has none or the
+// platform has no /proc. Nodes that share a port are not told apart.
+func connectedAddress(port int) *string {
+	owned := ownSocketInodes()
+	if len(owned) == 0 {
+		return nil
+	}
+	connections := map[string]int{}
+	for _, tablePath := range []string{"/proc/self/net/tcp", "/proc/self/net/tcp6"} {
+		if table, err := os.ReadFile(tablePath); err == nil {
+			countConnectionsTo(string(table), port, owned, connections)
+		}
+	}
+	var best string
+	for address, count := range connections {
+		if best == "" || count > connections[best] || (count == connections[best] && address < best) {
+			best = address
+		}
+	}
+	if best == "" {
+		return nil
+	}
+	return &best
+}
+
+// ownSocketInodes returns the inodes of the sockets this process holds.
+func ownSocketInodes() map[string]bool {
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return nil
+	}
+	inodes := map[string]bool{}
+	for _, entry := range entries {
+		target, err := os.Readlink(filepath.Join("/proc/self/fd", entry.Name()))
+		if err != nil {
+			continue
+		}
+		if inode, isSocket := strings.CutPrefix(target, "socket:["); isSocket {
+			inodes[strings.TrimSuffix(inode, "]")] = true
+		}
+	}
+	return inodes
+}
+
+// countConnectionsTo adds the remote IP of every established connection to
+// port in a /proc/net/tcp or tcp6 table whose inode is in owned.
+func countConnectionsTo(table string, port int, owned map[string]bool, connections map[string]int) {
+	for _, row := range strings.Split(table, "\n")[1:] {
+		fields := strings.Fields(row)
+		if len(fields) < 10 || fields[3] != tcpStateEstablished || !owned[fields[9]] {
+			continue
+		}
+		if remote, ok := tableAddress(fields[2]); ok && remote.Port == port {
+			connections[remote.IP.String()]++
+		}
+	}
+}
+
+// tableAddress decodes a table address: the IP as 32-bit words each in host
+// byte order, then the port in hexadecimal. An IPv4-mapped IPv6 address comes
+// back as IPv4.
+func tableAddress(encoded string) (net.TCPAddr, bool) {
+	hexIP, hexPort, found := strings.Cut(encoded, ":")
+	if !found {
+		return net.TCPAddr{}, false
+	}
+	ip, err := hex.DecodeString(hexIP)
+	if err != nil || (len(ip) != net.IPv4len && len(ip) != net.IPv6len) {
+		return net.TCPAddr{}, false
+	}
+	port, err := strconv.ParseUint(hexPort, 16, 16)
+	if err != nil {
+		return net.TCPAddr{}, false
+	}
+	for word := 0; word < len(ip); word += 4 {
+		ip[word], ip[word+1], ip[word+2], ip[word+3] = ip[word+3], ip[word+2], ip[word+1], ip[word]
+	}
+	address := net.IP(ip)
+	if ipv4 := address.To4(); ipv4 != nil {
+		address = ipv4
+	}
+	return net.TCPAddr{IP: address, Port: int(port)}, true
 }
