@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -663,6 +664,14 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			return hung
 		}
 
+		// runningConnects counts the connects started by connectFirst that
+		// have not returned yet.
+		runningConnects := func() int {
+			stacks := make([]byte, 1<<20)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			return bytes.Count(stacks, []byte("connectFirst.func"))
+		}
+
 		gg.It("connects only to the first address when it answers", func() {
 			cluster := openCluster(2*time.Second, time.Hour)
 			live := startServer(first, port, nodeB)
@@ -689,6 +698,28 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			gm.Expect(nv.primaryHost.Name).To(gm.Equal(first.String()))
 			gm.Expect(elapsed).To(gm.BeNumerically(">=", staggerDelay))
 			gm.Expect(elapsed).To(gm.BeNumerically("<", time.Second))
+		})
+
+		gg.It("stops the connects still running once an address answers", func() {
+			hung := requireHung(1)
+			cluster := openCluster(2*time.Second, time.Hour)
+			startServer(first, port, nodeB)
+
+			_, err, _ := validate(cluster, registerHostname("cancelled", hung[0], first))
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Eventually(runningConnects, time.Second, 20*time.Millisecond).Should(gm.BeZero())
+		})
+
+		gg.It("stops the connects still running once the bound passes", func() {
+			hung := requireHung(2)
+			const bound = 200 * time.Millisecond
+			cluster := openCluster(2*bound, time.Hour)
+
+			_, err, _ := validate(cluster, registerHostname("expired", hung[0], hung[1]))
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Eventually(runningConnects, time.Second, 20*time.Millisecond).Should(gm.BeZero())
 		})
 
 		gg.It("starts the next address at once when an address refuses", func() {

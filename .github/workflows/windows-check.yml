@@ -25,10 +25,10 @@ jobs:
         shell: bash
         env:
           AEROSPIKE_TEST_SKIP_SUITE_CLIENT: "1"
-        run: go test -count=1 -timeout 20m -run '^TestAerospike$' . -args -ginkgo.focus="Node address move|Peer address collisions|Translation collision detection" -ginkgo.no-color -ginkgo.v
+        run: go test -v -count=1 -timeout 20m -run '^TestAerospike$' . -args -ginkgo.focus="Node address move|Peer address collisions|Translation collision detection" -ginkgo.no-color -ginkgo.v
       - name: Discovery specs (server-less)
         if: always()
         shell: bash
         env:
           AEROSPIKE_TEST_SKIP_SUITE_CLIENT: "1"
-        run: go test -count=1 -timeout 20m -run '^TestAerospike$' . -args -ginkgo.label-filter=discovery -ginkgo.no-color -ginkgo.v
+        run: go test -v -count=1 -timeout 20m -run '^TestAerospike$' . -args -ginkgo.label-filter=discovery -ginkgo.no-color -ginkgo.v
