@@ -727,6 +727,29 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			gm.Expect(stopped - returned).To(gm.BeNumerically("<", 100*time.Millisecond))
 		})
 
+		gg.It("cancels the hung connect as soon as the staggered one connects", func() {
+			hung := requireHung(1)
+			const delay = 50 * time.Millisecond
+			const deadline = 2 * time.Second
+			live := startServer(first, port, nodeB)
+			aliases := []*Host{NewHost(hung[0].String(), port), NewHost(first.String(), port)}
+
+			begin := time.Now()
+			winner, _, _ := connectFirst(aliases, delay, begin.Add(deadline), nil)
+			returned := time.Since(begin)
+			stopped := connectsStoppedAfter(begin)
+			_, accepted := live.acceptStats()
+			connected := accepted.Sub(begin)
+
+			gg.AddReportEntry("hung connect after the staggered one connected", fmt.Sprintf("stagger %s, deadline %s, second connected after %s, connectFirst returned after %s, hung connect stopped after %s", delay, deadline, connected, returned, stopped))
+			gm.Expect(winner).ToNot(gm.BeNil())
+			gm.Expect(winner.Name).To(gm.Equal(first.String()))
+			gm.Expect(connected).To(gm.BeNumerically(">=", delay))
+			gm.Expect(returned).To(gm.BeNumerically("<", delay+100*time.Millisecond))
+			gm.Expect(runningConnects()).To(gm.BeZero())
+			gm.Expect(stopped - returned).To(gm.BeNumerically("<", 50*time.Millisecond))
+		})
+
 		gg.It("stops the connects still running once the bound passes", func() {
 			hung := requireHung(2)
 			const bound = 200 * time.Millisecond
