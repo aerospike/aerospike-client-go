@@ -674,6 +674,16 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			return bytes.Count(stacks, []byte("connectFirst.func"))
 		}
 
+		// connectsStoppedAfter returns how long after begin the last connect
+		// started by connectFirst returned, waiting at most a second.
+		connectsStoppedAfter := func(begin time.Time) time.Duration {
+			giveUp := time.Now().Add(time.Second)
+			for runningConnects() > 0 && time.Now().Before(giveUp) {
+				time.Sleep(time.Millisecond)
+			}
+			return time.Since(begin)
+		}
+
 		gg.It("connects only to the first address when it answers", func() {
 			cluster := openCluster(2*time.Second, time.Hour)
 			live := startServer(first, port, nodeB)
@@ -707,10 +717,14 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			cluster := openCluster(2*time.Second, time.Hour)
 			startServer(first, port, nodeB)
 
-			_, err, _ := validate(cluster, registerHostname("cancelled", hung[0], first))
+			begin := time.Now()
+			_, err, returned := validate(cluster, registerHostname("cancelled", hung[0], first))
+			stopped := connectsStoppedAfter(begin)
 
+			gg.AddReportEntry("connects after an address answered", fmt.Sprintf("validation returned after %s, last connect stopped after %s", returned, stopped))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Eventually(runningConnects, time.Second, 20*time.Millisecond).Should(gm.BeZero())
+			gm.Expect(runningConnects()).To(gm.BeZero())
+			gm.Expect(stopped - returned).To(gm.BeNumerically("<", 100*time.Millisecond))
 		})
 
 		gg.It("stops the connects still running once the bound passes", func() {
@@ -718,10 +732,15 @@ var _ = gg.Describe("Node address move", gg.Label("discovery"), func() {
 			const bound = 200 * time.Millisecond
 			cluster := openCluster(2*bound, time.Hour)
 
-			_, err, _ := validate(cluster, registerHostname("expired", hung[0], hung[1]))
+			begin := time.Now()
+			_, err, returned := validate(cluster, registerHostname("expired", hung[0], hung[1]))
+			stopped := connectsStoppedAfter(begin)
 
+			gg.AddReportEntry("connects after the bound", fmt.Sprintf("bound %s, validation returned after %s, last connect stopped after %s", bound, returned, stopped))
 			gm.Expect(err).To(gm.HaveOccurred())
-			gm.Eventually(runningConnects, time.Second, 20*time.Millisecond).Should(gm.BeZero())
+			gm.Expect(runningConnects()).To(gm.BeZero())
+			gm.Expect(returned).To(gm.BeNumerically(">=", bound))
+			gm.Expect(stopped).To(gm.BeNumerically("<", bound+100*time.Millisecond))
 		})
 
 		gg.It("returns a hung connect as soon as it is cancelled", func() {
