@@ -1,0 +1,34 @@
+name: windows-check
+on:
+  push:
+    branches: ["tmp/windows-check-306b78ba"]
+  workflow_dispatch:
+jobs:
+  discovery:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.0"
+      - name: Build all tag sets
+        shell: bash
+        run: |
+          for t in "" app_engine as_performance; do
+            go build -tags "$t" . && go test -tags "$t" -c -o "$RUNNER_TEMP/aerospike.test" . || exit 1
+          done
+      - name: CLIENT-5962 specs (server-less)
+        shell: bash
+        env:
+          AEROSPIKE_TEST_SKIP_SUITE_CLIENT: "1"
+        run: go test -count=1 -timeout 20m -run '^TestAerospike$' . -args -ginkgo.focus="Node address move|Peer address collisions|Translation collision detection" -ginkgo.no-color -ginkgo.v
+      - name: Discovery specs (server-less)
+        if: always()
+        shell: bash
+        env:
+          AEROSPIKE_TEST_SKIP_SUITE_CLIENT: "1"
+        run: go test -count=1 -timeout 20m -run '^TestAerospike$' . -args -ginkgo.label-filter=discovery -ginkgo.no-color -ginkgo.v
