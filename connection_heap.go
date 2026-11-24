@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,24 +44,26 @@ func newSingleConnectionHeap(size int) *singleConnectionHeap {
 	}
 }
 
+// cleanup empties the heap and closes all of its connections.
+// Connections are closed after the lock is released so that a socket
+// close that blocks cannot stall Offer and Poll on this heap.
 func (h *singleConnectionHeap) cleanup() {
 	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	for i := range h.data {
-		if h.data[i] != nil {
-			// cleanup is only used from Node.Close after pool drain.
-			h.data[i].closeNodeRemoved()
-		}
-
-		h.data[i] = nil
-	}
+	conns := h.data
 
 	// make sure offer and poll both fail
 	h.data = nil
 	h.full = true
 	h.head = 0
 	h.tail = 0
+	h.mutex.Unlock()
+
+	for _, conn := range conns {
+		if conn != nil {
+			// cleanup is only used from Node.Close after pool drain.
+			conn.closeNodeRemoved()
+		}
+	}
 }
 
 // Offer adds an item to the heap unless the heap is full.
@@ -115,10 +117,10 @@ func (h *singleConnectionHeap) Poll() (res *Connection) {
 // It will return true if tail connection was idle and dropped
 func (h *singleConnectionHeap) DropIdleTail() bool {
 	h.mutex.Lock()
-	defer h.mutex.Unlock()
 
 	// the heap has been cleaned up
 	if h.data == nil {
+		h.mutex.Unlock()
 		return false
 	}
 
@@ -126,17 +128,22 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 	if h.full || (h.tail != h.head) {
 		conn := h.data[(h.tail+1)%h.size]
 		if conn.IsConnected() && !conn.isIdle() {
+			h.mutex.Unlock()
 			return false
 		}
 
 		h.tail = (h.tail + 1) % h.size
 		h.data[h.tail] = nil
 		h.full = false
+		h.mutex.Unlock()
+
+		// close outside the lock so a slow socket close cannot block Poll and Offer
 		conn.closeIdle()
 
 		return true
 	}
 
+	h.mutex.Unlock()
 	return false
 }
 
@@ -167,7 +174,9 @@ func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool 
 				if _, err := conn.RequestInfo("build"); err == nil {
 					// return to the pool
 					conn.refresh()
-					h.Offer(conn)
+					if !h.Offer(conn) {
+						conn.Close()
+					}
 				} else {
 					// drop on error
 					conn.closeOnError()

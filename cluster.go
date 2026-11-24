@@ -454,10 +454,10 @@ func (clstr *Cluster) tend() Error {
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
 	clusterClientPolicy := *clstr.clientPolicy.Load()
-	// Reset connection error window for all nodes every connErrorWindow tend iterations.
+	// Close the error rate window for all nodes every ErrorRateWindow tend iterations.
 	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
-			node.resetErrorCount()
+			node.resetErrorRate(clusterClientPolicy.MaxErrorRate)
 		}
 	}
 
@@ -565,7 +565,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	// will run until the cluster is stabilized
 	go func() {
 		var err Error
-		for {
+		for !clstr.closed.Get() {
 			if err = clstr.tend(); err != nil {
 				if err.Matches(types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR) {
 					select {
@@ -585,6 +585,13 @@ func (clstr *Cluster) waitTillStabilized() Error {
 			time.Sleep(time.Millisecond)
 
 			count = len(clstr.GetNodes())
+		}
+
+		// Close() ran before clusterBoss started, so nothing else will close these nodes.
+		if clstr.closed.Get() {
+			for _, node := range clstr.GetNodes() {
+				node.Close()
+			}
 		}
 		doneCh <- err
 	}()

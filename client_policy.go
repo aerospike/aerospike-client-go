@@ -87,6 +87,10 @@ type ClientPolicy struct {
 
 	// MaxErrorRate defines the maximum number of errors allowed per node per ErrorRateWindow before
 	// the circuit-breaker algorithm returns MAX_ERROR_RATE on database commands to that node.
+	// Once a node's errors exceed its threshold, commands to that node fail with MAX_ERROR_RATE
+	// until the end of the window. The node's threshold starts at MaxErrorRate, is halved
+	// (down to 1) after every window that breached it, and is doubled (up to MaxErrorRate)
+	// after every window that did not.
 	// If MaxErrorRate is zero, there is no error limit and
 	// the exception will never be thrown.
 	//
@@ -98,8 +102,7 @@ type ClientPolicy struct {
 
 	// ErrorRateWindow defined the number of cluster tend iterations that defines the window for MaxErrorRate.
 	// One tend iteration is defined as TendInterval plus the time to tend all nodes.
-	// At the end of the window, the error count is reset to zero and backoff state is removed
-	// on all nodes.
+	// At the end of the window, each node's threshold is adjusted and its error count is reset to zero.
 	//
 	// Default: 1
 	ErrorRateWindow int //= 1

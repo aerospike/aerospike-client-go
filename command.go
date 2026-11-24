@@ -4101,10 +4101,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 			isClientTimeout = isClientOriginTimeout(err)
 			cmd.recordAttemptFailure(ifc, err, isClientTimeout)
-
-			if deviceOverloadError(err) {
-				cmd.node.incrErrorCount()
-			}
+			// Write IO errors are not client timeouts for prepareRetry (CLIENT-5833).
+			isClientTimeout = false
 			// try to salvage the connection
 			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 				startConnSalvage(ifc, policy.TimeoutDelay, cmd.conn, cmd.node)
@@ -4138,13 +4136,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
+			if deviceOverloadError(err) {
+				cmd.node.incrErrorCount()
+			}
+
 			if networkError(err) {
 				isClientTimeout = isClientOriginTimeout(err)
-				if !isClientTimeout {
-					if deviceOverloadError(err) {
-						cmd.node.incrErrorCount()
-					}
-				}
 
 				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
@@ -4431,10 +4428,9 @@ func (cmd *baseCommand) recordAttemptFailure(ifc command, err Error, clientTimeo
 }
 
 func applyConnectionRecoveredMetrics(node *Node) {
-	if node == nil || !node.cluster.metricsEnabled.Load() {
-		return
+	if node != nil {
+		node.stats.ConnectionsRecovered.GetAndIncrement()
 	}
-	node.stats.ConnectionsRecovered.GetAndIncrement()
 }
 
 // startConnSalvage runs TimeoutDelay drain in the background and tracks the
