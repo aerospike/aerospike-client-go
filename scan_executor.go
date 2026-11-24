@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,9 +49,9 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 		}
 
 		if done, err := tracker.isClusterComplete(clnt.Cluster(), &policy.BasePolicy); !recordset.IsActive() || done || err != nil {
-			errs = chainErrors(err, errs)
 			// Scan is complete.
-			if errs != nil {
+			if err != nil {
+				errs = chainErrors(err, errs)
 				tracker.partitionError()
 				recordset.sendError(errs)
 			}
