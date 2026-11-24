@@ -59,3 +59,20 @@ var _ = gg.Describe("Named uint64 values", func() {
 		}
 	})
 })
+
+// A uint that overflows int64 goes through reflection too.
+var _ = gg.Describe("uint values", func() {
+
+	var ns = *namespace
+	var set = randString(50)
+
+	gg.It("keep wrapping to int64 when they overflow int64", func() {
+		key, err := as.NewKey(ns, set, randString(50))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		gm.Expect(client.Put(nil, key, as.BinMap{"u": uint(1 << 63)})).ToNot(gm.HaveOccurred())
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins["u"]).To(gm.Equal(math.MinInt64))
+	})
+})

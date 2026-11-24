@@ -184,4 +184,11 @@ var _ = gg.Describe("uint64 values", gg.Ordered, func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(rec.Bins["l"]).To(gm.Equal([]any{1, math.MinInt64}))
 	})
+
+	gg.It("keep the existing encoding inside maps", func() {
+		gm.Expect(client.Put(nil, key, as.BinMap{"m": map[string]uint64{"a": 1 << 63}})).ToNot(gm.HaveOccurred())
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins["m"]).To(gm.Equal(map[any]any{"a": math.MinInt64}))
+	})
 })
