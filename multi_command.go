@@ -430,7 +430,10 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), ifc.commandType(), resultCode)
 		}
 
-		if resultCode != 0 && resultCode != types.PARTITION_UNAVAILABLE {
+		info3 := int(cmd.dataBuffer[3])
+
+		// A result code on a PARTITION_DONE reply is a partition-level error, handled below.
+		if resultCode != 0 && (info3&_INFO3_PARTITION_DONE) == 0 {
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
 			}
@@ -448,8 +451,6 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			err := newServerError(resultCode, cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
 			return false, newNodeError(cmd.node, err)
 		}
-
-		info3 := int(cmd.dataBuffer[3])
 
 		// If cmd is the end marker of the response, do not proceed further
 		if (info3 & _INFO3_LAST) == _INFO3_LAST {
