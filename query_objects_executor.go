@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) Error {
+func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) {
 	defer rs.signalEnd()
 
 	// for exponential backoff
@@ -34,7 +34,8 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
 		if err != nil {
 			tracker.partitionError()
-			return err
+			rs.sendError(err)
+			return
 		}
 
 		wg := new(sync.WaitGroup)
@@ -74,9 +75,10 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 		if !rs.IsActive() || done || err != nil {
 			if err != nil {
 				tracker.partitionError()
+				rs.sendError(err)
 			}
 			// Query is complete.
-			return err
+			return
 		}
 
 		if policy.SleepBetweenRetries > 0 {

@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,6 +130,11 @@ func (rcs *Recordset) IsActive() bool {
 
 // Errors returns a read-only Error channel for the objectset. It will panic
 // for recordsets returned for non-reflection APIs.
+//
+// Reading from the channel is optional, and the Scan or Query doesn't wait for it.
+// If an error is sent while the channel still holds an unread error, the unread
+// errors are chained into the new error, with the oldest innermost.
+// The channel is closed together with the object channel.
 func (rcs *Recordset) Errors() <-chan Error {
 	if rcs.records == nil {
 		return (<-chan Error)(rcs.errors)
@@ -204,7 +209,42 @@ func (rcs *Recordset) sendError(err Error) {
 		if rcs.records != nil {
 			rcs.records <- &Result{Err: err}
 		} else {
-			rcs.errors <- err
+			rcs.sendObjectsetError(err)
+		}
+	}
+}
+
+// sendObjectsetError sends an error on the errors channel without blocking.
+// The caller must hold chanLock, which makes it the only sender.
+//
+// The channel has room for a single error, and the caller may be reading only
+// the object channel. Blocking on a full channel while holding chanLock would
+// stall the executor, and signalEnd would never get the lock to close the channels.
+// So when the channel is full, the errors waiting in it are chained into the new error.
+func (rcs *Recordset) sendObjectsetError(err Error) {
+	select {
+	case rcs.errors <- err:
+		return
+	default:
+	}
+
+	waiting := rcs.drainErrors()
+	merged := chainErrors(err, waiting)
+
+	// The channel is empty and only this goroutine sends on it.
+	rcs.errors <- merged
+}
+
+// drainErrors takes the errors out of the errors channel, and chains them
+// together with the oldest error innermost.
+func (rcs *Recordset) drainErrors() Error {
+	var drained Error
+	for {
+		select {
+		case err := <-rcs.errors:
+			drained = chainErrors(err, drained)
+		default:
+			return drained
 		}
 	}
 }
