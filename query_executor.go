@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,9 +50,11 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 
 		done, err := tracker.isClusterComplete(clnt.Cluster(), &policy.BasePolicy)
 		if !recordset.IsActive() || done || err != nil {
-			errs = chainErrors(err, errs)
 			// Query is complete.
-			if errs != nil {
+			// The errors of the attempts that were retried are only reported if the
+			// query failed. Errors that can't be retried were already sent by the command.
+			if err != nil {
+				errs = chainErrors(err, errs)
 				tracker.partitionError()
 				recordset.sendError(errs)
 			}
