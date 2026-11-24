@@ -146,13 +146,15 @@ var _ = gg.Describe("uint64 values", gg.Ordered, func() {
 	})
 
 	gg.It("are accepted by every entry point when they fit in int64", func() {
-		for name, fn := range entryPoints {
-			seed()
-			err := fn(5)
-			if err != nil && (err.Matches(ast.UDF_BAD_RESPONSE) || err.Matches(ast.OP_NOT_APPLICABLE)) {
-				err = nil // the value was encoded and reached the server
+		for _, v := range []uint64{0, 5, math.MaxInt64} {
+			for name, fn := range entryPoints {
+				seed()
+				err := fn(v)
+				if err != nil && (err.Matches(ast.UDF_BAD_RESPONSE) || err.Matches(ast.OP_NOT_APPLICABLE)) {
+					err = nil // the value was encoded and reached the server
+				}
+				gm.Expect(err).ToNot(gm.HaveOccurred(), name)
 			}
-			gm.Expect(err).ToNot(gm.HaveOccurred(), name)
 		}
 	})
 
