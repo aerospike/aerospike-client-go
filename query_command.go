@@ -25,6 +25,8 @@ type queryCommand struct {
 	writePolicy *WritePolicy
 	statement   *Statement
 	operations  []*Operation
+	// sendTopK asks the node to rank a Top-K statement itself.
+	sendTopK bool
 }
 
 func newQueryCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation, recordset *Recordset) *queryCommand {
@@ -45,7 +47,7 @@ func (cmd *queryCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *queryCommand) writeBuffer(ifc command) (err Error) {
-	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, nil)
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, nil, false)
 }
 
 func (cmd *queryCommand) parseResult(ifc command, conn *Connection) Error {

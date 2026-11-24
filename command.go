@@ -1319,6 +1319,11 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 				cmd.writeBatchWrite(key, txn, ver, attr, attr.filterExp, 3, 0)
 				cmd.writeFieldString(bu.PackageName, UDF_PACKAGE_NAME)
 				cmd.writeFieldString(bu.FunctionName, UDF_FUNCTION)
+				if bu.argBytesHaveVector {
+					if err := cmd.markVector(); err != nil {
+						return nil, err
+					}
+				}
 				cmd.writeFieldBytes(bu.argBytes, UDF_ARGLIST)
 
 			case _BRT_BATCH_DELETE:
@@ -2558,7 +2563,28 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions) Error {
+// readsAllBins reports whether an operation reads every bin. The server
+// rejects RESPOND_ALL_OPS with such an operation.
+func readsAllBins(operations []*Operation) bool {
+	for _, operation := range operations {
+		if operation.opType == _READ && operation.binName == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// writeOrderBySpec writes one Top-K order-by spec: type, direction, flags,
+// name length and name.
+func (cmd *baseCommand) writeOrderBySpec(spec orderBySpec) {
+	cmd.WriteByte(byte(spec.orderType))
+	cmd.WriteByte(byte(spec.direction))
+	cmd.WriteByte(0) // flags: none apply to the supported order-by types
+	cmd.WriteByte(byte(len(spec.binName)))
+	cmd.WriteString(spec.binName)
+}
+
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions, sendTopK bool) Error {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
@@ -2709,6 +2735,20 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fieldCount++
 	}
 
+	// Estimate Top-K order-by and limit fields.
+	orderBySize := 0
+	if sendTopK {
+		for _, key := range statement.orderByKeys {
+			orderBySize += key.wireSize()
+		}
+		cmd.dataOffset += orderBySize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+		if statement.hasTopK() {
+			cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+	}
+
 	if filterExpression != nil {
 		var err Error
 		predSize, err = cmd.estimateExpressionSize(filterExpression)
@@ -2800,6 +2840,12 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			readAttr |= _INFO1_SHORT_QUERY
 		} else if policy.ExpectedDuration == LONG_RELAX_AP {
 			writeAttr |= _INFO2_RELAX_AP_LONG_QUERY
+		}
+		// The server sends a record only when a projected read has a value. A
+		// Top-K record whose order-by value is empty must still arrive, to rank
+		// last.
+		if statement.hasTopK() && operationCount > 0 && !readsAllBins(operations) {
+			writeAttr |= _INFO2_RESPOND_ALL_OPS
 		}
 		infoAttr := 0
 		if isNew || statement.Filter == nil {
@@ -2902,6 +2948,19 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	if maxRecords > 0 {
 		cmd.writeFieldInt64(maxRecords, MAX_RECORDS)
+	}
+
+	// Write Top-K: the order-by specs concatenated in one field, then the
+	// limit as a uint32 when set. The server rejects an order-by without a
+	// limit.
+	if sendTopK {
+		cmd.writeFieldHeader(orderBySize, ORDER_BY)
+		for _, key := range statement.orderByKeys {
+			cmd.writeOrderBySpec(key)
+		}
+		if statement.hasTopK() {
+			cmd.writeFieldInt32(int32(statement.topK), TOP_K)
+		}
 	}
 
 	// Write scan timeout
@@ -3437,6 +3496,12 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
+	if operation.hasVector {
+		if err := cmd.markVector(); err != nil {
+			return err
+		}
+	}
+
 	nameLength, valid := cmd.writeAndValidateBinName(operation.binName)
 	switch operation.opType {
 	case _READ, _READ_HEADER, _TOUCH, _DELETE:
@@ -3585,6 +3650,15 @@ func (cmd *baseCommand) writeFieldBytes(bytes []byte, ftype FieldType) {
 func (cmd *baseCommand) writeFieldHeader(size int, ftype FieldType) {
 	cmd.WriteInt32(int32(size + 1))
 	cmd.WriteByte((byte(ftype)))
+}
+
+// markVector refuses a vector unless every node in the cluster supports
+// vectors. A command without a node has nothing to check against.
+func (cmd *baseCommand) markVector() Error {
+	if cmd.node != nil && !cmd.node.cluster.supportsVector.Get() {
+		return newError(types.PARAMETER_ERROR, "Vector is not supported by all nodes in the cluster")
+	}
+	return nil
 }
 
 func (cmd *baseCommand) begin() {

@@ -226,6 +226,9 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan any
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan any, partitionFilter *PartitionFilter) (*Recordset, Error) {
+	if err := statement.rejectTopK(); err != nil {
+		return nil, err
+	}
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -261,6 +264,9 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 }
 
 func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan any) (*Recordset, Error) {
+	if err := statement.rejectTopK(); err != nil {
+		return nil, err
+	}
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)

@@ -59,6 +59,9 @@ type Operation struct {
 
 	// OpType determines type of operation.
 	opType OperationType
+	// hasVector is set when an expression packed ahead of the command
+	// contains a vector. It sits next to opType to use its padding.
+	hasVector bool
 	// used in CDT commands
 	opSubType operationSubType
 	// CDT context for nested types
