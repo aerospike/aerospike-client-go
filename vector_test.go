@@ -495,7 +495,7 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(errors.As(err, &aerospikeErr)).To(gm.BeTrue())
 			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR), err.Error())
 			gm.Expect(aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
-			gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring("invalid expression in operation request"))
+			gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring("distance operands must be vectors"))
 			gm.Expect(aerospikeErr.ExpTrace).ToNot(gm.BeNil())
 		})
 
@@ -755,7 +755,7 @@ var _ = gg.Describe("Vector Test", func() {
 				}
 			})
 
-			gg.It("ranks a +Inf distance as the largest value in a Top-K query", func() {
+			gg.It("ranks a +Inf distance as the largest value and fails a Top-K query on a distance it cannot compute", func() {
 				if !client.GetNodes()[0].SupportsQueryOrderBy() {
 					gg.Skip("Top-K requires a server with Top-K support")
 				}
@@ -786,7 +786,7 @@ var _ = gg.Describe("Vector Test", func() {
 					}
 				}()
 
-				rankedIDs := func(direction as.OrderDirection, flags as.ExpReadFlags) []int {
+				rankedIDs := func(direction as.OrderDirection, flags as.ExpReadFlags) ([]int, as.Error) {
 					statement := as.NewStatement(ns, set)
 					statement.Operations = []*as.Operation{
 						as.GetBinOp("id"),
@@ -797,19 +797,35 @@ var _ = gg.Describe("Vector Test", func() {
 					recordset, err := client.Query(nil, statement)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					var ids []int
+					var queryErr as.Error
 					for result := range recordset.Results() {
-						gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+						if result.Err != nil {
+							if queryErr == nil {
+								queryErr = result.Err
+							}
+							continue
+						}
 						ids = append(ids, result.Record.Bins["id"].(int))
 					}
-					return ids
+					return ids, queryErr
 				}
 
-				// A record whose distance can't be computed is left out, or
-				// ranks last in either direction with ExpReadFlagEvalNoFail.
-				gm.Expect(rankedIDs(as.OrderAsc, as.ExpReadFlagDefault)).To(gm.Equal([]int{1, 2, 0}))
-				gm.Expect(rankedIDs(as.OrderDesc, as.ExpReadFlagDefault)).To(gm.Equal([]int{0, 2, 1}))
-				gm.Expect(rankedIDs(as.OrderAsc, as.ExpReadFlagEvalNoFail)).To(gm.Equal([]int{1, 2, 0, 3}))
-				gm.Expect(rankedIDs(as.OrderDesc, as.ExpReadFlagEvalNoFail)).To(gm.Equal([]int{0, 2, 1, 3}))
+				// A record whose distance can't be computed fails the whole
+				// query, or ranks last in either direction with
+				// ExpReadFlagEvalNoFail.
+				for _, direction := range []as.OrderDirection{as.OrderAsc, as.OrderDesc} {
+					_, err := rankedIDs(direction, as.ExpReadFlagDefault)
+					gm.Expect(err).To(gm.HaveOccurred())
+					gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+				}
+
+				ids, err := rankedIDs(as.OrderAsc, as.ExpReadFlagEvalNoFail)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(ids).To(gm.Equal([]int{1, 2, 0, 3}))
+
+				ids, err = rankedIDs(as.OrderDesc, as.ExpReadFlagEvalNoFail)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(ids).To(gm.Equal([]int{0, 2, 1, 3}))
 			})
 		})
 	})
