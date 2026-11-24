@@ -21,18 +21,19 @@ import (
 )
 
 // VectorDistanceMetric selects how [ExpVectorDistance] compares two vectors.
+// Each value is sent to the server as is.
 type VectorDistanceMetric int
 
 const (
 	// VectorEuclideanSquared is the squared Euclidean (L2) distance, without
 	// taking the square root. Smaller values indicate closer vectors.
-	VectorEuclideanSquared VectorDistanceMetric = iota
+	VectorEuclideanSquared VectorDistanceMetric = 0
 	// VectorDotProduct is the dot product. Larger values indicate closer vectors.
-	VectorDotProduct
+	VectorDotProduct VectorDistanceMetric = 1
 	// VectorCosineSimilarity is cosine similarity. It returns 1 for vectors
 	// pointing in the same direction and 0 if either vector is all zeros.
 	// Larger values indicate greater similarity.
-	VectorCosineSimilarity
+	VectorCosineSimilarity VectorDistanceMetric = 2
 )
 
 // String returns the metric's name.
@@ -48,15 +49,12 @@ func (distance VectorDistanceMetric) String() string {
 	return fmt.Sprintf("VectorDistanceMetric(%d)", int(distance))
 }
 
-// expOp returns the server expression op for the distance.
-func (distance VectorDistanceMetric) expOp() *expOp {
+// expMetric returns the metric argument of the distance expression. Panics on
+// an unknown metric.
+func (distance VectorDistanceMetric) expMetric() int64 {
 	switch distance {
-	case VectorEuclideanSquared:
-		return &expOpVectorEuclideanSquared
-	case VectorDotProduct:
-		return &expOpVectorDotProduct
-	case VectorCosineSimilarity:
-		return &expOpVectorCosineSimilarity
+	case VectorEuclideanSquared, VectorDotProduct, VectorCosineSimilarity:
+		return int64(distance)
 	}
 	panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid VectorDistanceMetric: %d", distance)))
 }
@@ -76,19 +74,20 @@ func (distance VectorDistanceMetric) expOp() *expOp {
 // lacks vector support. ExpReadOp and ExpWriteOp return them when the
 // operation runs. Panics on an unknown metric.
 func ExpVectorDistance(distance VectorDistanceMetric, query *Vector, bin *Expression) *Expression {
+	metric := distance.expMetric()
 	return newFilterExpression(
-		distance.expOp(),
+		&expOpVectorDistance,
 		VectorValue{vector: query},
 		bin,
-		nil,
+		&metric,
 		nil,
 		nil,
 	)
 }
 
-// packVectorDistance packs [op, bin, query]. The server only accepts the query
-// as a BLOB holding the serialized vector, the vector particle type is
-// rejected there.
+// packVectorDistance packs [op, metric, bin, query]. The server only accepts
+// the query as a BLOB holding the serialized vector, the vector particle type
+// is rejected there.
 func (filterExp *Expression) packVectorDistance(buf BufferEx) (int, Error) {
 	queryValue, _ := filterExp.val.(VectorValue)
 	query := queryValue.vector
@@ -103,12 +102,17 @@ func (filterExp *Expression) packVectorDistance(buf BufferEx) (int, Error) {
 	}
 
 	size := 0
-	sz, err := packArrayBegin(buf, 3)
+	sz, err := packArrayBegin(buf, 4)
 	size += sz
 	if err != nil {
 		return size, err
 	}
 	sz, err = packAInt64(buf, int64(*filterExp.cmd))
+	size += sz
+	if err != nil {
+		return size, err
+	}
+	sz, err = packAInt64(buf, *filterExp.flags)
 	size += sz
 	if err != nil {
 		return size, err

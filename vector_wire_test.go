@@ -371,20 +371,20 @@ var _ = gg.Describe("Vector encoding", func() {
 		}
 
 		metrics := []struct {
-			name   string
-			metric VectorDistanceMetric
-			opCode byte
+			name        string
+			metric      VectorDistanceMetric
+			metricValue byte
 		}{
-			{"squared Euclidean", VectorEuclideanSquared, 52},
-			{"dot product", VectorDotProduct, 53},
-			{"cosine", VectorCosineSimilarity, 54},
+			{"squared Euclidean", VectorEuclideanSquared, 0},
+			{"dot product", VectorDotProduct, 1},
+			{"cosine", VectorCosineSimilarity, 2},
 		}
 
 		for _, testCase := range metrics {
-			gg.It("packs "+testCase.name+" as [op, vector bin, query as blob]", func() {
+			gg.It("packs "+testCase.name+" as [52, metric, vector bin, query as blob]", func() {
 				wire := query.Bytes()
-				// fixarray(3), op, [BIN(81), VECTOR(10), "v"], fixstr(len+1), BLOB, wire.
-				want := append([]byte{0x93, testCase.opCode, 0x93, 0x51, 0x0a, 0xa1, 'v',
+				// fixarray(4), 52, metric, [BIN(81), VECTOR(10), "v"], fixstr(len+1), BLOB, wire.
+				want := append([]byte{0x94, 52, testCase.metricValue, 0x93, 0x51, 0x0a, 0xa1, 'v',
 					0xa0 | byte(len(wire)+1), ParticleType.BLOB}, wire...)
 
 				got, err := packedExpression(ExpVectorDistance(testCase.metric, query, ExpVectorBin("v")))
