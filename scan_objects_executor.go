@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) Error {
+func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) {
 	defer rs.signalEnd()
 
 	// for exponential backoff
@@ -34,7 +34,8 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), namespace)
 		if err != nil {
 			tracker.partitionError()
-			return err
+			rs.sendError(err)
+			return
 		}
 
 		wg := new(sync.WaitGroup)
@@ -71,9 +72,10 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 		if done || err != nil {
 			if err != nil {
 				tracker.partitionError()
+				rs.sendError(err)
 			}
 			// Scan is complete.
-			return err
+			return
 		}
 
 		if policy.SleepBetweenRetries > 0 {
