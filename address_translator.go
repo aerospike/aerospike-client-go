@@ -159,6 +159,12 @@ func (misses *translationMisses) warn(translator AddressTranslator, advertised E
 	)
 }
 
+func newTranslationCollision(translatorName, nodeName, otherNodeName string, shared *Host) Error {
+	return newError(types.TRANSLATION_COLLISION, fmt.Sprintf(
+		"Node %s has no address of its own: nodes %s and %s resolve to the same address %s:%d (translator %s). Give each node its own reachable address or mapping",
+		nodeName, nodeName, otherNodeName, shared.Name, shared.Port, translatorName))
+}
+
 func newTranslationMiss(translator AddressTranslator, advertised Endpoint) Error {
 	return newError(types.TRANSLATION_MISS, fmt.Sprintf(
 		"Address translator %s has no mapping for node %s advertised address %s:%d in the %s list. Add a mapping for that endpoint or node, or set translation.on_miss to pass_through",

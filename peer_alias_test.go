@@ -49,6 +49,7 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 		hosts      map[string][]string
 		lookupMu   sync.Mutex
 		logs       *warnLogCapture
+		ipMap      map[string]string
 	)
 
 	gg.BeforeEach(func() {
@@ -56,6 +57,7 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 		proxies = nil
 		client = nil
 		hosts = map[string][]string{}
+		ipMap = nil
 		lookupHost = func(name string) ([]string, error) {
 			lookupMu.Lock()
 			addrs := hosts[name]
@@ -129,6 +131,7 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 		policy := NewClientPolicy()
 		policy.Timeout = 500 * time.Millisecond
 		policy.TendInterval = tendInterval
+		policy.IpMap = ipMap
 		opened, err := NewClientWithPolicyAndHost(policy, NewHost(loopback.String(), seed.port()))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		client = opened
@@ -179,6 +182,8 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 		gm.Consistently(func() []string { return names(opened) }, settle, 50*time.Millisecond).
 			Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
 		gm.Expect(nodeNamed(opened, nodeD).host.Port).To(gm.Equal(d.port()))
+		gm.Expect(warned("answers as node")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
+		gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.msgs)
 	})
 
 	gg.It("(b) creates both nodes when a peer lists a known node's socket under another name first", func() {
@@ -217,7 +222,8 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 			Should(gm.Equal([]string{nodeA, nodeB}))
 		gm.Expect(nodeNamed(opened, nodeA).IsActive()).To(gm.BeTrue())
 		gm.Expect(nodeNamed(opened, nodeB).IsActive()).To(gm.BeTrue())
-		gm.Expect(warned(nodeD, nodeB, local(bAlias))).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+		gm.Expect(warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+		gm.Expect(warned("answers as node")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
 	})
 
 	gg.It("(d) creates an unadvertised node under the name it answers with", func() {
@@ -233,6 +239,43 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 			ShouldNot(gm.BeNil())
 		gm.Expect(nodeNamed(opened, nodeD)).To(gm.BeNil())
 		gm.Expect(warned("Peer node `"+nodeD+"` is different than actual node `"+nodeX+"`")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+	})
+
+	gg.It("(f) warns when the translator produced the shared address", func() {
+		a := start(nodeA)
+		b := start(nodeB)
+		bAlias := start(nodeB)
+		d := start(nodeD)
+		ipMap = map[string]string{"10.255.0.4": loopback.String()}
+		advertise(
+			entry{nodeA, []string{local(a)}},
+			entry{nodeB, []string{local(b)}},
+			entry{nodeD, []string{addr("10.255.0.4", bAlias.port()), local(d)}},
+		)
+
+		opened := connect(a)
+		gm.Eventually(func() []string { return names(opened) }, joinBound, 20*time.Millisecond).
+			Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
+		gm.Expect(warned("Peer node `"+nodeD+"` address `"+local(bAlias)+"` answers as node `"+nodeB+"`")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+		gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.msgs)
+	})
+
+	gg.It("(g) reports a collision naming the translator when a translated peer has no address left", func() {
+		a := start(nodeA)
+		b := start(nodeB)
+		bAlias := start(nodeB)
+		ipMap = map[string]string{"10.255.0.4": loopback.String()}
+		advertise(
+			entry{nodeA, []string{local(a)}},
+			entry{nodeB, []string{local(b)}},
+			entry{nodeD, []string{addr("10.255.0.4", bAlias.port())}},
+		)
+
+		opened := connect(a)
+		gm.Eventually(func() bool {
+			return warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "translator static-map")
+		}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.msgs)
+		gm.Expect(names(opened)).To(gm.Equal([]string{nodeA, nodeB}))
 	})
 
 	gg.It("(e) keeps a collision when the socket already holds a node with another name", func() {

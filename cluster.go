@@ -425,6 +425,9 @@ func (clstr *Cluster) tend() Error {
 			return
 		}
 
+		var shared int
+		var sharedHost *Host
+		var sharedWith string
 		seq.Do(_peer.hosts, func(host *Host) error {
 			// attempt connection to the host
 			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
@@ -440,7 +443,13 @@ func (clstr *Cluster) tend() Error {
 			// Must look for new node name in the unlikely event that node names do not agree.
 			if _peer.nodeName != nv.name {
 				if clstr.isAlias(peers, &nv, host) {
-					logger.Logger.Warn("Peer node `%s` address `%s` answers as node `%s`, trying its next address", _peer.nodeName, host, nv.name)
+					level := logger.INFO
+					if _peer.translated[host] {
+						level = logger.WARNING
+					}
+					logger.Logger.LogAtLevel(level, "Peer node `%s` address `%s` answers as node `%s`, trying its next address", _peer.nodeName, host, nv.name)
+					shared++
+					sharedHost, sharedWith = host, nv.name
 					return nil
 				}
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
@@ -449,6 +458,10 @@ func (clstr *Cluster) tend() Error {
 			_peer.validated = &nv
 			return seq.Break
 		})
+
+		if shared > 0 && shared == len(_peer.hosts) {
+			logger.Logger.Warn("%s", newTranslationCollision(clstr.translatorName, _peer.nodeName, sharedWith, sharedHost))
+		}
 	})
 
 	seq.ParDo(clstr.addValidatedPeers(peers, candidates), func(node *Node) {

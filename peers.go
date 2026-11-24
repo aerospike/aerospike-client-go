@@ -110,4 +110,6 @@ type peer struct {
 	hosts       []*Host
 	replaceNode *Node
 	validated   *nodeValidator
+	// translated holds the hosts the address translator changed from what the server advertised.
+	translated map[*Host]bool
 }
