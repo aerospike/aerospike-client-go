@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -995,6 +996,12 @@ var _ = gg.Describe("Query Top-K", func() {
 			expectParameterError(err, "only supported by Query, QueryPartitions and QueryNode")
 		})
 
+		gg.It("are refused for a Top-K statement sent to one node", func() {
+			task, err := client.ExecuteUDFNode(nil, client.GetNodes()[0], topTen(), "pkg", "fn")
+			gm.Expect(task).To(gm.BeNil())
+			expectParameterError(err, "only supported by Query, QueryPartitions and QueryNode")
+		})
+
 		gg.It("are refused for a statement with only a ThenOrderBy", func() {
 			statement := as.NewStatement(ns, set)
 			statement.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
@@ -1139,6 +1146,87 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(queryIDs(wholeRecord)).To(gm.Equal(want))
 		})
 
+		gg.It("returns whole records with their vectors, digests and generations when nothing is projected", func() {
+			wholeRecord := topK(as.OrderDesc, 3)
+			wholeRecord.BinNames = nil
+
+			recordset, err := client.Query(nil, wholeRecord)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			var ids []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				record := result.Record
+				id := record.Bins["id"].(int)
+				ids = append(ids, id)
+
+				gm.Expect(record.Bins).To(gm.HaveKeyWithValue("score", scores[id]))
+				want := mustVector(as.NewVectorFloat32([]float32{float32(id), float32(9 - id)}))
+				gm.Expect(expectVector(record.Bins["emb"]).Equal(want)).To(gm.BeTrue(), "record %d", id)
+				gm.Expect(record.Key.Digest()).To(gm.Equal(keyByID[id].Digest()))
+				gm.Expect(record.Generation).To(gm.Equal(uint32(1)))
+			}
+			gm.Expect(ids).To(gm.HaveLen(3))
+			gm.Expect(ids[:2]).To(gm.ConsistOf(1, 3))
+		})
+
+		// fromConcurrentQueries runs query from 20 goroutines at once and
+		// returns the ids each one got.
+		fromConcurrentQueries := func(query func() []int) [][]int {
+			results := make([][]int, 20)
+			var wg sync.WaitGroup
+			for index := range results {
+				wg.Add(1)
+				go func(index int) {
+					defer gg.GinkgoRecover()
+					defer wg.Done()
+					results[index] = query()
+				}(index)
+			}
+			wg.Wait()
+			return results
+		}
+
+		// topFive is the top five by score, ties in digest order.
+		topFive := func() []int {
+			ids := queryIDs(topK(as.OrderDesc, 5))
+			gm.ExpectWithOffset(1, ids[:2]).To(gm.ConsistOf(1, 3))
+			gm.ExpectWithOffset(1, ids[2:4]).To(gm.ConsistOf(2, 7))
+			gm.ExpectWithOffset(1, ids[4]).To(gm.Equal(9))
+			return ids
+		}
+
+		gg.It("returns the same exact top k to 20 queries run at once", func() {
+			want := topFive()
+			for _, ids := range fromConcurrentQueries(func() []int { return queryIDs(topK(as.OrderDesc, 5)) }) {
+				gm.Expect(ids).To(gm.Equal(want))
+			}
+		})
+
+		gg.It("ranks the same when 20 queries run at once share one statement", func() {
+			want := topFive()
+			shared := topK(as.OrderDesc, 5)
+			for _, ids := range fromConcurrentQueries(func() []int { return queryIDs(shared) }) {
+				gm.Expect(ids).To(gm.Equal(want))
+			}
+		})
+
+		gg.It("returns the exact top k under every replica policy that reads partitions", func() {
+			want := topFive()
+			for _, replica := range []as.ReplicaPolicy{as.MASTER, as.MASTER_PROLES, as.SEQUENCE, as.PREFER_RACK} {
+				policy := as.NewQueryPolicy()
+				policy.ReplicaPolicy = replica
+				recordset, err := client.Query(policy, topK(as.OrderDesc, 5))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				var ids []int
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred(), "replica %v", replica)
+					ids = append(ids, result.Record.Bins["id"].(int))
+				}
+				gm.Expect(ids).To(gm.Equal(want), "replica %v", replica)
+			}
+		})
+
 		// Operations and BinNames are mutually exclusive: with both set, the
 		// query sends only the operations.
 		gg.It("ranks by the operations and ignores BinNames when both are set", func() {
@@ -1196,6 +1284,50 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 3)).To(gm.Equal([]int{0, 1, 2}))
 			gm.Expect(nearest(as.VectorDotProduct, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
 			gm.Expect(nearest(as.VectorCosineSimilarity, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
+		})
+
+		gg.It("ranks every record by each distance metric in either direction the way a brute-force sort does", func() {
+			// Every record's vector is {id, 9-id}. With this query no two records
+			// are the same distance away under any metric.
+			query := [2]float64{0.25, 0}
+			distanceOf := map[as.VectorDistanceMetric]func(vector [2]float64) float64{
+				as.VectorEuclideanSquared: func(vector [2]float64) float64 {
+					return math.Pow(vector[0]-query[0], 2) + math.Pow(vector[1]-query[1], 2)
+				},
+				as.VectorDotProduct: func(vector [2]float64) float64 {
+					return vector[0]*query[0] + vector[1]*query[1]
+				},
+				as.VectorCosineSimilarity: func(vector [2]float64) float64 {
+					return (vector[0]*query[0] + vector[1]*query[1]) / (math.Hypot(vector[0], vector[1]) * math.Hypot(query[0], query[1]))
+				},
+			}
+			queryVector := mustVector(as.NewVectorFloat32([]float32{float32(query[0]), float32(query[1])}))
+
+			for metric, distance := range distanceOf {
+				for _, direction := range []as.OrderDirection{as.OrderAsc, as.OrderDesc} {
+					want := make([]int, len(scores))
+					for id := range want {
+						want[id] = id
+					}
+					sort.Slice(want, func(left, right int) bool {
+						leftDistance := distance([2]float64{float64(want[left]), float64(9 - want[left])})
+						rightDistance := distance([2]float64{float64(want[right]), float64(9 - want[right])})
+						if direction == as.OrderDesc {
+							return leftDistance > rightDistance
+						}
+						return leftDistance < rightDistance
+					})
+
+					statement := as.NewStatement(ns, set)
+					statement.Operations = []*as.Operation{
+						as.GetBinOp("id"),
+						as.ExpReadOp("dist", as.ExpVectorDistance(metric, queryVector, as.ExpVectorBin("emb")), as.ExpReadFlagDefault),
+					}
+					statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)
+					statement.SetTopK(len(scores))
+					gm.Expect(queryIDs(statement)).To(gm.Equal(want), "%s, direction %v", metric, direction)
+				}
+			}
 		})
 
 		gg.It("returns a record missing the order-by bin last when the query returns only that bin", func() {
@@ -1400,6 +1532,74 @@ var _ = gg.Describe("Query Top-K", func() {
 		})
 	})
 
+	gg.Context("when the server stops a query at its run-time limit", gg.Serial, func() {
+		const recordCount = 40000
+
+		setMaxRunTime := func(milliseconds int) {
+			command := "set-config:context=namespace;id=" + ns + ";query-max-run-time-ms=" + strconv.Itoa(milliseconds)
+			for _, node := range client.GetNodes() {
+				result, err := node.RequestInfo(as.NewInfoPolicy(), command)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(result[command]).To(gm.Equal("ok"))
+			}
+		}
+
+		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
+
+			const batchSize = 1000
+			for first := 0; first < recordCount; first += batchSize {
+				writes := make([]as.BatchRecordIfc, 0, batchSize)
+				for id := first; id < first+batchSize; id++ {
+					key, err := as.NewKey(ns, set, id)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					writes = append(writes, as.NewBatchWrite(nil, key, as.PutOp(as.NewBin("score", id)), as.PutOp(as.NewBin("id", id))))
+				}
+				gm.Expect(client.BatchOperate(nil, writes)).To(gm.Succeed())
+				for _, write := range writes {
+					gm.Expect(write.BatchRec().ResultCode).To(gm.Equal(ast.OK))
+				}
+			}
+
+			setMaxRunTime(1)
+		})
+
+		gg.AfterEach(func() {
+			setMaxRunTime(0)
+			gm.Expect(client.Truncate(nil, ns, set, nil)).To(gm.Succeed())
+		})
+
+		topHundred := func(maxRetries int) (records int, queryErr as.Error) {
+			policy := as.NewQueryPolicy()
+			policy.MaxRetries = maxRetries
+			policy.TotalTimeout = time.Minute
+			statement := rankByScore()
+			statement.SetTopK(100)
+
+			recordset, err := client.Query(policy, statement)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			for result := range recordset.Results() {
+				if result.Err != nil {
+					queryErr = result.Err
+					continue
+				}
+				records++
+			}
+			return records, queryErr
+		}
+
+		gg.It("returns no records and a query timeout from a Top-K query, with or without retries", func() {
+			for _, maxRetries := range []int{0, 2} {
+				records, err := topHundred(maxRetries)
+				gm.Expect(records).To(gm.BeZero(), "MaxRetries %d", maxRetries)
+				gm.Expect(err).To(gm.HaveOccurred(), "MaxRetries %d", maxRetries)
+				gm.Expect(err.Matches(ast.QUERY_TIMEOUT)).To(gm.BeTrue(), err.Error())
+			}
+		})
+	})
+
 	// Each order-by type compares values the way the server does: a value of
 	// another type ranks last, doubles put NaN above every number, and blobs
 	// compare byte by byte with the shorter first on a common prefix.
@@ -1462,6 +1662,17 @@ var _ = gg.Describe("Query Top-K", func() {
 
 			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, 3)).To(gm.Equal([]int{2, 3, 0}))
 			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, 5)).To(gm.Equal([]int{1, 0, 3, 2, 4}))
+		})
+
+		gg.It("ranks NaN above +Inf and -Inf below every number, with a record missing the bin last in either direction", func() {
+			putValues(1.5, math.Inf(1), math.NaN(), math.Inf(-1), -2.0)
+			missingKey, err := as.NewKey(ns, set, 5)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			keys = append(keys, missingKey)
+			gm.Expect(client.PutBins(nil, missingKey, as.NewBin("id", 5))).To(gm.Succeed())
+
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, 6)).To(gm.Equal([]int{2, 1, 0, 4, 3, 5}))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, 6)).To(gm.Equal([]int{3, 4, 0, 1, 2, 5}))
 		})
 
 		gg.It("ranks blobs byte by byte with the shorter first on a common prefix", func() {

@@ -139,6 +139,23 @@ var _ = gg.Describe("Vector Test", func() {
 		client.Delete(nil, key)
 	})
 
+	// newKey returns a key in the spec's set for a record besides key. The
+	// record is deleted after the spec.
+	var extraKeys []*as.Key
+	newKey := func(userKey any) *as.Key {
+		recordKey, err := as.NewKey(ns, set, userKey)
+		gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+		extraKeys = append(extraKeys, recordKey)
+		return recordKey
+	}
+
+	gg.AfterEach(func() {
+		for _, recordKey := range extraKeys {
+			client.Delete(nil, recordKey)
+		}
+		extraKeys = nil
+	})
+
 	gg.Context("round trip", func() {
 		testCases := []struct {
 			name   string
@@ -192,6 +209,35 @@ var _ = gg.Describe("Vector Test", func() {
 			record, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(record.Bins).To(gm.Equal(as.BinMap{"other": 1}))
+		})
+
+		gg.It("stores float slices as lists, and Vector, *Vector and VectorValue as vectors", func() {
+			vector := mustVector(as.NewVectorFloat32([]float32{1.5, -2}))
+			gm.Expect(put(
+				as.NewBin("float32s", []float32{1.5, -2}),
+				as.NewBin("float64s", []float64{1.5, -2}),
+				as.NewBin("value", *vector),
+				as.NewBin("pointer", vector),
+				as.NewBin("vectorValue", as.NewVectorValue(vector)),
+			)).To(gm.Succeed())
+
+			record, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			// Each element keeps its width: msgpack float32 and float64.
+			gm.Expect(record.Bins["float32s"]).To(gm.Equal([]any{float32(1.5), float32(-2)}))
+			gm.Expect(record.Bins["float64s"]).To(gm.Equal([]any{1.5, -2.0}))
+			for _, name := range []string{"value", "pointer", "vectorValue"} {
+				gm.Expect(expectVector(record.Bins[name]).Equal(vector)).To(gm.BeTrue(), name)
+			}
+		})
+
+		gg.It("stores a nil *Vector inside a list as a null element", func() {
+			var missing *as.Vector
+			gm.Expect(put(as.NewBin("list", []any{missing, 1}))).To(gm.Succeed())
+
+			record, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["list"]).To(gm.Equal([]any{nil, 1}))
 		})
 	})
 
@@ -309,6 +355,53 @@ var _ = gg.Describe("Vector Test", func() {
 
 	// Values from the server's own vector expression tests: a = {1,2,3},
 	// b = {4,6,8}.
+	gg.Context("secondary indexes", func() {
+		stored := mustVector(as.NewVectorFloat32([]float32{1, 2}))
+
+		gg.It("refuses an expression index that reads a vector bin", func() {
+			_, err := client.CreateIndexWithExpression(nil, ns, set, set+"_vector_exp", as.BLOB, as.ICT_DEFAULT, as.ExpVectorBin(binName))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("does not match expected type 'blob'"))
+		})
+
+		gg.It("refuses an expression index that computes a distance", func() {
+			distance := as.ExpVectorDistance(as.VectorEuclideanSquared, stored, as.ExpVectorBin(binName))
+			for name, indexed := range map[string]*as.Expression{
+				"the distance":            distance,
+				"a value derived from it": as.ExpToInt(distance),
+			} {
+				_, err := client.CreateIndexWithExpression(nil, ns, set, set+"_distance_exp", as.NUMERIC, as.ICT_DEFAULT, indexed)
+				gm.Expect(err).To(gm.HaveOccurred(), name)
+				gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+				gm.Expect(err.Error()).To(gm.ContainSubstring("bad 'exp'"), name)
+			}
+		})
+
+		gg.It("leaves a vector bin out of a blob index on its bin name", func() {
+			indexName := set + "_vector_blob"
+			createIndex(nil, ns, set, indexName, binName, as.BLOB)
+			defer dropIndex(nil, ns, set, indexName)
+
+			// The same bytes stored as a blob are indexed; as a vector they are not.
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+			blobKey := newKey("blob")
+			gm.Expect(client.PutBins(nil, blobKey, as.NewBin(binName, stored.Bytes()))).To(gm.Succeed())
+
+			statement := as.NewStatement(ns, set)
+			gm.Expect(statement.SetFilter(as.NewEqualFilter(binName, stored.Bytes()))).To(gm.Succeed())
+			recordset, err := client.Query(nil, statement)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			var digests [][]byte
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				digests = append(digests, result.Record.Key.Digest())
+			}
+			gm.Expect(digests).To(gm.Equal([][]byte{blobKey.Digest()}))
+		})
+	})
+
 	gg.Context("distance expressions", func() {
 		stored := mustVector(as.NewVectorFloat32([]float32{1, 2, 3}))
 		query := mustVector(as.NewVectorFloat32([]float32{4, 6, 8}))
@@ -380,6 +473,135 @@ var _ = gg.Describe("Vector Test", func() {
 				} else {
 					gm.Expect(result.ResultCode).To(gm.Equal(ast.OP_NOT_APPLICABLE), candidate.name)
 				}
+			}
+		})
+
+		// candidateAt returns the vector whose squared Euclidean distance to the
+		// query is id squared.
+		candidateAt := func(id int) *as.Vector {
+			return mustVector(as.NewVectorFloat32([]float32{float32(4 + id), 6, 8}))
+		}
+		fewerDimensions := mustVector(as.NewVectorFloat32([]float32{1, 2}))
+
+		// Enough records to reach every node of a small cluster.
+		const candidateCount = 30
+
+		// putCandidates writes candidateCount records with an id and a vector at
+		// distance id squared, and one record, id -1, whose vector the query
+		// can't be compared with. It returns the comparable records' keys by id.
+		putCandidates := func() []*as.Key {
+			candidateKeys := make([]*as.Key, candidateCount)
+			for id := range candidateKeys {
+				candidateKeys[id] = newKey(id)
+				gm.Expect(client.PutBins(nil, candidateKeys[id], as.NewBin("id", id), as.NewBin(binName, candidateAt(id)))).To(gm.Succeed())
+			}
+			gm.Expect(client.PutBins(nil, newKey(-1), as.NewBin("id", -1), as.NewBin(binName, fewerDimensions))).To(gm.Succeed())
+			return candidateKeys
+		}
+
+		gg.It("writes vectors and reads them back with their distances in one batch, failing only the record it cannot compare", func() {
+			writeAndRead := func(recordKey *as.Key, vector *as.Vector) as.BatchRecordIfc {
+				return as.NewBatchWrite(nil, recordKey,
+					as.PutOp(as.NewBin(binName, vector)),
+					as.GetBinOp(binName),
+					as.ExpReadOp("dist", distanceTo(as.VectorEuclideanSquared, binName), as.ExpReadFlagDefault),
+				)
+			}
+			batch := make([]as.BatchRecordIfc, candidateCount)
+			for id := range batch {
+				batch[id] = writeAndRead(newKey(id), candidateAt(id))
+			}
+			incomparableKey := newKey(-1)
+			batch = append(batch, writeAndRead(incomparableKey, fewerDimensions))
+
+			gm.Expect(client.BatchOperate(nil, batch)).To(gm.Succeed())
+			for id := 0; id < candidateCount; id++ {
+				result := batch[id].BatchRec()
+				gm.Expect(result.ResultCode).To(gm.Equal(ast.OK), "record %d", id)
+				// The bin has one result per operation on it: none for the write,
+				// the vector for the read.
+				gm.Expect(result.Record.Bins[binName]).To(gm.Equal(as.OpResults{nil, candidateAt(id)}), "record %d", id)
+				gm.Expect(result.Record.Bins["dist"]).To(gm.Equal(float64(id*id)), "record %d", id)
+			}
+			gm.Expect(batch[candidateCount].BatchRec().ResultCode).To(gm.Equal(ast.OP_NOT_APPLICABLE))
+
+			// The failed record's write is not applied either.
+			exists, err := client.Exists(nil, incomparableKey)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+		})
+
+		gg.It("reads only the records within a distance in a batch and filters out the rest", func() {
+			candidateKeys := putCandidates()
+			policy := as.NewBatchPolicy()
+			policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclideanSquared, binName), as.ExpFloatVal(100))
+
+			reads := make([]as.BatchRecordIfc, candidateCount)
+			for id, candidateKey := range candidateKeys {
+				reads[id] = as.NewBatchRead(nil, candidateKey, []string{binName})
+			}
+			gm.Expect(client.BatchOperate(policy, reads)).To(gm.Succeed())
+			for id, read := range reads {
+				result := read.BatchRec()
+				if id*id < 100 {
+					gm.Expect(result.ResultCode).To(gm.Equal(ast.OK), "record %d", id)
+					gm.Expect(expectVector(result.Record.Bins[binName]).Equal(candidateAt(id))).To(gm.BeTrue(), "record %d", id)
+				} else {
+					gm.Expect(result.ResultCode).To(gm.Equal(ast.FILTERED_OUT), "record %d", id)
+				}
+			}
+		})
+
+		// queryRecords runs a query over the set and returns each record by its id.
+		queryRecords := func(policy *as.QueryPolicy, statement *as.Statement) map[int]*as.Record {
+			recordset, err := client.Query(policy, statement)
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+
+			records := map[int]*as.Record{}
+			for result := range recordset.Results() {
+				gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
+				id := result.Record.Bins["id"].(int)
+				gm.ExpectWithOffset(1, records).ToNot(gm.HaveKey(id), "record %d returned twice", id)
+				records[id] = result.Record
+			}
+			return records
+		}
+
+		gg.It("returns every record from a query projecting a distance with EvalNoFail, and leaves out the one it cannot compare without it", func() {
+			putCandidates()
+			projectingDistance := func(flags as.ExpReadFlags) *as.Statement {
+				statement := as.NewStatement(ns, set)
+				statement.Operations = []*as.Operation{
+					as.GetBinOp("id"),
+					as.GetBinOp(binName),
+					as.ExpReadOp("dist", distanceTo(as.VectorEuclideanSquared, binName), flags),
+				}
+				return statement
+			}
+
+			records := queryRecords(nil, projectingDistance(as.ExpReadFlagEvalNoFail))
+			gm.Expect(records).To(gm.HaveLen(candidateCount + 1))
+			for id := 0; id < candidateCount; id++ {
+				gm.Expect(expectVector(records[id].Bins[binName]).Equal(candidateAt(id))).To(gm.BeTrue(), "record %d", id)
+				gm.Expect(records[id].Bins["dist"]).To(gm.Equal(float64(id*id)), "record %d", id)
+			}
+			gm.Expect(records[-1].Bins["dist"]).To(gm.BeNil())
+
+			records = queryRecords(nil, projectingDistance(as.ExpReadFlagDefault))
+			gm.Expect(records).To(gm.HaveLen(candidateCount))
+			gm.Expect(records).ToNot(gm.HaveKey(-1))
+		})
+
+		gg.It("returns only the records within a distance from a query with a distance filter", func() {
+			putCandidates()
+			policy := as.NewQueryPolicy()
+			policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclideanSquared, binName), as.ExpFloatVal(100))
+
+			records := queryRecords(policy, as.NewStatement(ns, set))
+			gm.Expect(records).To(gm.HaveLen(10))
+			for id, record := range records {
+				gm.Expect(id).To(gm.BeNumerically("<", 10))
+				gm.Expect(expectVector(record.Bins[binName]).Equal(candidateAt(id))).To(gm.BeTrue(), "record %d", id)
 			}
 		})
 
@@ -482,6 +704,135 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", 1.0, 1e-6))
 		})
 
+		// readDistances reads each metric's distance from the stored vector to query.
+		readDistances := func(query *as.Vector) (as.BinMap, as.Error) {
+			record, err := client.Operate(nil, key,
+				as.ExpReadOp("euclidean", as.ExpVectorDistance(as.VectorEuclideanSquared, query, as.ExpVectorBin(binName)), as.ExpReadFlagDefault),
+				as.ExpReadOp("dot", as.ExpVectorDistance(as.VectorDotProduct, query, as.ExpVectorBin(binName)), as.ExpReadFlagDefault),
+				as.ExpReadOp("cosine", as.ExpVectorDistance(as.VectorCosineSimilarity, query, as.ExpVectorBin(binName)), as.ExpReadFlagDefault),
+			)
+			if err != nil {
+				return nil, err
+			}
+			return record.Bins, nil
+		}
+
+		gg.It("gives exact distances between one-hot vectors of each element type at every dimension count", func() {
+			// oneHot builds a vector of one element type with value on its last axis.
+			elementTypes := []struct {
+				name          string
+				maxDimensions int
+				oneHot        func(dimensions, value int) *as.Vector
+			}{
+				{"float16", 131072, func(dimensions, value int) *as.Vector {
+					elements := make([]uint16, dimensions)
+					elements[dimensions-1] = map[int]uint16{2: 0x4000, -3: 0xc200}[value]
+					return mustVector(as.NewVectorFloat16Bits(elements))
+				}},
+				{"int32", 65536, func(dimensions, value int) *as.Vector {
+					elements := make([]int32, dimensions)
+					elements[dimensions-1] = int32(value)
+					return mustVector(as.NewVectorInt32(elements))
+				}},
+				{"float32", 65536, func(dimensions, value int) *as.Vector {
+					elements := make([]float32, dimensions)
+					elements[dimensions-1] = float32(value)
+					return mustVector(as.NewVectorFloat32(elements))
+				}},
+				{"float64", 32768, func(dimensions, value int) *as.Vector {
+					elements := make([]float64, dimensions)
+					elements[dimensions-1] = float64(value)
+					return mustVector(as.NewVectorFloat64(elements))
+				}},
+			}
+
+			// Counts around the widths a vectorized loop works in, so the last
+			// element falls in the loop body and in each kind of remainder.
+			for _, elementType := range elementTypes {
+				for _, dimensions := range []int{1, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, elementType.maxDimensions} {
+					gm.Expect(put(as.NewBin(binName, elementType.oneHot(dimensions, 2)))).To(gm.Succeed())
+
+					distances, err := readDistances(elementType.oneHot(dimensions, -3))
+					gm.Expect(err).ToNot(gm.HaveOccurred(), "%s, %d dimensions", elementType.name, dimensions)
+					gm.Expect(distances).To(gm.Equal(as.BinMap{"euclidean": 25.0, "dot": -6.0, "cosine": -1.0}), "%s, %d dimensions", elementType.name, dimensions)
+				}
+			}
+		})
+
+		gg.It("gives a cosine similarity of 0 when either vector is all zeros", func() {
+			zeros := mustVector(as.NewVectorFloat32([]float32{0, 0, 0}))
+
+			gm.Expect(put(as.NewBin(binName, zeros))).To(gm.Succeed())
+			distances, err := readDistances(query)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(distances["cosine"]).To(gm.Equal(0.0))
+
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+			distances, err = readDistances(zeros)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(distances["cosine"]).To(gm.Equal(0.0))
+		})
+
+		gg.It("keeps a record exactly at the threshold for >= and <=, and drops it for > and <", func() {
+			// The squared Euclidean distance from stored to query is exactly 50.
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+			euclidean := distanceTo(as.VectorEuclideanSquared, binName)
+
+			getWhere := func(filter *as.Expression) as.Error {
+				policy := as.NewPolicy()
+				policy.FilterExpression = filter
+				_, err := client.Get(policy, key)
+				return err
+			}
+			gm.Expect(getWhere(as.ExpGreaterEq(euclidean, as.ExpFloatVal(50)))).To(gm.Succeed())
+			gm.Expect(getWhere(as.ExpLessEq(euclidean, as.ExpFloatVal(50)))).To(gm.Succeed())
+			for _, excluding := range []*as.Expression{
+				as.ExpGreater(euclidean, as.ExpFloatVal(50)),
+				as.ExpLess(euclidean, as.ExpFloatVal(50)),
+			} {
+				err := getWhere(excluding)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
+			}
+		})
+
+		gg.It("returns the same distance through Operate, batch, query and Top-K", func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K requires a server with Top-K support")
+			}
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+
+			for _, metric := range allMetrics {
+				distance := as.ExpReadOp("d", distanceTo(metric, binName), as.ExpReadFlagDefault)
+
+				record, err := client.Operate(nil, key, distance)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				want := record.Bins["d"]
+				gm.Expect(want).To(gm.BeAssignableToTypeOf(0.0), metric.String())
+
+				records, err := client.BatchGetOperate(nil, []*as.Key{key}, distance)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].Bins["d"]).To(gm.Equal(want), "batch, %s", metric)
+
+				plainQuery := as.NewStatement(ns, set)
+				plainQuery.Operations = []*as.Operation{distance}
+				topKQuery := as.NewStatement(ns, set)
+				topKQuery.Operations = []*as.Operation{distance}
+				topKQuery.SetOrderBy("d", as.BinDataTypeDouble, as.OrderDesc)
+				topKQuery.SetTopK(1)
+				for name, statement := range map[string]*as.Statement{"query": plainQuery, "Top-K": topKQuery} {
+					recordset, err := client.Query(nil, statement)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					var distances []any
+					for result := range recordset.Results() {
+						gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+						distances = append(distances, result.Record.Bins["d"])
+					}
+					gm.Expect(distances).To(gm.Equal([]any{want}), "%s, %s", name, metric)
+				}
+			}
+		})
+
 		gg.It("rejects a distance whose operand is not a vector when the expression is built", func() {
 			gm.Expect(put(as.NewBin("count", 1))).To(gm.Succeed())
 
@@ -527,6 +878,22 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(record.Bins["b"]).To(gm.BeNil())
 
 			gm.Expect(getVector(binName).Equal(stored)).To(gm.BeTrue())
+		})
+
+		// A vector bin is not a list either: list expressions on it can't be evaluated.
+		gg.It("can't read a vector bin as a list in an expression", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+			listSize := as.ExpListSize(as.ExpListBin(binName))
+
+			_, err := client.Operate(nil, key, as.ExpReadOp("size", listSize, as.ExpReadFlagDefault))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+
+			policy := as.NewPolicy()
+			policy.FilterExpression = as.ExpGreaterEq(listSize, as.ExpIntVal(0))
+			_, err = client.Get(policy, key)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
 		})
 
 		gg.It("reads and copies a whole vector bin through expressions", func() {
@@ -942,6 +1309,23 @@ end
 				gm.Expect(getVector("stored").Equal(embedding)).To(gm.BeTrue())
 			})
 
+			gg.It("stores a vector argument through a batch UDF on every record", func() {
+				calls := make([]as.BatchRecordIfc, 3)
+				for index := range calls {
+					calls[index] = as.NewBatchUDF(nil, newKey(index), moduleName, "store", as.NewVectorValue(embedding))
+				}
+
+				gm.Expect(client.BatchOperate(nil, calls)).To(gm.Succeed())
+				for index, call := range calls {
+					result := call.BatchRec()
+					gm.Expect(result.ResultCode).To(gm.Equal(ast.OK), "record %d", index)
+
+					record, err := client.Get(nil, result.Key, "stored")
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(expectVector(record.Bins["stored"]).Equal(embedding)).To(gm.BeTrue(), "record %d", index)
+				}
+			})
+
 			gg.It("keeps the vector type when a UDF copies a vector bin to another bin", func() {
 				gm.Expect(put(as.NewBin("vec", embedding))).To(gm.Succeed())
 
@@ -1052,6 +1436,272 @@ end
 			}
 			gm.Expect(seen).To(gm.HaveLen(recordCount))
 		})
+
+		gg.It("writes back a record it read with Put, a generation check or a batch write, leaving every bin unchanged", func() {
+			original := as.BinMap{
+				binName: mustVector(as.NewVectorFloat64([]float64{0.25, -1.5})),
+				"id":    1,
+				"name":  "doc",
+				"score": 2.5,
+				"list":  []any{1, "x"},
+				"map":   map[any]any{"k": 1},
+			}
+			gm.Expect(client.Put(nil, key, original)).To(gm.Succeed())
+
+			read := func() *as.Record {
+				record, err := client.Get(nil, key)
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				gm.ExpectWithOffset(1, record.Bins).To(gm.Equal(original))
+				return record
+			}
+
+			gm.Expect(client.Put(nil, key, read().Bins)).To(gm.Succeed())
+
+			record := read()
+			checkGeneration := as.NewWritePolicy(record.Generation, 0)
+			checkGeneration.GenerationPolicy = as.EXPECT_GEN_EQUAL
+			gm.Expect(client.Put(checkGeneration, key, record.Bins)).To(gm.Succeed())
+
+			record = read()
+			writeEveryBin := make([]*as.Operation, 0, len(record.Bins))
+			for name, value := range record.Bins {
+				writeEveryBin = append(writeEveryBin, as.PutOp(as.NewBin(name, value)))
+			}
+			batchWrite := as.NewBatchWrite(nil, key, writeEveryBin...)
+			gm.Expect(client.BatchOperate(nil, []as.BatchRecordIfc{batchWrite})).To(gm.Succeed())
+			gm.Expect(batchWrite.BatchRec().ResultCode).To(gm.Equal(ast.OK))
+
+			gm.Expect(read().Generation).To(gm.Equal(record.Generation + 1))
+		})
+	})
+
+	// Each scanned record holds a vector, a list and a map, so a typed vector
+	// can be told apart from a raw or decoded list or map.
+	gg.Context("scans", func() {
+		vectorFor := func(id int) *as.Vector {
+			return mustVector(as.NewVectorFloat32([]float32{float32(id), -float32(id), 0.5}))
+		}
+
+		putRecords := func(count int) {
+			for id := 0; id < count; id++ {
+				gm.Expect(client.PutBins(nil, newKey(id),
+					as.NewBin("id", id),
+					as.NewBin(binName, vectorFor(id)),
+					as.NewBin("list", []any{id, "x"}),
+					as.NewBin("map", map[any]any{"id": id}),
+				)).To(gm.Succeed())
+			}
+		}
+
+		// idOf returns the id of a scanned record from its digest, so it works
+		// when the scan returns no id bin.
+		idOf := func(record *as.Record) int {
+			for _, recordKey := range extraKeys {
+				if string(recordKey.Digest()) == string(record.Key.Digest()) {
+					return recordKey.Value().GetObject().(int)
+				}
+			}
+			gg.Fail("scan returned a record this spec did not write")
+			return -1
+		}
+
+		scan := func(policy *as.ScanPolicy, filter *as.PartitionFilter, binNames ...string) []*as.Record {
+			recordset, err := client.ScanPartitions(policy, filter, ns, set, binNames...)
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+
+			var records []*as.Record
+			for result := range recordset.Results() {
+				gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
+				records = append(records, result.Record)
+			}
+			return records
+		}
+
+		gg.It("returns vector bins as vectors whether lists and maps are decoded or left raw", func() {
+			const recordCount = 10
+			putRecords(recordCount)
+
+			for _, rawCDT := range []bool{false, true} {
+				policy := as.NewScanPolicy()
+				policy.RawCDT = rawCDT
+
+				records := scan(policy, as.NewPartitionFilterAll())
+				gm.Expect(records).To(gm.HaveLen(recordCount), "rawCDT %v", rawCDT)
+				for _, record := range records {
+					id := idOf(record)
+					gm.Expect(expectVector(record.Bins[binName]).Equal(vectorFor(id))).To(gm.BeTrue(), "rawCDT %v, record %d", rawCDT, id)
+					if !rawCDT {
+						gm.Expect(record.Bins["list"]).To(gm.Equal([]any{id, "x"}))
+						gm.Expect(record.Bins["map"]).To(gm.Equal(map[any]any{"id": id}))
+						continue
+					}
+					gm.Expect(record.Bins["list"]).To(gm.BeAssignableToTypeOf(&as.RawBlobValue{}))
+					gm.Expect(record.Bins["list"].(*as.RawBlobValue).ParticleType).To(gm.Equal(ParticleType.LIST))
+					gm.Expect(record.Bins["map"]).To(gm.BeAssignableToTypeOf(&as.RawBlobValue{}))
+					gm.Expect(record.Bins["map"].(*as.RawBlobValue).ParticleType).To(gm.Equal(ParticleType.MAP))
+				}
+			}
+		})
+
+		gg.It("returns the largest vector of each element type unchanged through a scan, compressed or not", func() {
+			// The server caps the element array at 2^18 bytes. Every element differs,
+			// so a misplaced or truncated byte changes the vector.
+			largest := map[string]*as.Vector{}
+			float16Bits := make([]uint16, 131072)
+			for index := range float16Bits {
+				float16Bits[index] = uint16(index % 0x7bff)
+			}
+			largest["float16"] = mustVector(as.NewVectorFloat16Bits(float16Bits))
+			int32s := make([]int32, 65536)
+			float32s := make([]float32, 65536)
+			for index := range int32s {
+				int32s[index] = int32(index*7919 - 1<<28)
+				float32s[index] = float32(index) * -0.25
+			}
+			largest["int32"] = mustVector(as.NewVectorInt32(int32s))
+			largest["float32"] = mustVector(as.NewVectorFloat32(float32s))
+			float64s := make([]float64, 32768)
+			for index := range float64s {
+				float64s[index] = float64(index) * 1.5e100
+			}
+			largest["float64"] = mustVector(as.NewVectorFloat64(float64s))
+
+			for elementType, vector := range largest {
+				gm.Expect(client.PutBins(nil, newKey(elementType), as.NewBin("type", elementType), as.NewBin(binName, vector))).To(gm.Succeed())
+			}
+
+			for _, compressed := range []bool{false, true} {
+				if compressed && !isEnterpriseEdition() {
+					gg.Skip("compression requires Enterprise Edition")
+				}
+				policy := as.NewScanPolicy()
+				policy.UseCompression = compressed
+
+				records := scan(policy, as.NewPartitionFilterAll())
+				gm.Expect(records).To(gm.HaveLen(len(largest)), "compressed %v", compressed)
+				for _, record := range records {
+					elementType := record.Bins["type"].(string)
+					gm.Expect(expectVector(record.Bins[binName]).Equal(largest[elementType])).To(gm.BeTrue(), "compressed %v, %s", compressed, elementType)
+				}
+			}
+		})
+
+		gg.It("ranks the largest vectors the same with compression on and off", func() {
+			if !isEnterpriseEdition() {
+				gg.Skip("compression requires Enterprise Edition")
+			}
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
+
+			// Every element of record id's vector is id, so its squared Euclidean
+			// distance to the zero vector is exactly dimensions*id*id.
+			const dimensions, recordCount = 32768, 6
+			vectorFor := func(element float64) *as.Vector {
+				elements := make([]float64, dimensions)
+				for index := range elements {
+					elements[index] = element
+				}
+				return mustVector(as.NewVectorFloat64(elements))
+			}
+			for id := recordCount - 1; id >= 0; id-- {
+				gm.Expect(client.PutBins(nil, newKey(id), as.NewBin("id", id), as.NewBin(binName, vectorFor(float64(id))))).To(gm.Succeed())
+			}
+
+			type ranked struct {
+				id       int
+				distance float64
+				vector   *as.Vector
+			}
+			nearestFive := func(compressed bool) []ranked {
+				policy := as.NewQueryPolicy()
+				policy.UseCompression = compressed
+				statement := as.NewStatement(ns, set)
+				statement.Operations = []*as.Operation{
+					as.GetBinOp("id"),
+					as.GetBinOp(binName),
+					as.ExpReadOp("dist", as.ExpVectorDistance(as.VectorEuclideanSquared, vectorFor(0), as.ExpVectorBin(binName)), as.ExpReadFlagDefault),
+				}
+				statement.SetOrderBy("dist", as.BinDataTypeDouble, as.OrderAsc)
+				statement.SetTopK(5)
+
+				recordset, err := client.Query(policy, statement)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				var results []ranked
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred(), "compressed %v", compressed)
+					results = append(results, ranked{
+						id:       result.Record.Bins["id"].(int),
+						distance: result.Record.Bins["dist"].(float64),
+						vector:   expectVector(result.Record.Bins[binName]),
+					})
+				}
+				return results
+			}
+
+			for _, compressed := range []bool{false, true} {
+				results := nearestFive(compressed)
+				gm.Expect(results).To(gm.HaveLen(5), "compressed %v", compressed)
+				for rank, result := range results {
+					gm.Expect(result.id).To(gm.Equal(rank), "compressed %v", compressed)
+					gm.Expect(result.distance).To(gm.Equal(float64(dimensions*rank*rank)), "compressed %v", compressed)
+					gm.Expect(result.vector.Equal(vectorFor(float64(rank)))).To(gm.BeTrue(), "compressed %v, id %d", compressed, rank)
+				}
+			}
+		})
+
+		gg.It("returns only the vector bin when a scan selects it", func() {
+			const recordCount = 5
+			putRecords(recordCount)
+
+			records := scan(nil, as.NewPartitionFilterAll(), binName)
+			gm.Expect(records).To(gm.HaveLen(recordCount))
+			for _, record := range records {
+				gm.Expect(record.Bins).To(gm.HaveLen(1))
+				gm.Expect(expectVector(record.Bins[binName]).Equal(vectorFor(idOf(record)))).To(gm.BeTrue())
+			}
+		})
+
+		gg.It("returns every record once, vectors intact, when a scan is paged with MaxRecords", func() {
+			const recordCount, pageSize = 20, 6
+			putRecords(recordCount)
+
+			policy := as.NewScanPolicy()
+			policy.MaxRecords = pageSize
+			filter := as.NewPartitionFilterAll()
+
+			seen := map[int]bool{}
+			for pages := 1; !filter.IsDone(); pages++ {
+				gm.Expect(pages).To(gm.BeNumerically("<=", recordCount), "the scan never finished")
+				page := scan(policy, filter)
+				gm.Expect(len(page)).To(gm.BeNumerically("<=", pageSize))
+				for _, record := range page {
+					id := idOf(record)
+					gm.Expect(seen).ToNot(gm.HaveKey(id), "record %d returned twice", id)
+					seen[id] = true
+					gm.Expect(expectVector(record.Bins[binName]).Equal(vectorFor(id))).To(gm.BeTrue(), "record %d", id)
+				}
+			}
+			gm.Expect(seen).To(gm.HaveLen(recordCount))
+		})
+
+		gg.It("returns every record without bins and without an error when a scan includes no bin data", func() {
+			const recordCount = 10
+			putRecords(recordCount)
+
+			policy := as.NewScanPolicy()
+			policy.IncludeBinData = false
+
+			records := scan(policy, as.NewPartitionFilterAll())
+			gm.Expect(records).To(gm.HaveLen(recordCount))
+			seen := map[int]bool{}
+			for _, record := range records {
+				gm.Expect(record.Bins).To(gm.BeEmpty())
+				gm.Expect(record.Generation).To(gm.Equal(uint32(1)))
+				seen[idOf(record)] = true
+			}
+			gm.Expect(seen).To(gm.HaveLen(recordCount))
+		})
 	})
 
 	gg.Context("in multi-record transactions", func() {
@@ -1135,6 +1785,70 @@ end
 			gm.Expect(expectVector(records[0].Bins[binName]).Equal(first)).To(gm.BeTrue())
 			gm.Expect(expectVector(records[1].Bins[binName]).Equal(second)).To(gm.BeTrue())
 		})
+
+		readPolicyIn := func(txn *as.Txn) *as.BasePolicy {
+			policy := as.NewPolicy()
+			policy.Txn = txn
+			return policy
+		}
+
+		gg.It("computes distances on the vector a transaction wrote, not the one committed before", func() {
+			gm.Expect(put(as.NewBin(binName, first))).To(gm.Succeed())
+			distanceToSecond := as.ExpVectorDistance(as.VectorEuclideanSquared, second, as.ExpVectorBin(binName))
+
+			txn := as.NewTxn()
+			gm.Expect(client.PutBins(inTxn(txn), key, as.NewBin(binName, second))).To(gm.Succeed())
+
+			record, err := client.Operate(inTxn(txn), key, as.ExpReadOp("dist", distanceToSecond, as.ExpReadFlagDefault))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["dist"]).To(gm.Equal(0.0))
+
+			matchingSecond := readPolicyIn(txn)
+			matchingSecond.FilterExpression = as.ExpEq(distanceToSecond, as.ExpFloatVal(0))
+			_, err = client.Get(matchingSecond, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			status, err := client.Abort(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.AbortStatusOK))
+			gm.Expect(getVector(binName).Equal(first)).To(gm.BeTrue())
+		})
+
+		gg.It("keeps a vector record a transaction created out of sight until commit, and removes it on abort", func() {
+			txn := as.NewTxn()
+			gm.Expect(client.PutBins(inTxn(txn), key, as.NewBin(binName, first))).To(gm.Succeed())
+
+			exists, err := client.Exists(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+
+			status, err := client.Abort(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.AbortStatusOK))
+
+			exists, err = client.Exists(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+		})
+
+		gg.It("commits the other writes of a transaction in which a list holding a vector was rejected", func() {
+			otherKey := newKey(randString(50))
+
+			txn := as.NewTxn()
+			gm.Expect(client.PutBins(inTxn(txn), key, as.NewBin(binName, first))).To(gm.Succeed())
+			err := client.PutBins(inTxn(txn), otherKey, as.NewBin("list", []any{second}))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+
+			status, err := client.Commit(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.CommitStatusOK))
+			gm.Expect(getVector(binName).Equal(first)).To(gm.BeTrue())
+
+			exists, err := client.Exists(nil, otherKey)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+		})
 	})
 
 	gg.Context("on a cluster without vector support", func() {
@@ -1165,6 +1879,14 @@ end
 
 		gg.It("refuses a vector bin before anything is sent", func() {
 			expectRefused(clientWithoutVectorSupport.PutBins(nil, key, as.NewBin(binName, vector)))
+
+			exists, err := client.Exists(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+		})
+
+		gg.It("refuses a bin map that carries a vector before anything is sent", func() {
+			expectRefused(clientWithoutVectorSupport.Put(nil, key, as.BinMap{binName: vector, "score": 7}))
 
 			exists, err := client.Exists(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1224,6 +1946,18 @@ end
 				writes[index] = as.NewBatchWrite(nil, batchKey, as.PutOp(as.NewBin(binName, vector)))
 			}
 			expectBatchRefused(clientWithoutVectorSupport.BatchOperate(nil, writes), keys)
+		})
+
+		gg.It("leaves the records of a batch refused for a vector out of doubt", func() {
+			keys := twoKeysOnOneNode()
+			records := []as.BatchRecordIfc{
+				as.NewBatchWrite(nil, keys[0], as.PutOp(as.NewBin(binName, vector))),
+				as.NewBatchWrite(nil, keys[1], as.PutOp(as.NewBin("score", 7))),
+			}
+			expectBatchRefused(clientWithoutVectorSupport.BatchOperate(nil, records), keys)
+			for index, record := range records {
+				gm.Expect(record.BatchRec().InDoubt).To(gm.BeFalse(), "record %d", index)
+			}
 		})
 
 		gg.It("refuses a batch UDF of several records on one node whose arguments carry a vector", func() {
@@ -1361,6 +2095,62 @@ end
 				gm.Expect(after.Bins["other"]).To(gm.Equal(1))
 				gm.Expect(expectVector(after.Bins[binName]).Equal(stored)).To(gm.BeTrue())
 			}
+		})
+
+		gg.It("rejects list and map operations on a vector bin and leaves the whole record unchanged", func() {
+			stored := mustVector(as.NewVectorFloat32([]float32{1}))
+			gm.Expect(put(as.NewBin(binName, stored), as.NewBin("other", 1))).To(gm.Succeed())
+			before, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Each operation shares its command with a write to another bin, which
+			// must not be applied when the command fails.
+			for _, cdt := range []struct {
+				operation     *as.Operation
+				serverMessage string
+			}{
+				{as.ListAppendOp(binName, 1), "list modify requires list bin"},
+				{as.MapPutOp(as.DefaultMapPolicy(), binName, "k", 1), "map modify requires map bin"},
+				{as.ListSizeOp(binName), "list read requires list bin"},
+				{as.MapSizeOp(binName), "map read requires map bin"},
+			} {
+				_, err := client.Operate(withErrorDetails(), key,
+					as.PutOp(as.NewBin("other", 2)),
+					cdt.operation,
+				)
+				expectServerError(err, ast.BIN_TYPE_ERROR, cdt.serverMessage)
+
+				after, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(after.Generation).To(gm.Equal(before.Generation), cdt.serverMessage)
+				gm.Expect(after.Bins["other"]).To(gm.Equal(1), cdt.serverMessage)
+				gm.Expect(expectVector(after.Bins[binName]).Equal(stored)).To(gm.BeTrue(), cdt.serverMessage)
+			}
+		})
+
+		gg.It("rejects only the batch record that carries invalid vector bytes", func() {
+			stored := mustVector(as.NewVectorFloat32([]float32{1, 2}))
+			validKeys := []*as.Key{newKey("first"), newKey("last")}
+			invalidKey := newKey("invalid")
+			writes := []as.BatchRecordIfc{
+				as.NewBatchWrite(nil, validKeys[0], as.PutOp(as.NewBin(binName, stored))),
+				as.NewBatchWrite(nil, invalidKey, as.PutOp(as.NewBin(binName, rawVector([]byte{0x01, 0x03})))),
+				as.NewBatchWrite(nil, validKeys[1], as.PutOp(as.NewBin(binName, stored))),
+			}
+
+			gm.Expect(client.BatchOperate(nil, writes)).To(gm.Succeed())
+			gm.Expect(writes[0].BatchRec().ResultCode).To(gm.Equal(ast.OK))
+			gm.Expect(writes[1].BatchRec().ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+			gm.Expect(writes[2].BatchRec().ResultCode).To(gm.Equal(ast.OK))
+
+			for _, validKey := range validKeys {
+				record, err := client.Get(nil, validKey, binName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(expectVector(record.Bins[binName]).Equal(stored)).To(gm.BeTrue())
+			}
+			exists, err := client.Exists(nil, invalidKey)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
 		})
 	})
 })

@@ -21,7 +21,6 @@ import (
 )
 
 // VectorDistanceMetric selects how [ExpVectorDistance] compares two vectors.
-// Each value is sent to the server as is.
 type VectorDistanceMetric int
 
 const (
