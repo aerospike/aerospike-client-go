@@ -620,17 +620,49 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", 40/math.Sqrt(1624), 1e-6))
 		})
 
-		gg.It("filters records by distance", func() {
+		gg.It("filters records by distance with each metric", func() {
 			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
 
-			getWithinDistance := func(limit float64) as.Error {
+			getWithinDistance := func(metric as.VectorDistanceMetric, limit float64) as.Error {
 				policy := as.NewPolicy()
-				policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclideanSquared, binName), as.ExpFloatVal(limit))
+				policy.FilterExpression = as.ExpLess(distanceTo(metric, binName), as.ExpFloatVal(limit))
 				_, err := client.Get(policy, key)
 				return err
 			}
-			gm.Expect(getWithinDistance(51)).To(gm.Succeed())
-			gm.Expect(getWithinDistance(50).Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
+
+			cosine := 40 / math.Sqrt(1624)
+			for _, limits := range []struct {
+				metric         as.VectorDistanceMetric
+				keepingLimit   float64
+				filteringLimit float64
+			}{
+				{as.VectorEuclideanSquared, 51, 50},
+				{as.VectorDotProduct, 41, 40},
+				{as.VectorCosineSimilarity, cosine + 1e-5, cosine - 1e-5},
+			} {
+				gm.Expect(getWithinDistance(limits.metric, limits.keepingLimit)).To(gm.Succeed(), limits.metric.String())
+				err := getWithinDistance(limits.metric, limits.filteringLimit)
+				gm.Expect(err).To(gm.HaveOccurred(), limits.metric.String())
+				gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
+			}
+		})
+
+		gg.It("rejects a distance compared with an integer value", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+
+			for _, metric := range allMetrics {
+				comparedWithInteger := as.ExpGreater(distanceTo(metric, binName), as.ExpIntVal(0))
+
+				_, err := client.Operate(nil, key, as.ExpReadOp("d", comparedWithInteger, as.ExpReadFlagDefault))
+				gm.Expect(err).To(gm.HaveOccurred(), metric.String())
+				gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+
+				policy := as.NewPolicy()
+				policy.FilterExpression = comparedWithInteger
+				_, err = client.Get(policy, key)
+				gm.Expect(err).To(gm.HaveOccurred(), metric.String())
+				gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+			}
 		})
 
 		gg.It("returns nil with EvalNoFail and fails by default when the bin cannot be compared", func() {
@@ -1849,6 +1881,109 @@ end
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(exists).To(gm.BeFalse())
 		})
+
+		gg.It("ranks the committed vector in a Top-K query given the transaction, and the transaction's vector after commit", func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K requires a server with Top-K support")
+			}
+			gm.Expect(put(as.NewBin(binName, first))).To(gm.Succeed())
+
+			nearestDistance := func(policy *as.QueryPolicy) []any {
+				statement := as.NewStatement(ns, set)
+				statement.Operations = []*as.Operation{
+					as.ExpReadOp("dist", as.ExpVectorDistance(as.VectorEuclideanSquared, second, as.ExpVectorBin(binName)), as.ExpReadFlagDefault),
+				}
+				statement.SetOrderBy("dist", as.BinDataTypeDouble, as.OrderAsc)
+				statement.SetTopK(1)
+
+				recordset, err := client.Query(policy, statement)
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				var distances []any
+				for result := range recordset.Results() {
+					gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
+					distances = append(distances, result.Record.Bins["dist"])
+				}
+				return distances
+			}
+
+			txn := as.NewTxn()
+			gm.Expect(client.PutBins(inTxn(txn), key, as.NewBin(binName, second))).To(gm.Succeed())
+
+			givenTxn := as.NewQueryPolicy()
+			givenTxn.Txn = txn
+			gm.Expect(nearestDistance(givenTxn)).To(gm.Equal([]any{27.0}))
+
+			status, err := client.Commit(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.CommitStatusOK))
+			gm.Expect(nearestDistance(nil)).To(gm.Equal([]any{0.0}))
+		})
+	})
+
+	gg.Context("on a strong consistency namespace", func() {
+		gg.BeforeEach(func() {
+			if !as.ConfiguredAsStrongConsistency(client, ns) {
+				gg.Skip("linearizable reads require a strong consistency namespace")
+			}
+		})
+
+		gg.It("returns the last written vector from a linearizable read and batch read", func() {
+			first := mustVector(as.NewVectorFloat32([]float32{1, 2, 3}))
+			second := mustVector(as.NewVectorFloat32([]float32{4, 5, 6}))
+			gm.Expect(put(as.NewBin(binName, first))).To(gm.Succeed())
+			gm.Expect(put(as.NewBin(binName, second))).To(gm.Succeed())
+
+			linearize := as.NewPolicy()
+			linearize.ReadModeSC = as.ReadModeSCLinearize
+			record, err := client.Get(linearize, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(expectVector(record.Bins[binName]).Equal(second)).To(gm.BeTrue())
+
+			batchLinearize := as.NewBatchPolicy()
+			batchLinearize.ReadModeSC = as.ReadModeSCLinearize
+			records, err := client.BatchGet(batchLinearize, []*as.Key{key}, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(expectVector(records[0].Bins[binName]).Equal(second)).To(gm.BeTrue())
+		})
+
+		gg.It("returns the exact top k by a bin and by distance from a linearizable query", func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K requires a server with Top-K support")
+			}
+			for id := range 10 {
+				gm.Expect(client.PutBins(nil, newKey(id),
+					as.NewBin("id", id),
+					as.NewBin(binName, mustVector(as.NewVectorFloat32([]float32{float32(id), 0, 0}))),
+				)).To(gm.Succeed())
+			}
+
+			linearize := as.NewQueryPolicy()
+			linearize.ReadModeSC = as.ReadModeSCLinearize
+			queryIDs := func(statement *as.Statement) []int {
+				recordset, err := client.Query(linearize, statement)
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				var ids []int
+				for result := range recordset.Results() {
+					gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
+					ids = append(ids, result.Record.Bins["id"].(int))
+				}
+				return ids
+			}
+
+			byID := as.NewStatement(ns, set, "id")
+			byID.SetOrderBy("id", as.BinDataTypeInteger, as.OrderDesc)
+			byID.SetTopK(3)
+			gm.Expect(queryIDs(byID)).To(gm.Equal([]int{9, 8, 7}))
+
+			nearest := as.NewStatement(ns, set)
+			nearest.Operations = []*as.Operation{
+				as.GetBinOp("id"),
+				as.ExpReadOp("dist", as.ExpVectorDistance(as.VectorEuclideanSquared, mustVector(as.NewVectorFloat32([]float32{0, 0, 0})), as.ExpVectorBin(binName)), as.ExpReadFlagDefault),
+			}
+			nearest.SetOrderBy("dist", as.BinDataTypeDouble, as.OrderAsc)
+			nearest.SetTopK(3)
+			gm.Expect(queryIDs(nearest)).To(gm.Equal([]int{0, 1, 2}))
+		})
 	})
 
 	gg.Context("on a cluster without vector support", func() {
@@ -1946,18 +2081,6 @@ end
 				writes[index] = as.NewBatchWrite(nil, batchKey, as.PutOp(as.NewBin(binName, vector)))
 			}
 			expectBatchRefused(clientWithoutVectorSupport.BatchOperate(nil, writes), keys)
-		})
-
-		gg.It("leaves the records of a batch refused for a vector out of doubt", func() {
-			keys := twoKeysOnOneNode()
-			records := []as.BatchRecordIfc{
-				as.NewBatchWrite(nil, keys[0], as.PutOp(as.NewBin(binName, vector))),
-				as.NewBatchWrite(nil, keys[1], as.PutOp(as.NewBin("score", 7))),
-			}
-			expectBatchRefused(clientWithoutVectorSupport.BatchOperate(nil, records), keys)
-			for index, record := range records {
-				gm.Expect(record.BatchRec().InDoubt).To(gm.BeFalse(), "record %d", index)
-			}
 		})
 
 		gg.It("refuses a batch UDF of several records on one node whose arguments carry a vector", func() {

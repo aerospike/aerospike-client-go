@@ -1269,6 +1269,34 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{7, 9}))
 		})
 
+		gg.It("ranks only the records an expression index filter matches", func() {
+			indexName := set + "_id_exp"
+			indexed := as.ExpIntBin("id")
+			task, err := client.CreateIndexWithExpression(nil, ns, set, indexName, as.NUMERIC, as.ICT_DEFAULT, indexed)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer dropIndex(nil, ns, set, indexName)
+			gm.Expect(<-task.OnComplete()).ToNot(gm.HaveOccurred())
+
+			statement := topK(as.OrderDesc, 2)
+			gm.Expect(statement.SetFilter(as.NewRangeWithExpressionFilter(indexed, 4, 9))).To(gm.Succeed())
+			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{7, 9}))
+		})
+
+		gg.It("returns the exact top k after earlier Top-K queries were closed before all their records were read", func() {
+			// A queue of one keeps the client waiting to hand over the next
+			// record, so Close has to stop it.
+			oneRecordAtATime := as.NewQueryPolicy()
+			oneRecordAtATime.RecordQueueSize = 1
+			for range 20 {
+				recordset, err := client.Query(oneRecordAtATime, topK(as.OrderAsc, 3))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				result := <-recordset.Results()
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				gm.Expect(recordset.Close()).To(gm.Succeed())
+			}
+			gm.Expect(queryIDs(topK(as.OrderAsc, 3))).To(gm.Equal([]int{4, 6, 0}))
+		})
+
 		gg.It("ranks by a projected vector distance with each metric", func() {
 			nearest := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) []int {
 				statement := as.NewStatement(ns, set)
@@ -1358,7 +1386,7 @@ var _ = gg.Describe("Query Top-K", func() {
 			}
 		})
 
-		gg.It("returns a record whose distance can't be computed last when the query returns only the distance", func() {
+		gg.It("ranks a record whose distance can't be computed last, or fails the query without EvalNoFail", func() {
 			for id, bins := range map[int]as.BinMap{
 				99:  {"emb": mustVector(as.NewVectorFloat32([]float32{0, 9, 0}))},
 				100: {"other": 1},
@@ -1369,7 +1397,7 @@ var _ = gg.Describe("Query Top-K", func() {
 				keys = append(keys, key)
 			}
 
-			distances := func(flags as.ExpReadFlags) []any {
+			distances := func(flags as.ExpReadFlags) ([]any, as.Error) {
 				statement := as.NewStatement(ns, set)
 				statement.Operations = []*as.Operation{
 					as.ExpReadOp("dist", as.ExpVectorDistance(as.VectorEuclideanSquared, mustVector(as.NewVectorFloat32([]float32{0, 9})), as.ExpVectorBin("emb")), flags),
@@ -1380,22 +1408,31 @@ var _ = gg.Describe("Query Top-K", func() {
 				recordset, err := client.Query(nil, statement)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				var ranked []any
+				var queryErr as.Error
 				for result := range recordset.Results() {
-					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+					if result.Err != nil {
+						if queryErr == nil {
+							queryErr = result.Err
+						}
+						continue
+					}
 					ranked = append(ranked, result.Record.Bins["dist"])
 				}
-				return ranked
+				return ranked, queryErr
 			}
 
 			// Record i holds {i, 9-i}, so its distance to {0, 9} is 2*i*i.
 			nearestFirst := []any{0.0, 2.0, 8.0, 18.0, 32.0, 50.0, 72.0, 98.0, 128.0, 162.0}
 
-			withEvalNoFail := distances(as.ExpReadFlagEvalNoFail)
+			withEvalNoFail, err := distances(as.ExpReadFlagEvalNoFail)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(withEvalNoFail).To(gm.HaveLen(len(nearestFirst) + 2))
 			gm.Expect(withEvalNoFail[:len(nearestFirst)]).To(gm.Equal(nearestFirst))
 			gm.Expect(withEvalNoFail[len(nearestFirst):]).To(gm.Equal([]any{nil, nil}))
 
-			gm.Expect(distances(as.ExpReadFlagDefault)).To(gm.Equal(nearestFirst))
+			_, err = distances(as.ExpReadFlagDefault)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
 		})
 
 		gg.It("ranks a query sent with a short-query hint", func() {
@@ -1529,6 +1566,37 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(withCursor(topKFilter)).To(gm.BeZero())
 
 			gm.Expect(withCursor(runToEnd(as.NewStatement(ns, set, "score", "id")))).To(gm.BeNumerically(">", 0))
+		})
+	})
+
+	gg.Context("with as many records as the largest k", func() {
+		const largestK = 1000
+
+		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
+			scores := make([]int, largestK)
+			for id := range scores {
+				scores[id] = id
+			}
+			putScores(scores...)
+		})
+
+		gg.It("returns only the best record for a k of 1", func() {
+			statement := rankByScore()
+			statement.SetTopK(1)
+			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{largestK - 1}))
+		})
+
+		gg.It("returns every record, best first, for the largest k", func() {
+			statement := rankByScore()
+			statement.SetTopK(largestK)
+			ids := queryIDs(statement)
+			gm.Expect(ids).To(gm.HaveLen(largestK))
+			for rank, id := range ids {
+				gm.Expect(id).To(gm.Equal(largestK-1-rank), "rank %d", rank)
+			}
 		})
 	})
 
