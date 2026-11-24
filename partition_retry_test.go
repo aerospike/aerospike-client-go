@@ -241,11 +241,17 @@ var _ = gg.Describe("Partition executor retries", func() {
 	}
 
 	gg.BeforeEach(func() {
+		// AfterEach truncates the set, also when the spec is skipped below.
+		set = randString(50)
+
 		if tlsConfig != nil || *proxy {
 			gg.Skip("the request dropper needs a plain connection to a native node")
 		}
 
-		set = randString(50)
+		if len(client.GetNodes()) > 1 {
+			gg.Skip("the request dropper sits in front of one node, and the client reaches the other nodes directly")
+		}
+
 		for i := 0; i < keyCount; i++ {
 			key, err := as.NewKey(ns, set, i)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -277,9 +283,11 @@ var _ = gg.Describe("Partition executor retries", func() {
 	gg.AfterEach(func() {
 		if proxied != nil {
 			proxied.Close()
+			proxied = nil
 		}
 		if dropper != nil {
 			dropper.close()
+			dropper = nil
 		}
 		client.Truncate(nil, ns, set, nil)
 	})
