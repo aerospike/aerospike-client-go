@@ -29,6 +29,10 @@ type singleConnectionHeap struct {
 	size       uint32
 	full       bool
 	mutex      sync.Mutex
+	// refreshWG tracks async RefreshIdleTail goroutines that hold a connection
+	// off-pool. Node.Close/cleanup waits so shutdown does not return while a
+	// delayed RequestInfo still keeps the TCP socket open.
+	refreshWG sync.WaitGroup
 }
 
 // newSingleConnectionHeap creates a new heap with initial size.
@@ -60,9 +64,13 @@ func (h *singleConnectionHeap) cleanup() {
 
 	for _, conn := range conns {
 		if conn != nil {
-			conn.Close()
+			// cleanup is only used from Node.Close after pool drain.
+			conn.closeNodeRemoved()
 		}
 	}
+
+	// Join off-pool idle refreshes so their sockets are closed before Close returns.
+	h.refreshWG.Wait()
 }
 
 // Offer adds an item to the heap unless the heap is full.
@@ -136,18 +144,23 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 		h.full = false
 		h.mutex.Unlock()
 
-		if conn.node != nil {
-			conn.node.stats.ConnectionsIdleDropped.IncrementAndGet()
-		}
-
 		// close outside the lock so a slow socket close cannot block Poll and Offer
-		conn.Close()
+		conn.closeIdle()
 
 		return true
 	}
 
 	h.mutex.Unlock()
 	return false
+}
+
+// refreshIdleShouldDrop reports that an off-pool idle refresh should close the
+// socket instead of returning it to the heap (node/cluster shutting down).
+func refreshIdleShouldDrop(conn *Connection) bool {
+	if conn == nil || conn.node == nil || !conn.node.IsActive() {
+		return true
+	}
+	return conn.node.cluster != nil && conn.node.cluster.closed.Get()
 }
 
 // RefreshIdleTail closes idle connection in tail.
@@ -171,10 +184,23 @@ func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool 
 			h.full = false
 
 			// refresh in a goroutine asynchronously
+			h.refreshWG.Add(1)
 			go func() {
+				defer h.refreshWG.Done()
+
+				// Connection was removed from the pool; close it if shutdown raced us
+				// so Node.closeConnections cannot see it.
+				if refreshIdleShouldDrop(conn) {
+					conn.closeIdle()
+					return
+				}
 				conn.setTimeout(time.Second, time.Second)
 				conn.refresh()
 				if _, err := conn.RequestInfo("build"); err == nil {
+					if refreshIdleShouldDrop(conn) {
+						conn.closeIdle()
+						return
+					}
 					// return to the pool
 					conn.refresh()
 					if !h.Offer(conn) {
@@ -182,7 +208,7 @@ func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool 
 					}
 				} else {
 					// drop on error
-					conn.Close()
+					conn.closeOnError()
 				}
 			}()
 

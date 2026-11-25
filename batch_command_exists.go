@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		}
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
@@ -163,7 +163,8 @@ func (cmd *batchCommandExists) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandExists) Execute() Error {
-	if len(cmd.batch.offsets) == 1 {
+	// Keep wire batch when metrics child — see batchCommandGet.Execute.
+	if len(cmd.batch.offsets) == 1 && !cmd.metricsParentCall {
 		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
@@ -182,8 +183,8 @@ func (cmd *batchCommandExists) getNamespace() *string {
 }
 
 func (cmd *batchCommandExists) nsIter(yield func(string, uint64) bool) {
-	for _, key := range cmd.keys {
-		if !yield(key.namespace, 1) {
+	for _, offset := range cmd.batch.offsets {
+		if !yield(cmd.keys[offset].namespace, 1) {
 			return
 		}
 	}

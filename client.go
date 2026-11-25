@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1387,13 +1387,23 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	statement.prepare(false)
 
+	var filter *Expression
+	if policy != nil {
+		filter = policy.FilterExpression
+	}
+	metricsOn, sampled, callStart := clnt.beginBackgroundCallMetrics(ttQuery, filter)
+
 	var errs Error
 	for i := range nodes {
 		command := newServerCommand(nodes[i], policy, writePolicy, statement, taskId, ops)
+		if metricsOn {
+			command.setMetricsChild(sampled)
+		}
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
 	}
+	clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, errs)
 
 	return NewExecuteTask(clnt.cluster, statement, taskId), errs
 }
@@ -1422,13 +1432,23 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
+	var filter *Expression
+	if policy != nil {
+		filter = policy.FilterExpression
+	}
+	metricsOn, sampled, callStart := clnt.beginBackgroundCallMetrics(ttQuery, filter)
+
 	var errs Error
 	for i := range nodes {
 		command := newServerCommand(nodes[i], policy, nil, statement, taskId, nil)
+		if metricsOn {
+			command.setMetricsChild(sampled)
+		}
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
 	}
+	clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, errs)
 
 	return NewExecuteTask(clnt.cluster, statement, taskId), errs
 }
@@ -1457,8 +1477,18 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
+	var filter *Expression
+	if policy != nil {
+		filter = policy.FilterExpression
+	}
+	metricsOn, sampled, callStart := clnt.beginBackgroundCallMetrics(ttQuery, filter)
+
 	command := newServerCommand(node, policy, nil, statement, taskId, nil)
+	if metricsOn {
+		command.setMetricsChild(sampled)
+	}
 	err := command.Execute()
+	clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, err)
 
 	return NewExecuteTask(clnt.cluster, statement, taskId), err
 }
@@ -2283,6 +2313,8 @@ func (clnt *Client) MetricsEnabled() bool {
 // EnableMetrics enables the cluster command metrics gathering.
 // If the parameters for the histogram in the policy are different from the one already
 // on the cluster, the metrics will be reset.
+// When dynamic configuration includes a metrics block, enable/disable is owned by
+// YAML (metricsSyncCallBack); the API call is ignored with a warning.
 func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
 	if clnt.dynConfig == nil {
 		clnt.cluster.EnableMetrics(policy)
@@ -2296,7 +2328,9 @@ func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
 		currentConfig.Dynamic.Metrics == nil {
 
 		clnt.cluster.EnableMetrics(policy)
+		return
 	}
+	logger.Logger.Warn("Dynamic configuration metrics section is present. Metrics cannot be enabled via the client API; use metrics.enabled in YAML.")
 }
 
 // DisableMetrics disables the cluster command metrics gathering.
@@ -2306,6 +2340,12 @@ func (clnt *Client) DisableMetrics() {
 	} else {
 		clnt.cluster.DisableMetrics()
 	}
+}
+
+// MetricsSnapshot returns a point-in-time metrics snapshot. Always available;
+// counters are frozen when collection is off. Independent of the export timer.
+func (clnt *Client) MetricsSnapshot() *MetricsSnapshot {
+	return clnt.cluster.MetricsSnapshot()
 }
 
 // Stats returns internal statistics regarding the inner state of the client and the cluster.

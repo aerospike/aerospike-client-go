@@ -449,12 +449,19 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 
 	gg.It("exp read invalid flags stages no details", func() {
 		// A write-only policy flag on a read op is rejected structurally
-		// before any expression is built: rc 4 with NO error details staged.
+		// before any expression is built: rc 4 with no field-45 subcode/trace.
+		// Some server builds also attach a short result message; that is not
+		// an expression-detail payload (no SubCode / ExpTrace).
 		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR,
 			as.ExpReadOp("result", as.ExpNumAdd(as.ExpIntBin(binInt), as.ExpIntVal(1)),
 				as.ExpReadFlags(as.ExpWriteFlagCreateOnly)))
 
-		assertNoDetails(ae, types.PARAMETER_ERROR)
+		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR), "Unexpected result code")
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone), "Expected no subcode")
+		gm.Expect(ae.ExpTrace).To(gm.BeNil(), "Expected no expression trace")
+		if ae.ServerMessage != "" {
+			gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("invalid"))
+		}
 	})
 
 	gg.It("exp read eval fault div by zero surfaces an eval trace", func() {
@@ -763,7 +770,11 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		bp := as.NewBatchPolicy()
 		bp.ErrorDetailVerbosity = 3
 
-		// A one-row batch is sent as a single-record command.
+		// A one-row batch normally uses the point Operate fast path. With
+		// metrics enabled (suite default via EnableMetrics(nil)), the
+		// batchExecute child keeps the wire batch RPC for correct latency
+		// attribution, so the server still reports a batch-request filter
+		// build failure.
 		badPolicy := as.NewBatchReadPolicy()
 		badPolicy.FilterExpression = buildErrorExp()
 		recs := []*as.BatchRead{as.NewBatchRead(badPolicy, stdKey, nil)}
@@ -772,7 +783,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 
 		bad := recs[0].BatchRecord
 		gm.Expect(bad.ResultCode).To(gm.Equal(types.PARAMETER_ERROR), "Unexpected row result code")
-		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in request"))
+		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in batch request"))
 
 		t := bad.ExpTrace
 		gm.Expect(t).NotTo(gm.BeNil(), "Expected a build trace on the failing row")

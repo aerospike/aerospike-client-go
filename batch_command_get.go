@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -149,7 +149,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
@@ -276,7 +276,11 @@ func (cmd *batchCommandGet) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandGet) Execute() Error {
-	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
+	// One-key fast path uses point Get/Operate. When this sub-batch is a metrics
+	// child of batchExecute, nested point commands would double-count
+	// command.count / cluster.latency / feature.* and record namespace latency as
+	// read instead of batch — keep the wire batch path for correct attribution.
+	if cmd.objects == nil && len(cmd.batch.offsets) == 1 && !cmd.metricsParentCall {
 		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
@@ -295,8 +299,8 @@ func (cmd *batchCommandGet) getNamespace() *string {
 }
 
 func (cmd *batchCommandGet) nsIter(yield func(string, uint64) bool) {
-	for _, key := range cmd.keys {
-		if !yield(key.namespace, 1) {
+	for _, offset := range cmd.batch.offsets {
+		if !yield(cmd.keys[offset].namespace, 1) {
 			return
 		}
 	}

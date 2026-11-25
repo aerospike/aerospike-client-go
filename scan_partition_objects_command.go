@@ -97,5 +97,5 @@ func (cmd *scanPartitionObjectsCommand) getNamespace() *string {
 
 func (cmd *scanPartitionObjectsCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
 	// TODO: implement scan and query commands later
-	conn.Close()
+	conn.closeOnError()
 }

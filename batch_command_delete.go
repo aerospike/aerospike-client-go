@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 		}
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
@@ -129,7 +129,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 			}
 		} else {
 			cmd.records[batchIndex].Err = chainErrors(newCustomNodeError(cmd.node, resultCode), cmd.records[batchIndex].Err)
-			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 		}
 	}
 	return true, nil
@@ -218,7 +218,8 @@ func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandDelete) Execute() Error {
-	if len(cmd.batch.offsets) == 1 {
+	// Skip point Operate when metrics child — see batchCommandGet.Execute.
+	if len(cmd.batch.offsets) == 1 && !cmd.metricsParentCall {
 		return cmd.executeSingle(cmd.client)
 	}
 	err := cmd.execute(cmd)
@@ -258,8 +259,8 @@ func (cmd *batchCommandDelete) getNamespace() *string {
 }
 
 func (cmd *batchCommandDelete) nsIter(yield func(string, uint64) bool) {
-	for _, key := range cmd.keys {
-		if !yield(key.namespace, 1) {
+	for _, offset := range cmd.batch.offsets {
+		if !yield(cmd.keys[offset].namespace, 1) {
 			return
 		}
 	}

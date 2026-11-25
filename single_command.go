@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ type singleCommand struct {
 
 func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCommand {
 	return singleCommand{
-		baseCommand: baseCommand{},
+		baseCommand: baseCommand{cluster: cluster},
 		cluster:     cluster,
 		key:         key,
 		partition:   partition,
@@ -82,18 +82,18 @@ func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connecti
 	// Only a connection drained to the end of a response of known length can be reused.
 	remaining := conn.expectedReceived - conn.totalReceived
 	if conn.expectedReceived <= 0 || remaining < 0 {
-		conn.Close()
+		conn.closeOnError()
 		return
 	}
 
 	if remaining > 0 {
 		if err := conn.conn.SetDeadline(time.Now().Add(timeoutDelay)); err != nil {
-			conn.Close()
+			conn.closeOnError()
 			return
 		}
 
 		if n, err := io.CopyN(io.Discard, conn.conn, remaining); err != nil || n != remaining {
-			conn.Close()
+			conn.closeOnError()
 			return
 		}
 	}

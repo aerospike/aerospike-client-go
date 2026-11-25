@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			if resultCode == types.UDF_BAD_RESPONSE {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 				if err != nil {
-					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 					return false, err
 				}
 
@@ -141,9 +141,9 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				// Need to store record because failure bin contains an error message.
 				cmd.records[batchIndex].setRecord(rec)
 				if msg, ok := msg.(string); ok && len(msg) > 0 {
-					cmd.records[batchIndex].setErrorWithMsg(cmd.node, resultCode, msg, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+					cmd.records[batchIndex].setErrorWithMsg(cmd.node, resultCode, msg, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 				} else {
-					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 				}
 
 				// If cmd is the end marker of the response, do not proceed further
@@ -154,7 +154,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				continue
 			}
 
-			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 
 			// If cmd is the end marker of the response, do not proceed further
 			if (info3 & _INFO3_LAST) == _INFO3_LAST {
@@ -164,7 +164,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 		}
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
@@ -173,7 +173,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			if cmd.objects == nil {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 				if err != nil {
-					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 					return false, err
 				}
 				cmd.records[batchIndex].setRecord(rec)
@@ -297,7 +297,8 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandOperate) Execute() Error {
-	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
+	// Skip point Operate when metrics child — see batchCommandGet.Execute.
+	if cmd.objects == nil && len(cmd.batch.offsets) == 1 && !cmd.metricsParentCall {
 		return cmd.executeSingle(cmd.client)
 	}
 	err := cmd.execute(cmd)
@@ -341,8 +342,8 @@ func (cmd *batchCommandOperate) getNamespace() *string {
 }
 
 func (cmd *batchCommandOperate) nsIter(yield func(string, uint64) bool) {
-	for _, br := range cmd.records {
-		if !yield(br.key().namespace, 1) {
+	for _, offset := range cmd.batch.offsets {
+		if !yield(cmd.records[offset].key().namespace, 1) {
 			return
 		}
 	}

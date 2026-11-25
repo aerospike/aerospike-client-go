@@ -277,7 +277,7 @@ func newBatchOperateNodeListIfc(cluster *Cluster, policy *BatchPolicy, records [
 
 		if err != nil {
 			records[i].chainError(err)
-			records[i].setError(node, err.resultCode(), false)
+			records[i].setError(node, err.resultCode(), false, false)
 			// Don't interrupt the batch request because of INVALID_NAMESPACE error
 			// These keys will not be sent to the server
 			if !err.Matches(types.INVALID_NAMESPACE) {

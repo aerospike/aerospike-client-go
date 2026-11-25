@@ -166,7 +166,8 @@ var _ = gg.Describe("Pooled connections cut while idle", func() {
 		expectReadWithoutRetry()
 
 		for _, conn := range pooled {
-			gm.Expect(conn.IsConnected()).To(gm.BeFalse(), "a cut pooled connection was not discarded")
+			gm.Eventually(conn.IsConnected, 2*time.Second, 20*time.Millisecond).
+				Should(gm.BeFalse(), "a cut pooled connection was not discarded")
 		}
 		gm.Expect(proxy.accepted.Load()).To(gm.BeNumerically(">", acceptedBeforeCut), "no replacement connection was opened")
 

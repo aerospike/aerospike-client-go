@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,8 +38,9 @@ type detailedResultCodeArray = [ttMaxCommandTypes]atomic.Pointer[commandResultCo
 // These statistics are aggregated once per tend in the cluster object
 // and then are served to the end-user.
 type nodeStats struct {
-	// MetricsPolicy contains policy, default values for histograms, which are used on node_stats init time
-	metricPolicy *MetricsPolicy
+	// MetricsPolicy contains policy, default values for histograms, which are used on node_stats init time.
+	// Stored atomically so reshape can swap without racing hot-path readers.
+	metricPolicy atomic.Pointer[MetricsPolicy]
 
 	// Labels sourced once at applications start and passed down to metrics when metrics are enabled
 	StatLabels *Labels `json:"labels,omitempty"`
@@ -57,10 +58,17 @@ type nodeStats struct {
 	CircuitBreakerHits iatomic.Int `json:"circuit-breaker-hits"`
 	// The command polled the connection pool, but no connections were in the pool
 	ConnectionsPoolEmpty iatomic.Int `json:"connections-pool-empty"`
+	// Pool at capacity with no idle socket (node.connections.pool.exhausted).
+	ConnectionsPoolExhausted iatomic.Int `json:"connections-pool-exhausted"`
 	// The command offered the connection to the pool, but the pool was full and the connection was closed
 	ConnectionsPoolOverflow iatomic.Int `json:"connections-pool-overflow"`
 	// The connection was idle and was dropped
 	ConnectionsIdleDropped iatomic.Int `json:"connections-idle-dropped"`
+	// Error-path connection closes (connection.closed.error).
+	ConnectionsClosedError iatomic.Int `json:"connections-closed-error"`
+	// Connections closed because the node left the cluster (connection.closed.node_removed).
+	// Per connection, not per node teardown (NodeRemoved remains the teardown diagnostic).
+	ConnectionsClosedNodeRemoved iatomic.Int `json:"connections-closed-node-removed"`
 	// Number of open connections at a given time
 	ConnectionsOpen iatomic.Int `json:"open-connections"`
 	// Number of connections that were closed, for any reason (idled out, errored out, etc)
@@ -109,6 +117,30 @@ type nodeStats struct {
 	DetailedResultCodeCounts sync.Map // map[string]*detailedResultCodeArray
 	// Detailed metrics for per namespace and per command type - using preallocated arrays for commandType (lock-free)
 	DetailedMetrics sync.Map // map[string]*detailedMetricsArray
+
+	// Shared MUST operational series (namespace.errors, bytes, latency classes).
+	OperationalNamespaces sync.Map // map[string]*nsOperationalMetrics
+
+	// node.latency.conn — successful new socket open. Not sampler-gated.
+	ConnLatency hist.SyncLatencyBuckets
+
+	// On existing Node (open.failure rolls up tls/auth).
+	ConnectionOpenFailure         iatomic.Int `json:"connection-open-failure"`
+	ConnectionTlsHandshakeFailure iatomic.Int `json:"connection-tls-handshake-failure"`
+	ConnectionAuthFailure         iatomic.Int `json:"connection-auth-failure"`
+}
+
+// nsOperationalMetrics is the shared per-namespace operational block.
+type nsOperationalMetrics struct {
+	Errors         iatomic.Int
+	ClientTimeouts iatomic.Int
+	ServerTimeouts iatomic.Int
+	KeyBusy        iatomic.Int
+	RecordTooBig   iatomic.Int
+	DeviceOverload iatomic.Int
+	BytesIn        iatomic.Int
+	BytesOut       iatomic.Int
+	Latencies      [latencyTypeMax]hist.SyncLatencyBuckets
 }
 
 // commandResultCodeMetric keeps track of the ResultCode counts for a given command
@@ -125,14 +157,23 @@ type commandMetric struct {
 	BytesReceived hist.SyncHistogram[uint64] `json:"bytes-received"`
 }
 
+// getMetricPolicy returns the current metrics policy (may be nil before reshape).
+func (n *nodeStats) getMetricPolicy() *MetricsPolicy {
+	return n.metricPolicy.Load()
+}
+
 // newCommandMetric creates a new CommandMetric object
 func (n *nodeStats) newCommandMetric() *commandMetric {
+	policy := n.getMetricPolicy()
+	if policy == nil {
+		policy = DefaultMetricsPolicy()
+	}
 	return &commandMetric{
-		ConnectionAq:  *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Latency:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Parsing:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesSent:     *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesReceived: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		ConnectionAq:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		Latency:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		Parsing:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BytesSent:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BytesReceived: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 	}
 }
 
@@ -142,21 +183,30 @@ func newNodeStats(policy *MetricsPolicy) *nodeStats {
 		policy = DefaultMetricsPolicy()
 	}
 
-	return &nodeStats{
-		metricPolicy:     policy,
-		StatLabels:       NewLabels(),
-		GetMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		GetHeaderMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ExistsMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		PutMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		DeleteMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		OperateMetrics:   *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		QueryMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ScanMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		UDFMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+	cols, shift := policy.LatencyColumns, policy.LatencyShift
+	if cols < 1 {
+		cols = defaultLatencyColumns
+	}
+	if shift < 1 {
+		shift = defaultLatencyShift
+	}
+	ns := &nodeStats{
+		StatLabels:        NewLabels(),
+		GetMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		GetHeaderMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ExistsMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		PutMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DeleteMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		OperateMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		QueryMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ScanMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		UDFMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 		BatchReadMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 		BatchWriteMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ConnLatency:       *hist.NewSyncLatencyBuckets(cols, shift),
 	}
+	ns.metricPolicy.Store(policy)
+	return ns
 }
 
 // newCommandResultCodeMetric creates a new CommandErrorMetric object
@@ -220,7 +270,6 @@ func (n *nodeStats) getOrCreateResultCodeMetric(arr *detailedResultCodeArray, ct
 // latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) getAndReset() *nodeStats {
 	res := &nodeStats{
-		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
 		ConnectionsAttempts:      ns.ConnectionsAttempts.CloneAndSet(0),
 		ConnectionsSuccessful:    ns.ConnectionsSuccessful.CloneAndSet(0),
@@ -229,43 +278,52 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 		ConnectionsOtherErrors:   ns.ConnectionsOtherErrors.CloneAndSet(0),
 		CircuitBreakerHits:       ns.CircuitBreakerHits.CloneAndSet(0),
 		ConnectionsPoolEmpty:     ns.ConnectionsPoolEmpty.CloneAndSet(0),
+		ConnectionsPoolExhausted: ns.ConnectionsPoolExhausted.CloneAndSet(0),
 		ConnectionsPoolOverflow:  ns.ConnectionsPoolOverflow.CloneAndSet(0),
-		ConnectionsIdleDropped:   ns.ConnectionsIdleDropped.CloneAndSet(0),
-		ConnectionsOpen:          ns.ConnectionsOpen.CloneAndSet(0),
-		ConnectionsClosed:        ns.ConnectionsClosed.CloneAndSet(0),
-		ConnectionsRecovered:     ns.ConnectionsRecovered.CloneAndSet(0),
-		TendsTotal:               ns.TendsTotal.CloneAndSet(0),
-		TendsSuccessful:          ns.TendsSuccessful.CloneAndSet(0),
-		TendsFailed:              ns.TendsFailed.CloneAndSet(0),
-		PartitionMapUpdates:      ns.PartitionMapUpdates.CloneAndSet(0),
-		NodeAdded:                ns.NodeAdded.CloneAndSet(0),
-		NodeRemoved:              ns.NodeRemoved.CloneAndSet(0),
+		ConnectionsIdleDropped:       ns.ConnectionsIdleDropped.CloneAndSet(0),
+		ConnectionsClosedError:       ns.ConnectionsClosedError.CloneAndSet(0),
+		ConnectionsClosedNodeRemoved: ns.ConnectionsClosedNodeRemoved.CloneAndSet(0),
+		ConnectionsOpen:              ns.ConnectionsOpen.CloneAndSet(0),
+		ConnectionsClosed:            ns.ConnectionsClosed.CloneAndSet(0),
+		ConnectionsRecovered:         ns.ConnectionsRecovered.CloneAndSet(0),
+		TendsTotal:                   ns.TendsTotal.CloneAndSet(0),
+		TendsSuccessful:              ns.TendsSuccessful.CloneAndSet(0),
+		TendsFailed:                  ns.TendsFailed.CloneAndSet(0),
+		PartitionMapUpdates:          ns.PartitionMapUpdates.CloneAndSet(0),
+		NodeAdded:                    ns.NodeAdded.CloneAndSet(0),
+		NodeRemoved:                  ns.NodeRemoved.CloneAndSet(0),
 
 		TransactionRetryCount: ns.TransactionRetryCount.CloneAndSet(0),
 		TransactionErrorCount: ns.TransactionErrorCount.CloneAndSet(0),
 
-		GetMetrics:       *ns.GetMetrics.CloneAndReset(),
-		GetHeaderMetrics: *ns.GetHeaderMetrics.CloneAndReset(),
-		ExistsMetrics:    *ns.ExistsMetrics.CloneAndReset(),
-		PutMetrics:       *ns.PutMetrics.CloneAndReset(),
-		DeleteMetrics:    *ns.DeleteMetrics.CloneAndReset(),
-		OperateMetrics:   *ns.OperateMetrics.CloneAndReset(),
-		QueryMetrics:     *ns.QueryMetrics.CloneAndReset(),
-		ScanMetrics:      *ns.ScanMetrics.CloneAndReset(),
-		UDFMetrics:       *ns.UDFMetrics.CloneAndReset(),
+		ConnectionOpenFailure:         ns.ConnectionOpenFailure.CloneAndSet(0),
+		ConnectionTlsHandshakeFailure: ns.ConnectionTlsHandshakeFailure.CloneAndSet(0),
+		ConnectionAuthFailure:         ns.ConnectionAuthFailure.CloneAndSet(0),
+
+		GetMetrics:        *ns.GetMetrics.CloneAndReset(),
+		GetHeaderMetrics:  *ns.GetHeaderMetrics.CloneAndReset(),
+		ExistsMetrics:     *ns.ExistsMetrics.CloneAndReset(),
+		PutMetrics:        *ns.PutMetrics.CloneAndReset(),
+		DeleteMetrics:     *ns.DeleteMetrics.CloneAndReset(),
+		OperateMetrics:    *ns.OperateMetrics.CloneAndReset(),
+		QueryMetrics:      *ns.QueryMetrics.CloneAndReset(),
+		ScanMetrics:       *ns.ScanMetrics.CloneAndReset(),
+		UDFMetrics:        *ns.UDFMetrics.CloneAndReset(),
 		BatchReadMetrics:  *ns.BatchReadMetrics.CloneAndReset(),
 		BatchWriteMetrics: *ns.BatchWriteMetrics.CloneAndReset(),
+		ConnLatency:       hist.SyncLatencyBucketsFromSnapshot(ns.ConnLatency.CloneAndReset()),
 	}
+	res.metricPolicy.Store(ns.getMetricPolicy())
 
 	ns.cloneAndResetDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
 	ns.cloneAndResetDetailedMetricsInto(&res.DetailedMetrics)
+	ns.cloneAndResetOperationalInto(res)
 
 	return res
 }
 
 func (ns *nodeStats) clone() nodeStats {
 	res := nodeStats{
-		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
 		ConnectionsAttempts:      ns.ConnectionsAttempts.Clone(),
 		ConnectionsSuccessful:    ns.ConnectionsSuccessful.Clone(),
@@ -274,36 +332,46 @@ func (ns *nodeStats) clone() nodeStats {
 		ConnectionsOtherErrors:   ns.ConnectionsOtherErrors.Clone(),
 		CircuitBreakerHits:       ns.CircuitBreakerHits.Clone(),
 		ConnectionsPoolEmpty:     ns.ConnectionsPoolEmpty.Clone(),
+		ConnectionsPoolExhausted: ns.ConnectionsPoolExhausted.Clone(),
 		ConnectionsPoolOverflow:  ns.ConnectionsPoolOverflow.Clone(),
-		ConnectionsIdleDropped:   ns.ConnectionsIdleDropped.Clone(),
-		ConnectionsOpen:          ns.ConnectionsOpen.Clone(),
-		ConnectionsClosed:        ns.ConnectionsClosed.Clone(),
-		ConnectionsRecovered:     ns.ConnectionsRecovered.Clone(),
-		TendsTotal:               ns.TendsTotal.Clone(),
-		TendsSuccessful:          ns.TendsSuccessful.Clone(),
-		TendsFailed:              ns.TendsFailed.Clone(),
-		PartitionMapUpdates:      ns.PartitionMapUpdates.Clone(),
-		NodeAdded:                ns.NodeAdded.Clone(),
-		NodeRemoved:              ns.NodeRemoved.Clone(),
+		ConnectionsIdleDropped:       ns.ConnectionsIdleDropped.Clone(),
+		ConnectionsClosedError:       ns.ConnectionsClosedError.Clone(),
+		ConnectionsClosedNodeRemoved: ns.ConnectionsClosedNodeRemoved.Clone(),
+		ConnectionsOpen:              ns.ConnectionsOpen.Clone(),
+		ConnectionsClosed:            ns.ConnectionsClosed.Clone(),
+		ConnectionsRecovered:         ns.ConnectionsRecovered.Clone(),
+		TendsTotal:                   ns.TendsTotal.Clone(),
+		TendsSuccessful:              ns.TendsSuccessful.Clone(),
+		TendsFailed:                  ns.TendsFailed.Clone(),
+		PartitionMapUpdates:          ns.PartitionMapUpdates.Clone(),
+		NodeAdded:                    ns.NodeAdded.Clone(),
+		NodeRemoved:                  ns.NodeRemoved.Clone(),
 
 		TransactionRetryCount: ns.TransactionRetryCount.Clone(),
 		TransactionErrorCount: ns.TransactionErrorCount.Clone(),
 
-		GetMetrics:       *ns.GetMetrics.Clone(),
-		GetHeaderMetrics: *ns.GetHeaderMetrics.Clone(),
-		ExistsMetrics:    *ns.ExistsMetrics.Clone(),
-		PutMetrics:       *ns.PutMetrics.Clone(),
-		DeleteMetrics:    *ns.DeleteMetrics.Clone(),
-		OperateMetrics:   *ns.OperateMetrics.Clone(),
-		QueryMetrics:     *ns.QueryMetrics.Clone(),
-		ScanMetrics:      *ns.ScanMetrics.Clone(),
-		UDFMetrics:       *ns.UDFMetrics.Clone(),
+		ConnectionOpenFailure:         ns.ConnectionOpenFailure.Clone(),
+		ConnectionTlsHandshakeFailure: ns.ConnectionTlsHandshakeFailure.Clone(),
+		ConnectionAuthFailure:         ns.ConnectionAuthFailure.Clone(),
+
+		GetMetrics:        *ns.GetMetrics.Clone(),
+		GetHeaderMetrics:  *ns.GetHeaderMetrics.Clone(),
+		ExistsMetrics:     *ns.ExistsMetrics.Clone(),
+		PutMetrics:        *ns.PutMetrics.Clone(),
+		DeleteMetrics:     *ns.DeleteMetrics.Clone(),
+		OperateMetrics:    *ns.OperateMetrics.Clone(),
+		QueryMetrics:      *ns.QueryMetrics.Clone(),
+		ScanMetrics:       *ns.ScanMetrics.Clone(),
+		UDFMetrics:        *ns.UDFMetrics.Clone(),
 		BatchReadMetrics:  *ns.BatchReadMetrics.Clone(),
 		BatchWriteMetrics: *ns.BatchWriteMetrics.Clone(),
+		ConnLatency:       hist.SyncLatencyBucketsFromSnapshot(ns.ConnLatency.Clone()),
 	}
+	res.metricPolicy.Store(ns.getMetricPolicy())
 
 	ns.cloneDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
 	ns.cloneDetailedMetricsInto(&res.DetailedMetrics)
+	ns.cloneOperationalInto(&res)
 
 	return res
 }
@@ -401,7 +469,9 @@ func (ns *nodeStats) cloneAndResetDetailedResultCodeCountsInto(target *sync.Map)
 }
 
 func (ns *nodeStats) reshape(policy *MetricsPolicy) {
-	ns.metricPolicy = policy
+	prev := ns.metricPolicy.Load()
+	unitChanged := prev != nil && prev.LatencyUnit != policy.LatencyUnit
+	ns.metricPolicy.Store(policy)
 	ns.StatLabels = NewLabels()
 	ns.GetMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.GetHeaderMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
@@ -416,6 +486,17 @@ func (ns *nodeStats) reshape(policy *MetricsPolicy) {
 	ns.BatchWriteMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.reshapeDetailedResultCodeCounts()
 	ns.reshapeDetailedMetrics()
+	if unitChanged {
+		ns.ConnLatency.Reset()
+		ns.OperationalNamespaces.Range(func(_, value any) bool {
+			op := value.(*nsOperationalMetrics)
+			for i := range op.Latencies {
+				op.Latencies[i].Reset()
+			}
+			return true
+		})
+	}
+	ns.reshapeOperational()
 }
 
 func (ns *nodeStats) aggregate(newStats *nodeStats) {
@@ -427,8 +508,11 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.ConnectionsOtherErrors.AddAndGet(newStats.ConnectionsOtherErrors.Get())
 	ns.CircuitBreakerHits.AddAndGet(newStats.CircuitBreakerHits.Get())
 	ns.ConnectionsPoolEmpty.AddAndGet(newStats.ConnectionsPoolEmpty.Get())
+	ns.ConnectionsPoolExhausted.AddAndGet(newStats.ConnectionsPoolExhausted.Get())
 	ns.ConnectionsPoolOverflow.AddAndGet(newStats.ConnectionsPoolOverflow.Get())
 	ns.ConnectionsIdleDropped.AddAndGet(newStats.ConnectionsIdleDropped.Get())
+	ns.ConnectionsClosedError.AddAndGet(newStats.ConnectionsClosedError.Get())
+	ns.ConnectionsClosedNodeRemoved.AddAndGet(newStats.ConnectionsClosedNodeRemoved.Get())
 	ns.ConnectionsOpen.AddAndGet(newStats.ConnectionsOpen.Get())
 	ns.ConnectionsClosed.AddAndGet(newStats.ConnectionsClosed.Get())
 	ns.ConnectionsRecovered.AddAndGet(newStats.ConnectionsRecovered.Get())
@@ -441,6 +525,9 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 
 	ns.TransactionRetryCount.AddAndGet(newStats.TransactionRetryCount.Get())
 	ns.TransactionErrorCount.AddAndGet(newStats.TransactionErrorCount.Get())
+	ns.ConnectionOpenFailure.AddAndGet(newStats.ConnectionOpenFailure.Get())
+	ns.ConnectionTlsHandshakeFailure.AddAndGet(newStats.ConnectionTlsHandshakeFailure.Get())
+	ns.ConnectionAuthFailure.AddAndGet(newStats.ConnectionAuthFailure.Get())
 
 	ns.GetMetrics.Merge(&newStats.GetMetrics)
 	ns.GetHeaderMetrics.Merge(&newStats.GetHeaderMetrics)
@@ -453,8 +540,10 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.UDFMetrics.Merge(&newStats.UDFMetrics)
 	ns.BatchReadMetrics.Merge(&newStats.BatchReadMetrics)
 	ns.BatchWriteMetrics.Merge(&newStats.BatchWriteMetrics)
+	ns.ConnLatency.Merge(newStats.ConnLatency.Clone())
 	ns.mergeCommandResultCodeMetric(newStats)
 	ns.mergeDetailedMetrics(newStats)
+	ns.mergeOperational(newStats)
 }
 
 func (ns nodeStats) MarshalJSON() ([]byte, error) {
@@ -467,32 +556,35 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ConnectionsOtherErrors   int                                  `json:"connections-error-other"`
 		CircuitBreakerHits       int                                  `json:"circuit-breaker-hits"`
 		ConnectionsPoolEmpty     int                                  `json:"connections-pool-empty"`
+		ConnectionsPoolExhausted int                                  `json:"connections-pool-exhausted"`
 		ConnectionsPoolOverflow  int                                  `json:"connections-pool-overflow"`
-		ConnectionsIdleDropped   int                                  `json:"connections-idle-dropped"`
-		ConnectionsOpen          int                                  `json:"open-connections"`
-		ConnectionsClosed        int                                  `json:"closed-connections"`
-		ConnectionsRecovered     int                                  `json:"connections-recovered"`
-		TendsTotal               int                                  `json:"tends-total"`
-		TendsSuccessful          int                                  `json:"tends-successful"`
-		TendsFailed              int                                  `json:"tends-failed"`
-		PartitionMapUpdates      int                                  `json:"partition-map-updates"`
-		NodeAdded                int                                  `json:"node-added-count"`
-		NodeRemoved              int                                  `json:"node-removed-count"`
-		RetryCount               int                                  `json:"transaction-retry-count"`
-		ErrorCount               int                                  `json:"transaction-error-count"`
-		GetMetrics               hist.SyncHistogram[uint64]           `json:"get-metrics"`
-		GetHeaderMetrics         hist.SyncHistogram[uint64]           `json:"get-header-metrics"`
-		ExistsMetrics            hist.SyncHistogram[uint64]           `json:"exists-metrics"`
-		PutMetrics               hist.SyncHistogram[uint64]           `json:"put-metrics"`
-		DeleteMetrics            hist.SyncHistogram[uint64]           `json:"delete-metrics"`
-		OperateMetrics           hist.SyncHistogram[uint64]           `json:"operate-metrics"`
-		QueryMetrics             hist.SyncHistogram[uint64]           `json:"query-metrics"`
-		ScanMetrics              hist.SyncHistogram[uint64]           `json:"scan-metrics"`
-		UDFMetrics               hist.SyncHistogram[uint64]           `json:"udf-metrics"`
-		BatchReadMetrics         hist.SyncHistogram[uint64]           `json:"batch-read-metrics"`
-		BatchWriteMetrics        hist.SyncHistogram[uint64]           `json:"batch-write-metrics"`
-		ErrorCounts              map[string]map[string]map[string]int `json:"detailed-resultcode-counts"`
-		DetailedMetrics          map[string]map[string]*commandMetric `json:"detailed-metrics"`
+		ConnectionsIdleDropped       int                                  `json:"connections-idle-dropped"`
+		ConnectionsClosedError       int                                  `json:"connections-closed-error"`
+		ConnectionsClosedNodeRemoved int                                  `json:"connections-closed-node-removed"`
+		ConnectionsOpen              int                                  `json:"open-connections"`
+		ConnectionsClosed            int                                  `json:"closed-connections"`
+		ConnectionsRecovered         int                                  `json:"connections-recovered"`
+		TendsTotal                   int                                  `json:"tends-total"`
+		TendsSuccessful              int                                  `json:"tends-successful"`
+		TendsFailed                  int                                  `json:"tends-failed"`
+		PartitionMapUpdates          int                                  `json:"partition-map-updates"`
+		NodeAdded                    int                                  `json:"node-added-count"`
+		NodeRemoved                  int                                  `json:"node-removed-count"`
+		RetryCount                   int                                  `json:"transaction-retry-count"`
+		ErrorCount                   int                                  `json:"transaction-error-count"`
+		GetMetrics                   hist.SyncHistogram[uint64]           `json:"get-metrics"`
+		GetHeaderMetrics             hist.SyncHistogram[uint64]           `json:"get-header-metrics"`
+		ExistsMetrics                hist.SyncHistogram[uint64]           `json:"exists-metrics"`
+		PutMetrics                   hist.SyncHistogram[uint64]           `json:"put-metrics"`
+		DeleteMetrics                hist.SyncHistogram[uint64]           `json:"delete-metrics"`
+		OperateMetrics               hist.SyncHistogram[uint64]           `json:"operate-metrics"`
+		QueryMetrics                 hist.SyncHistogram[uint64]           `json:"query-metrics"`
+		ScanMetrics                  hist.SyncHistogram[uint64]           `json:"scan-metrics"`
+		UDFMetrics                   hist.SyncHistogram[uint64]           `json:"udf-metrics"`
+		BatchReadMetrics             hist.SyncHistogram[uint64]           `json:"batch-read-metrics"`
+		BatchWriteMetrics            hist.SyncHistogram[uint64]           `json:"batch-write-metrics"`
+		ErrorCounts                  map[string]map[string]map[string]int `json:"detailed-resultcode-counts"`
+		DetailedMetrics              map[string]map[string]*commandMetric `json:"detailed-metrics"`
 	}{
 		*ns.StatLabels,
 		ns.ConnectionsAttempts.Get(),
@@ -502,8 +594,11 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ns.ConnectionsOtherErrors.Get(),
 		ns.CircuitBreakerHits.Get(),
 		ns.ConnectionsPoolEmpty.Get(),
+		ns.ConnectionsPoolExhausted.Get(),
 		ns.ConnectionsPoolOverflow.Get(),
 		ns.ConnectionsIdleDropped.Get(),
+		ns.ConnectionsClosedError.Get(),
+		ns.ConnectionsClosedNodeRemoved.Get(),
 		ns.ConnectionsOpen.Get(),
 		ns.ConnectionsClosed.Get(),
 		ns.ConnectionsRecovered.Get(),
@@ -588,17 +683,20 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		ConnectionsOtherErrors   int `json:"connections-error-other"`
 		CircuitBreakerHits       int `json:"circuit-breaker-hits"`
 		ConnectionsPoolEmpty     int `json:"connections-pool-empty"`
+		ConnectionsPoolExhausted int `json:"connections-pool-exhausted"`
 		ConnectionsPoolOverflow  int `json:"connections-pool-overflow"`
-		ConnectionsIdleDropped   int `json:"connections-idle-dropped"`
-		ConnectionsOpen          int `json:"open-connections"`
-		ConnectionsClosed        int `json:"closed-connections"`
-		ConnectionsRecovered     int `json:"connections-recovered"`
-		TendsTotal               int `json:"tends-total"`
-		TendsSuccessful          int `json:"tends-successful"`
-		TendsFailed              int `json:"tends-failed"`
-		PartitionMapUpdates      int `json:"partition-map-updates"`
-		NodeAdded                int `json:"node-added-count"`
-		NodeRemoved              int `json:"node-removed-count"`
+		ConnectionsIdleDropped       int `json:"connections-idle-dropped"`
+		ConnectionsClosedError       int `json:"connections-closed-error"`
+		ConnectionsClosedNodeRemoved int `json:"connections-closed-node-removed"`
+		ConnectionsOpen              int `json:"open-connections"`
+		ConnectionsClosed            int `json:"closed-connections"`
+		ConnectionsRecovered         int `json:"connections-recovered"`
+		TendsTotal                   int `json:"tends-total"`
+		TendsSuccessful              int `json:"tends-successful"`
+		TendsFailed                  int `json:"tends-failed"`
+		PartitionMapUpdates          int `json:"partition-map-updates"`
+		NodeAdded                    int `json:"node-added-count"`
+		NodeRemoved                  int `json:"node-removed-count"`
 
 		RetryCount int `json:"transaction-retry-count"`
 		ErrorCount int `json:"transaction-error-count"`
@@ -629,8 +727,11 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 	ns.ConnectionsOtherErrors.Set(aux.ConnectionsOtherErrors)
 	ns.CircuitBreakerHits.Set(aux.CircuitBreakerHits)
 	ns.ConnectionsPoolEmpty.Set(aux.ConnectionsPoolEmpty)
+	ns.ConnectionsPoolExhausted.Set(aux.ConnectionsPoolExhausted)
 	ns.ConnectionsPoolOverflow.Set(aux.ConnectionsPoolOverflow)
 	ns.ConnectionsIdleDropped.Set(aux.ConnectionsIdleDropped)
+	ns.ConnectionsClosedError.Set(aux.ConnectionsClosedError)
+	ns.ConnectionsClosedNodeRemoved.Set(aux.ConnectionsClosedNodeRemoved)
 	ns.ConnectionsOpen.Set(aux.ConnectionsOpen)
 	ns.ConnectionsClosed.Set(aux.ConnectionsClosed)
 	ns.ConnectionsRecovered.Set(aux.ConnectionsRecovered)
@@ -753,6 +854,10 @@ func (n *nodeStats) mergeCommandResultCodeMetric(ns *nodeStats) {
 
 // reshapeDetailedMetrics reshapes the detailed metrics as defined by `hist.SyncHistogram`
 func (n *nodeStats) reshapeDetailedMetrics() {
+	policy := n.getMetricPolicy()
+	if policy == nil {
+		policy = DefaultMetricsPolicy()
+	}
 	n.DetailedMetrics.Range(func(key, value any) bool {
 		arr := value.(*detailedMetricsArray)
 		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
@@ -760,11 +865,11 @@ func (n *nodeStats) reshapeDetailedMetrics() {
 			if metric == nil {
 				continue
 			}
-			metric.ConnectionAq.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			metric.ConnectionAq.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.Latency.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.Parsing.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.BytesSent.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.BytesReceived.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 		}
 		return true
 	})
@@ -787,7 +892,9 @@ func (n *nodeStats) reshapeDetailedResultCodeCounts() {
 	})
 }
 
-// updateOrInsert updates result code counts (lock-free)
+// updateOrInsert updates detailed (Go-local) result code counts (lock-free).
+// Shared namespace.* error/timeout split counters are updated separately via
+// recordAttemptFailure (once per failed attempt).
 func (n *nodeStats) updateOrInsert(namespace *string, namespaces iter.Seq2[string, uint64], ct commandType, resultCode types.ResultCode) {
 	if namespace != nil {
 		arr := n.getOrCreateResultCodeArray(*namespace)

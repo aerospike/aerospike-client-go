@@ -1,4 +1,4 @@
-// Copyright 2014-2024 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,6 +161,58 @@ var _ = gg.Describe("Histogram", func() {
 				gm.Expect(h.Sum).To(gm.Equal(sum))
 				gm.Expect(h.Buckets).To(gm.Equal([]uint64{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 3, 2, 1, 2, 2}))
 				gm.Expect(h.Median()).To(gm.Equal(uint64(1 << 14)))
+			})
+		})
+		gg.Context("LatencyBuckets", func() {
+			gg.It("uses shift buckets matching learn-metrics defaults", func() {
+				h := histogram.NewLatencyBuckets(7, 1)
+				h.Add(0)
+				h.Add(1)
+				h.Add(2)
+				h.Add(3)
+				h.Add(5)
+				h.Add(33)
+				gm.Expect(h.Buckets).To(gm.Equal([]uint64{2, 1, 1, 1, 0, 0, 1}))
+				gm.Expect(histogram.LatencyBucketIndex(1, 7, 1)).To(gm.Equal(0))
+				gm.Expect(histogram.LatencyBucketIndex(2, 7, 1)).To(gm.Equal(1))
+				gm.Expect(histogram.LatencyBucketIndex(4, 7, 1)).To(gm.Equal(2))
+				gm.Expect(histogram.LatencyBucketIndex(8, 7, 1)).To(gm.Equal(3))
+			})
+
+			gg.It("preserves Min of 0 across Merge", func() {
+				a := histogram.NewLatencyBuckets(7, 1)
+				a.Add(0)
+				a.Add(0)
+				b := histogram.NewLatencyBuckets(7, 1)
+				b.Add(3)
+				a.Merge(b)
+				gm.Expect(a.Min).To(gm.Equal(uint64(0)))
+				gm.Expect(a.Max).To(gm.Equal(uint64(3)))
+				gm.Expect(a.Count).To(gm.Equal(uint64(3)))
+			})
+
+			gg.It("Add on zero-value buckets is a no-op", func() {
+				var h histogram.LatencyBuckets
+				gm.Expect(func() { h.Add(5) }).NotTo(gm.Panic())
+				gm.Expect(h.Count).To(gm.Equal(uint64(0)))
+			})
+
+			gg.It("LatencyBucketIndex covers boundaries", func() {
+				gm.Expect(histogram.LatencyBucketIndex(0, 7, 1)).To(gm.Equal(0))
+				gm.Expect(histogram.LatencyBucketIndex(1, 7, 1)).To(gm.Equal(0))
+				gm.Expect(histogram.LatencyBucketIndex(^uint64(0), 7, 1)).To(gm.Equal(6))
+				// shift=2: <=1, >1(≤4), >4(≤16), >16(≤64), ...
+				gm.Expect(histogram.LatencyBucketIndex(16, 7, 2)).To(gm.Equal(2))
+				gm.Expect(histogram.LatencyBucketIndex(17, 7, 2)).To(gm.Equal(3))
+			})
+
+			gg.It("Merge ignores shape mismatch", func() {
+				a := histogram.NewLatencyBuckets(7, 1)
+				a.Add(1)
+				b := histogram.NewLatencyBuckets(5, 1)
+				b.Add(1)
+				a.Merge(b)
+				gm.Expect(a.Count).To(gm.Equal(uint64(1)))
 			})
 		})
 	})
