@@ -1949,6 +1949,7 @@ var _ = gg.Describe("Query run-time limits", func() {
 		runTime      = 2 * time.Second
 		runTimeLimit = 500 * time.Millisecond
 		k            = 5
+		maxRetries   = 5
 		// stopMargin is how late a run may end after its deadline.
 		stopMargin = 500 * time.Millisecond
 	)
@@ -1994,7 +1995,7 @@ var _ = gg.Describe("Query run-time limits", func() {
 	throttledPolicy := func() *as.QueryPolicy {
 		policy := as.NewQueryPolicy()
 		policy.RecordsPerSecond = recordsPerSecond()
-		policy.MaxRetries = 5
+		policy.MaxRetries = maxRetries
 		return policy
 	}
 
@@ -2117,6 +2118,8 @@ var _ = gg.Describe("Query run-time limits", func() {
 		},
 		gg.Entry("stops at the total timeout with TIMEOUT when the limit is off",
 			runTimeCase{totalTimeout: runTimeLimit, stopsAt: runTimeLimit, resultCodes: clientTimeout}),
+		gg.Entry("retries a socket timeout until MaxRetries runs out",
+			runTimeCase{socketTimeout: runTimeLimit, stopsAt: (maxRetries + 1) * runTimeLimit, resultCodes: []ast.ResultCode{ast.MAX_RETRIES_EXCEEDED}}),
 	)...)
 
 	gg.It("runs a short query to the end past the limit while a long query over the same records stops at it", func() {
@@ -2166,6 +2169,24 @@ var _ = gg.Describe("Query run-time limits", func() {
 			gg.Entry("stops at the socket timeout with TIMEOUT and doesn't retry",
 				runTimeCase{socketTimeout: runTimeLimit, stopsAt: runTimeLimit, resultCodes: clientTimeout}),
 		)...)
+
+		gg.It("waits past the default read limit with no total and no socket timeout, and leaves the policy as it was", func() {
+			setRunTimeLimit(0)
+			policy := throttledPolicy()
+			// Half the rate doubles the run, well past the 2 second read limit.
+			policy.RecordsPerSecond = max(1, recordsPerSecond()/2)
+			policy.SocketTimeout = 0
+			policy.TotalTimeout = 0
+
+			start := time.Now()
+			records, err := drain(client.Query(policy, topKStatement()))
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(records).To(gm.Equal(k))
+			gm.Expect(time.Since(start)).To(gm.BeNumerically(">=", runTime*3/2))
+			gm.Expect(policy.SocketTimeout).To(gm.BeZero())
+			gm.Expect(policy.TotalTimeout).To(gm.BeZero())
+		})
 
 		gg.It("refuses a query over order-by-jobs-limit with FAIL_FORBIDDEN and the server's reason", gg.Serial, func() {
 			previous, found := serverConfig("service", "order-by-jobs-limit")

@@ -201,8 +201,9 @@ func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direct
 // is refused with a PARAMETER_ERROR.
 //
 // Records arrive only after every node finishes its scan. Set TotalTimeout
-// above the scan duration and leave SocketTimeout at 0; when both are 0, each
-// read waits at most 2 seconds. A Top-K query that times out is not retried.
+// above the scan duration and leave SocketTimeout at 0. When both are 0, the
+// query waits up to 30 seconds for each node. A Top-K query that times out is
+// not retried.
 // The server's query-max-run-time-ms ends it with QUERY_TIMEOUT.
 //
 // A node at its Top-K memory limit or at order-by-jobs-limit refuses a new

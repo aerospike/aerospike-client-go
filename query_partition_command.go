@@ -16,9 +16,14 @@ package aerospike
 
 import (
 	"iter"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
+
+// topKReplyWait is how long a Top-K read waits for a node when the policy sets
+// no timeout, the same as the default query socket timeout.
+const topKReplyWait = 30 * time.Second
 
 type queryPartitionCommand queryCommand
 
@@ -60,6 +65,21 @@ func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
 		return false
 	}
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)
+}
+
+// parseResult lets a Top-K read with no timeout wait for its node's scan, since
+// a Top-K node replies only after the scan finishes.
+func (cmd *queryPartitionCommand) parseResult(ifc command, conn *Connection) Error {
+	if cmd.topKWithoutTimeout() {
+		conn.SetTimeout(time.Time{}, topKReplyWait)
+	}
+	return cmd.baseMultiCommand.parseResult(ifc, conn)
+}
+
+// topKWithoutTimeout reports whether this is a Top-K query whose policy sets
+// neither a total nor a socket timeout.
+func (cmd *queryPartitionCommand) topKWithoutTimeout() bool {
+	return cmd.statement.hasTopK() && cmd.policy.TotalTimeout <= 0 && cmd.policy.SocketTimeout <= 0
 }
 
 func (cmd *queryPartitionCommand) commandType() commandType {
