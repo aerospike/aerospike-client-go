@@ -17,6 +17,7 @@ package main
 import (
 	"log"
 	"strconv"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 )
@@ -54,7 +55,13 @@ func runQueryTopK() error {
 	statement.ThenOrderBy("topkid", as.BinDataTypeInteger, as.OrderAsc)
 	statement.SetTopK(topK)
 
-	recordset, err := client.Query(nil, statement)
+	// Nodes reply only after their scan, and Top-K is not retried on TIMEOUT.
+	// Set TotalTimeout above the scan time and leave SocketTimeout at 0.
+	queryPolicy := as.NewQueryPolicy()
+	queryPolicy.SocketTimeout = 0
+	queryPolicy.TotalTimeout = 30 * time.Second
+
+	recordset, err := client.Query(queryPolicy, statement)
 	if err != nil {
 		return err
 	}

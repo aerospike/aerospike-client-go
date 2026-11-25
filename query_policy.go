@@ -23,6 +23,10 @@ import (
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
 //
 // Inherited Policy fields Policy.Txn are ignored in query commands.
+//
+// A Top-K query is not retried on TIMEOUT, because every node sends its
+// records only after its whole scan. Set TotalTimeout above the scan time and
+// leave SocketTimeout at 0.
 type QueryPolicy struct {
 	MultiPolicy
 

@@ -160,7 +160,8 @@ const (
 	// or maximum number of unique bin names are exceeded.
 	BIN_NAME_TOO_LONG ResultCode = 21
 
-	// FAIL_FORBIDDEN defines operation not allowed at this time.
+	// FAIL_FORBIDDEN defines operation not allowed at this time. A Top-K query
+	// gets it when a node is at its order-by job or memory limit.
 	FAIL_FORBIDDEN ResultCode = 22
 
 	// FAIL_ELEMENT_NOT_FOUND defines element Not Found in CDT.
@@ -329,7 +330,8 @@ const (
 	// QUERY_QUEUEFULL defines secondary index queue full.
 	QUERY_QUEUEFULL ResultCode = 211
 
-	// QUERY_TIMEOUT defines secondary index query timed out on server.
+	// QUERY_TIMEOUT defines query stopped by the server's run-time limit or
+	// its total timeout. It is not retried.
 	QUERY_TIMEOUT ResultCode = 212
 
 	// QUERY_GENERIC defines generic query error.

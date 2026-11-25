@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "iter"
+import (
+	"iter"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 type queryPartitionCommand queryCommand
 
@@ -50,6 +54,11 @@ func (cmd *queryPartitionCommand) writeBuffer(ifc command) Error {
 }
 
 func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
+	// A Top-K node sends nothing until its scan finishes, so a retry after a
+	// timeout only runs the scan again.
+	if cmd.statement.hasTopK() && e.Matches(types.TIMEOUT) {
+		return false
+	}
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)
 }
 

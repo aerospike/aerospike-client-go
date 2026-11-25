@@ -17,6 +17,7 @@ package aerospike_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -1817,4 +1818,293 @@ var _ = gg.Describe("Query Top-K", func() {
 			expectNoLastUpdateTime(lastUpdateTimes(as.NewStatement(ns, set)))
 		})
 	})
+})
+
+// The server stops a long query at query-max-run-time-ms or at the client's
+// total timeout, whichever comes first. Each spec sets the limit on its own set
+// only, and throttles the query to run about runTime on every node. MaxRetries
+// is set, so a retry shows as MAX_RETRIES_EXCEEDED or as a late end.
+var _ = gg.Describe("Query run-time limits", func() {
+	const (
+		recordCount  = 400
+		runTime      = 2 * time.Second
+		runTimeLimit = 500 * time.Millisecond
+		k            = 5
+		// stopMargin is how late a run may end after its deadline.
+		stopMargin = 500 * time.Millisecond
+	)
+
+	var (
+		ns             = *namespace
+		set            string
+		keys           []*as.Key
+		namespaceLimit string
+		limitSupported bool
+	)
+
+	queryTimeout := []ast.ResultCode{ast.QUERY_TIMEOUT}
+	clientTimeout := []ast.ResultCode{ast.TIMEOUT}
+	// The client's deadline and the server's deadline from the same total
+	// timeout race, so either side may end the query.
+	eitherTimeout := []ast.ResultCode{ast.TIMEOUT, ast.QUERY_TIMEOUT}
+
+	// setRunTimeLimit sets the limit on this spec's set only. A set without
+	// its own limit uses the namespace's, so 0 is off only when the namespace
+	// has no limit either.
+	setRunTimeLimit := func(limit time.Duration) {
+		if limit == 0 {
+			if limitSupported && namespaceLimit != "0" {
+				gg.Skip("the namespace sets query-max-run-time-ms=" + namespaceLimit + ", so the limit can't be off")
+			}
+			return
+		}
+		if !limitSupported {
+			gg.Skip("the server has no query-max-run-time-ms")
+		}
+		command := func(limit time.Duration) string {
+			return fmt.Sprintf("set-config:context=namespace;id=%s;set=%s;query-max-run-time-ms=%d", ns, set, limit.Milliseconds())
+		}
+		setConfigOnEveryNode(command(limit))
+		gg.DeferCleanup(setConfigOnEveryNode, command(0))
+	}
+
+	recordsPerSecond := func() int {
+		return max(1, recordCount/(len(client.GetNodes())*int(runTime/time.Second)))
+	}
+
+	throttledPolicy := func() *as.QueryPolicy {
+		policy := as.NewQueryPolicy()
+		policy.RecordsPerSecond = recordsPerSecond()
+		policy.MaxRetries = 5
+		return policy
+	}
+
+	plainStatement := func() *as.Statement {
+		return as.NewStatement(ns, set, "score")
+	}
+
+	topKStatement := func() *as.Statement {
+		statement := as.NewStatement(ns, set, "score")
+		statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+		statement.SetTopK(k)
+		return statement
+	}
+
+	// drain returns how many records arrived and the first error.
+	drain := func(recordset *as.Recordset, err as.Error) (records int, firstErr as.Error) {
+		gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+		for result := range recordset.Results() {
+			if result.Err == nil {
+				records++
+			} else if firstErr == nil {
+				firstErr = result.Err
+			}
+		}
+		return records, firstErr
+	}
+
+	// resultCodeOf returns the code of the error the application sees first,
+	// not one from an earlier attempt further down the chain.
+	resultCodeOf := func(err as.Error) ast.ResultCode {
+		var aerospikeErr *as.AerospikeError
+		gm.ExpectWithOffset(1, errors.As(err, &aerospikeErr)).To(gm.BeTrue(), err.Error())
+		return aerospikeErr.ResultCode
+	}
+
+	gg.BeforeEach(func() {
+		namespaceLimit, limitSupported = serverConfig("namespace;id="+ns, "query-max-run-time-ms")
+
+		set = randString(50)
+		keys = make([]*as.Key, 0, recordCount)
+		for i := 0; i < recordCount; i++ {
+			key, err := as.NewKey(ns, set, i)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(client.PutBins(nil, key, as.NewBin("score", i))).To(gm.Succeed())
+			keys = append(keys, key)
+		}
+	})
+
+	gg.AfterEach(func() {
+		for _, key := range keys {
+			client.Delete(nil, key)
+		}
+	})
+
+	type runTimeCase struct {
+		totalTimeout  time.Duration
+		socketTimeout time.Duration
+		serverLimit   time.Duration // 0 turns the limit off
+		stopsAt       time.Duration // 0 means the query runs to the end
+		resultCodes   []ast.ResultCode
+	}
+
+	// expectEnding checks when and how a run ended.
+	expectEnding := func(testCase runTimeCase, err as.Error, elapsed time.Duration) {
+		if testCase.stopsAt == 0 {
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			// The run must last well past every limit the specs use.
+			gm.ExpectWithOffset(1, elapsed).To(gm.BeNumerically(">=", runTime*3/4))
+		} else {
+			gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
+			gm.ExpectWithOffset(1, resultCodeOf(err)).To(gm.BeElementOf(testCase.resultCodes), err.Error())
+			gm.ExpectWithOffset(1, elapsed).To(gm.BeNumerically(">=", testCase.stopsAt))
+			gm.ExpectWithOffset(1, elapsed).To(gm.BeNumerically("<", testCase.stopsAt+stopMargin))
+		}
+	}
+
+	// runWithin runs the statement under the case's timeouts and limit, and
+	// checks when and how it ends.
+	runWithin := func(statement *as.Statement, testCase runTimeCase) (records int, err as.Error) {
+		setRunTimeLimit(testCase.serverLimit)
+		policy := throttledPolicy()
+		policy.TotalTimeout = testCase.totalTimeout
+		if testCase.socketTimeout > 0 {
+			policy.SocketTimeout = testCase.socketTimeout
+		}
+
+		start := time.Now()
+		records, err = drain(client.Query(policy, statement))
+		expectEnding(testCase, err, time.Since(start))
+		return records, err
+	}
+
+	// runTimeTable lists the table body, the run-time cases every query shares
+	// and any cases of its own.
+	runTimeTable := func(body func(testCase runTimeCase), ownEntries ...any) []any {
+		table := []any{
+			body,
+			gg.Entry("runs to the end with a total timeout longer than the query and the limit off",
+				runTimeCase{totalTimeout: 30 * time.Second}),
+			gg.Entry("runs to the end with no total timeout and the limit off",
+				runTimeCase{}),
+			gg.Entry("stops at the limit with QUERY_TIMEOUT when there is no total timeout",
+				runTimeCase{serverLimit: runTimeLimit, stopsAt: runTimeLimit, resultCodes: queryTimeout}),
+			gg.Entry("stops at the total timeout when it comes before the limit",
+				runTimeCase{totalTimeout: runTimeLimit, serverLimit: 2 * runTimeLimit, stopsAt: runTimeLimit, resultCodes: eitherTimeout}),
+			gg.Entry("stops at the limit with QUERY_TIMEOUT when it comes before the total timeout",
+				runTimeCase{totalTimeout: 2 * runTimeLimit, serverLimit: runTimeLimit, stopsAt: runTimeLimit, resultCodes: queryTimeout}),
+		}
+		return append(table, ownEntries...)
+	}
+
+	gg.DescribeTable("a plain query", runTimeTable(
+		func(testCase runTimeCase) {
+			records, err := runWithin(plainStatement(), testCase)
+			if err == nil {
+				gm.Expect(records).To(gm.Equal(recordCount))
+			} else {
+				gm.Expect(records).To(gm.BeNumerically("<", recordCount))
+			}
+		},
+		gg.Entry("stops at the total timeout with TIMEOUT when the limit is off",
+			runTimeCase{totalTimeout: runTimeLimit, stopsAt: runTimeLimit, resultCodes: clientTimeout}),
+	)...)
+
+	gg.It("runs a short query to the end past the limit while a long query over the same records stops at it", func() {
+		const shortRecordCount = 10000
+		if forceLong, _ := serverConfig("namespace;id="+ns, "force-long-queries"); forceLong == "true" {
+			gg.Skip("the namespace runs every query as a long query")
+		}
+		setRunTimeLimit(time.Millisecond)
+		for i := recordCount; i < shortRecordCount; i++ {
+			key, err := as.NewKey(ns, set, i)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(client.PutBins(nil, key, as.NewBin("score", i))).To(gm.Succeed())
+			keys = append(keys, key)
+		}
+
+		longPolicy := as.NewQueryPolicy()
+		longPolicy.ExpectedDuration = as.LONG
+		_, err := drain(client.Query(longPolicy, plainStatement()))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(resultCodeOf(err)).To(gm.Equal(ast.QUERY_TIMEOUT), err.Error())
+
+		shortPolicy := as.NewQueryPolicy()
+		shortPolicy.ExpectedDuration = as.SHORT
+		// Without a total timeout the server gives a short query 1 second.
+		shortPolicy.TotalTimeout = 10 * time.Second
+		records, err := drain(client.Query(shortPolicy, plainStatement()))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(records).To(gm.Equal(shortRecordCount))
+	})
+
+	gg.Context("Top-K", func() {
+		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K requires a server with Top-K support")
+			}
+		})
+
+		gg.DescribeTable("a Top-K query", runTimeTable(
+			func(testCase runTimeCase) {
+				records, err := runWithin(topKStatement(), testCase)
+				if err == nil {
+					gm.Expect(records).To(gm.Equal(k))
+				} else {
+					gm.Expect(records).To(gm.BeZero())
+				}
+			},
+			gg.Entry("stops at the socket timeout with TIMEOUT and doesn't retry",
+				runTimeCase{socketTimeout: runTimeLimit, stopsAt: runTimeLimit, resultCodes: clientTimeout}),
+		)...)
+
+		gg.It("refuses a query over order-by-jobs-limit with FAIL_FORBIDDEN and the server's reason", gg.Serial, func() {
+			previous, found := serverConfig("service", "order-by-jobs-limit")
+			if !found {
+				gg.Skip("the server has no order-by-jobs-limit")
+			}
+			// The first query must hold its slot for the whole run.
+			setRunTimeLimit(0)
+			setConfigOnEveryNode("set-config:context=service;order-by-jobs-limit=1")
+			gg.DeferCleanup(setConfigOnEveryNode, "set-config:context=service;order-by-jobs-limit="+previous)
+
+			type outcome struct {
+				records int
+				err     as.Error
+			}
+			running := make(chan outcome, 1)
+			go func() {
+				defer gg.GinkgoRecover()
+				records, err := drain(client.Query(throttledPolicy(), topKStatement()))
+				running <- outcome{records, err}
+			}()
+			gm.Eventually(func() int { return serverStat("statistics", "order_by_jobs_active") }).
+				WithTimeout(runTime).WithPolling(20 * time.Millisecond).Should(gm.Equal(len(client.GetNodes())))
+
+			policy := throttledPolicy()
+			policy.ErrorDetailVerbosity = 2
+			records, err := drain(client.Query(policy, topKStatement()))
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(resultCodeOf(err)).To(gm.Equal(ast.FAIL_FORBIDDEN), err.Error())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("order-by queries running on this node at 'order-by-jobs-limit' 1"))
+			gm.Expect(records).To(gm.BeZero())
+
+			var first outcome
+			gm.Eventually(running).WithTimeout(2 * runTime).Should(gm.Receive(&first))
+			gm.Expect(first.err).ToNot(gm.HaveOccurred())
+			gm.Expect(first.records).To(gm.Equal(k))
+		})
+	})
+
+	gg.DescribeTable("a scan",
+		func(testCase runTimeCase) {
+			setRunTimeLimit(testCase.serverLimit)
+			policy := as.NewScanPolicy()
+			policy.RecordsPerSecond = recordsPerSecond()
+
+			start := time.Now()
+			records, err := drain(client.ScanAll(policy, ns, set, "score"))
+			expectEnding(testCase, err, time.Since(start))
+			if err == nil {
+				gm.Expect(records).To(gm.Equal(recordCount))
+			} else {
+				gm.Expect(records).To(gm.BeNumerically("<", recordCount))
+			}
+		},
+		gg.Entry("runs to the end with no total timeout and the limit off",
+			runTimeCase{}),
+		gg.Entry("stops at the limit with QUERY_TIMEOUT when there is no total timeout",
+			runTimeCase{serverLimit: runTimeLimit, stopsAt: runTimeLimit, resultCodes: queryTimeout}),
+	)
 })
