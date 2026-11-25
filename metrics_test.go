@@ -176,20 +176,25 @@ func TestEnableMetricsFileExporterWritesPeriodically(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(entries) >= 1 {
-			firstPath = filepath.Join(dir, entries[0].Name())
-			body, err := os.ReadFile(firstPath)
+		for _, ent := range entries {
+			path := filepath.Join(dir, ent.Name())
+			body, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(body), " header(4)") {
-				t.Fatalf("expected v3 header in periodic file, got:\n%s", body)
+			// openNewFile creates then writes the header; under load the test can
+			// observe the empty file between those steps — keep polling.
+			if strings.Contains(string(body), " header(4)") {
+				firstPath = path
+				firstSize = int64(len(body))
+				break
 			}
-			firstSize = int64(len(body))
+		}
+		if firstPath != "" {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("expected a metrics file within 2s of EnableMetrics(FILE)")
+			t.Fatal("expected a metrics file with v3 header within 2s of EnableMetrics(FILE)")
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

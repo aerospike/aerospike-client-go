@@ -29,6 +29,10 @@ type singleConnectionHeap struct {
 	size       uint32
 	full       bool
 	mutex      sync.Mutex
+	// refreshWG tracks async RefreshIdleTail goroutines that hold a connection
+	// off-pool. Node.Close/cleanup waits so shutdown does not return while a
+	// delayed RequestInfo still keeps the TCP socket open.
+	refreshWG sync.WaitGroup
 }
 
 // newSingleConnectionHeap creates a new heap with initial size.
@@ -64,6 +68,9 @@ func (h *singleConnectionHeap) cleanup() {
 			conn.closeNodeRemoved()
 		}
 	}
+
+	// Join off-pool idle refreshes so their sockets are closed before Close returns.
+	h.refreshWG.Wait()
 }
 
 // Offer adds an item to the heap unless the heap is full.
@@ -147,6 +154,15 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 	return false
 }
 
+// refreshIdleShouldDrop reports that an off-pool idle refresh should close the
+// socket instead of returning it to the heap (node/cluster shutting down).
+func refreshIdleShouldDrop(conn *Connection) bool {
+	if conn == nil || conn.node == nil || !conn.node.IsActive() {
+		return true
+	}
+	return conn.node.cluster != nil && conn.node.cluster.closed.Get()
+}
+
 // RefreshIdleTail closes idle connection in tail.
 // It will return true if tail connection was idle and dropped
 func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool {
@@ -168,10 +184,23 @@ func (h *singleConnectionHeap) RefreshIdleTail(tendInterval time.Duration) bool 
 			h.full = false
 
 			// refresh in a goroutine asynchronously
+			h.refreshWG.Add(1)
 			go func() {
+				defer h.refreshWG.Done()
+
+				// Connection was removed from the pool; close it if shutdown raced us
+				// so Node.closeConnections cannot see it.
+				if refreshIdleShouldDrop(conn) {
+					conn.closeIdle()
+					return
+				}
 				conn.setTimeout(time.Second, time.Second)
 				conn.refresh()
 				if _, err := conn.RequestInfo("build"); err == nil {
+					if refreshIdleShouldDrop(conn) {
+						conn.closeIdle()
+						return
+					}
 					// return to the pool
 					conn.refresh()
 					if !h.Offer(conn) {

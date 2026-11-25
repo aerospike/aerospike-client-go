@@ -216,23 +216,27 @@ var _ = gg.Describe("Metrics sampling integration", func() {
 
 	gg.It("latency sum is present when read count advances", func() {
 		// Millisecond unit truncates sub-ms RTTs to 0 (count advances, sum stays 0).
-		// Use microseconds so latency sum is observable on a fast local Get.
+		// UseMicrosecondsLatency so latency sum is observable on a fast local Get.
 		p := as.DefaultMetricsPolicy()
-		p.LatencyUnit = as.LatencyMicroseconds
+		p.UseMicrosecondsLatency()
 		p.Exporter = as.MetricsExporterNone
 		client.EnableMetrics(p)
+		gm.Expect(client.MetricsSnapshot().LatencyUnit).To(gm.Equal(as.LatencyMicroseconds))
 
 		key, err := as.NewKey(*namespace, "metricsSet", fmt.Sprintf("m-sum-%d", time.Now().UnixNano()))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(client.Put(nil, key, as.BinMap{"a": 1})).ToNot(gm.HaveOccurred())
 		before := client.MetricsSnapshot()
-		_, err = client.Get(nil, key)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		// A few Gets so sum is stably > 0 even if a single RTT rounds oddly.
+		for i := 0; i < 5; i++ {
+			_, err = client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		}
 		after := client.MetricsSnapshot()
 
 		delta := latencyCount(after, as.LatencyRead) - latencyCount(before, as.LatencyRead)
 		gm.Expect(delta).To(gm.BeNumerically(">=", 1))
-		gm.Expect(latencySum(after, as.LatencyRead)).To(gm.BeNumerically(">", latencySum(before, as.LatencyRead)))
+		gm.Expect(latencySum(after, as.LatencyRead)-latencySum(before, as.LatencyRead)).To(gm.BeNumerically(">=", 1))
 	})
 
 	gg.It("usage feature.api.blocking advances on Get when usage enabled", func() {

@@ -16,15 +16,13 @@ package aerospike
 
 import "testing"
 
-// These benchmarks measure the per-command metric helpers
+// These benchmarks measure the per-command Client.Stats helpers
 // applyTransactionErrorMetrics / applyTransactionRetryMetrics /
-// applyConnectionRecoveredMetrics. They were gated on Cluster.metricsEnabled
-// by CLIENT-3968 and ungated again by CLIENT-5762, since Client.Stats()
-// reports these counters regardless of EnableMetrics. They only run on error,
-// retry and connection-recovery paths.
+// applyConnectionRecoveredMetrics. They always increment (for Stats) and only
+// run on error, retry, and connection-recovery paths.
 //
-// The legacy* functions below are the pre-CLIENT-3968 unconditional
-// increment; "after" calls the real implementations from command.go.
+// The legacy* functions are the unconditional increment baseline; "after"
+// calls the real implementations from command.go.
 //
 // The three helpers are structurally identical, so applyTransactionErrorMetrics
 // is benchmarked as the representative; the retry / connection-recovered
@@ -77,7 +75,7 @@ func BenchmarkApplyTransactionMetrics(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			applyTransactionErrorMetrics(node, false)
+			applyTransactionErrorMetrics(node)
 		}
 	})
 
@@ -86,7 +84,7 @@ func BenchmarkApplyTransactionMetrics(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			applyTransactionErrorMetrics(node, true)
+			applyTransactionErrorMetrics(node)
 		}
 	})
 }
@@ -112,7 +110,7 @@ func BenchmarkApplyTransactionMetricsParallel(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				applyTransactionErrorMetrics(node, false)
+				applyTransactionErrorMetrics(node)
 			}
 		})
 	})
@@ -123,7 +121,7 @@ func BenchmarkApplyTransactionMetricsParallel(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				applyTransactionErrorMetrics(node, true)
+				applyTransactionErrorMetrics(node)
 			}
 		})
 	})

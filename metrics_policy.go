@@ -244,16 +244,21 @@ func (mp *MetricsPolicy) copy() *MetricsPolicy {
 }
 
 func (mp *MetricsPolicy) elapsedUnits(d time.Duration) uint64 {
+	if d <= 0 {
+		return 0
+	}
 	if mp != nil && mp.LatencyUnit == LatencyMicroseconds {
 		us := d.Microseconds()
-		if us < 0 {
-			return 0
+		if us <= 0 {
+			// Sub-µs RTT: round up so SyncLatencyBuckets.Add does not record count with sum 0.
+			return 1
 		}
 		return uint64(us)
 	}
 	ms := d.Milliseconds()
-	if ms < 0 {
-		return 0
+	if ms <= 0 {
+		// Sub-ms RTT under LatencyMilliseconds: same count/sum consistency.
+		return 1
 	}
 	return uint64(ms)
 }

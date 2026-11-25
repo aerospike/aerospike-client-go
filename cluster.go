@@ -330,6 +330,9 @@ func (clstr *Cluster) Healthy() Error {
 
 // Updates cluster state
 func (clstr *Cluster) tend() Error {
+	if clstr.closed.Get() {
+		return nil
+	}
 
 	nodes := clstr.GetNodes()
 	nodeCountBeforeTend := len(nodes)
@@ -587,7 +590,8 @@ func (clstr *Cluster) waitTillStabilized() Error {
 			count = len(clstr.GetNodes())
 		}
 
-		// Close() ran before clusterBoss started, so nothing else will close these nodes.
+		// Close() may have already drained nodes (idempotent). Kept so a closed
+		// cluster still drops sockets if Close raced ahead of node creation.
 		if clstr.closed.Get() {
 			for _, node := range clstr.GetNodes() {
 				node.Close()
@@ -678,6 +682,14 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 				errChan <- err
 				return
 			}
+			// Cluster.Close may have already returned; do not re-attach nodes.
+			if clstr.closed.Get() {
+				for _, node := range nodesToAdd {
+					node.Close()
+				}
+				errChan <- ErrServerNotAvailable.err()
+				return
+			}
 			clstr.addNodes(nodesToAdd)
 			successChan <- struct{}{}
 		}(i, seed)
@@ -699,6 +711,9 @@ L:
 			if seedCount <= 0 {
 				break L
 			}
+		case <-clstr.tendChannel:
+			// Close() already signaled shutdown; stop waiting on seeds.
+			break L
 		case <-time.After(clusterClientPolicy.Timeout):
 			// time is up, no seeds found
 			break L
@@ -995,11 +1010,25 @@ func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 func (clstr *Cluster) Close() {
 	if clstr.closed.CompareAndToggle(false) {
 		clstr.DisableMetrics()
+
+		// Fail in-flight tend/refresh I/O immediately. On FailIfNotConnected init
+		// timeout, clusterBoss may not be running yet, so this drain is required
+		// (the initial tend goroutine is not joined via wgTend — that would block
+		// NewCluster past ClientPolicy.Timeout).
+		for _, node := range clstr.GetNodes() {
+			node.Close()
+		}
+
 		// send close signal to maintenance channel
 		close(clstr.tendChannel)
 
-		// wait until tend is over
+		// wait until clusterBoss (if started) is over
 		clstr.wgTend.Wait()
+
+		// Drain again for nodes created after the first pass (seed during tend).
+		for _, node := range clstr.GetNodes() {
+			node.Close()
+		}
 
 		// remove node references from the partition table
 		// to allow GC to work its magic. Leaks otherwise.
@@ -1150,6 +1179,15 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	prev := clstr.metricsPolicy.Get()
 	needReshape := metricsHistogramChanged(prev, policy)
 
+	wasEnabled := clstr.metricsEnabled.Load()
+	if !wasEnabled {
+		clstr.resetMetricsSinceEnable()
+	}
+
+	// Publish policy before reshape so concurrent addClusterLatency sees the new
+	// LatencyUnit (elapsedUnits) instead of recording Add(0) under the old unit.
+	clstr.metricsPolicy.Set(policy)
+
 	// Reshape histograms before flipping enable flags so a concurrent command
 	// cannot Add into a zero-value SyncLatencyBuckets (nil shape).
 	if needReshape {
@@ -1164,12 +1202,6 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 		clstr.statsLock.Unlock()
 	}
 
-	wasEnabled := clstr.metricsEnabled.Load()
-	if !wasEnabled {
-		clstr.resetMetricsSinceEnable()
-	}
-
-	clstr.metricsPolicy.Set(policy)
 	clstr.operationalEnabled.Store(policy.OperationalEnabled)
 	clstr.usageEnabled.Store(policy.UsageEnabled)
 	clstr.metricsEnabled.Store(true)

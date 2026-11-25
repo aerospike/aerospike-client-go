@@ -480,9 +480,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	cc := nd.connectionCount.IncrementAndGet()
 	if clusterClientPolicy.LimitConnectionsToQueueSize && cc > clusterClientPolicy.ConnectionQueueSize {
 		nd.connectionCount.DecrementAndGet()
-		if nd.metricsEnabled() {
-			nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
-		}
+		nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
 
 		return nil, ErrTooManyConnectionsForNode.err()
 	}
@@ -512,6 +510,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 	conn.node = nd
 
+	// Close raced us while dialing — drop the socket before login/pool offer.
+	if !nd.active.Get() {
+		conn.closeNodeRemoved()
+		return nil, ErrServerNotAvailable.err()
+	}
+
 	sessionInfo := nd.sessionInfo.Get()
 	// need to authenticate
 	if err = conn.login(clusterClientPolicy, nd.cluster.Password(), sessionInfo); err != nil {
@@ -532,9 +536,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		return nil, err
 	}
 
-	if nd.metricsEnabled() {
-		nd.stats.ConnectionsSuccessful.IncrementAndGet()
-	}
+	nd.stats.ConnectionsSuccessful.IncrementAndGet()
 	if nd.cluster != nil && nd.cluster.operationalEnabled.Load() {
 		if policy := nd.stats.getMetricPolicy(); policy != nil {
 			elapsed := policy.elapsedUnits(time.Since(connStart))
@@ -542,6 +544,11 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		}
 	}
 	conn.setIdleTimeout(clusterClientPolicy.IdleTimeout)
+
+	if !nd.active.Get() {
+		conn.closeNodeRemoved()
+		return nil, ErrServerNotAvailable.err()
+	}
 
 	return conn, nil
 }
@@ -577,8 +584,21 @@ func (nd *Node) newTendConnection() (*Connection, Error) {
 
 	serverMinVersion := &version.Version{Major: 8, Minor: 1, Patch: 0, Build: 0}
 	if nd.serverVersion.IsGreaterOrEqual(serverMinVersion) {
+		// Dial/login already consumed part of NewConnection's deadline; give
+		// user-agent a fresh Timeout budget (delay proxies / slow info paths).
+		timeout := nd.cluster.clientPolicy.Load().Timeout
+		if timeout <= 0 {
+			timeout = _DEFAULT_TIMEOUT
+		}
+		if err := conn.setTimeout(timeout, timeout); err != nil {
+			conn.closeOnError()
+			return nil, err
+		}
 		if err := nd.sendUserAgentId(conn); err != nil {
 			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+			// RequestInfo may leave the socket open on deadline (salvage flag);
+			// always drop it here so Close/init-timeout cannot leak the FD.
+			conn.closeOnError()
 			return nil, err
 		}
 	}

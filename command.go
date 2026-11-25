@@ -3914,7 +3914,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				}
 			}
 			if cmd.node != nil {
-				applyTransactionRetryMetrics(cmd.node, cmd.metricsSampled)
+				applyTransactionRetryMetrics(cmd.node)
 			}
 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
@@ -3980,7 +3980,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
 
-			applyTransactionErrorMetrics(cmd.node, sampled)
+			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -4007,7 +4007,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
-			applyTransactionErrorMetrics(cmd.node, sampled)
+			applyTransactionErrorMetrics(cmd.node)
 
 			poolExhausted := errors.Is(err, ErrConnectionPoolExhausted)
 			poolEmpty := errors.Is(err, ErrConnectionPoolEmpty)
@@ -4046,7 +4046,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		err = ifc.writeBuffer(ifc)
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node, sampled)
+			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
 			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -4073,7 +4073,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			// now that the deadline has been set in the buffer, compress the contents
 			if err = cmd.compress(); err != nil {
-				applyTransactionErrorMetrics(cmd.node, sampled)
+				applyTransactionErrorMetrics(cmd.node)
 				err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 				cmd.recordAttemptFailure(ifc, err, false)
 				cmd.conn.closeOnError()
@@ -4095,7 +4095,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node, sampled)
+			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -4131,7 +4131,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if err != nil {
-			applyTransactionErrorMetrics(cmd.node, sampled)
+			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
@@ -4259,23 +4259,20 @@ func applyTransactionMetrics(node *Node, tt commandType, tb time.Time, metricsOn
 	}
 }
 
-// applyTransactionErrorMetrics updates the Go-local TransactionErrorCount.
-// Intentionally sampler-gated (metricsOn): at p<1 this under-counts vs ungated
-// legacy behavior; shared namespace.* splits are the cross-client signal.
-func applyTransactionErrorMetrics(node *Node, metricsOn bool) {
-	if !metricsOn || node == nil {
-		return
+// applyTransactionErrorMetrics updates TransactionErrorCount for Client.Stats().
+// Always increments; namespace.* error splits stay sampler-gated.
+func applyTransactionErrorMetrics(node *Node) {
+	if node != nil {
+		node.stats.TransactionErrorCount.GetAndIncrement()
 	}
-	node.stats.TransactionErrorCount.GetAndIncrement()
 }
 
-// applyTransactionRetryMetrics updates the Go-local TransactionRetryCount.
-// Sampler-gated like TransactionErrorCount (see above).
-func applyTransactionRetryMetrics(node *Node, metricsOn bool) {
-	if !metricsOn || node == nil {
-		return
+// applyTransactionRetryMetrics updates TransactionRetryCount for Client.Stats().
+// Always increments; detailed retry metrics stay sampler-gated.
+func applyTransactionRetryMetrics(node *Node) {
+	if node != nil {
+		node.stats.TransactionRetryCount.GetAndIncrement()
 	}
-	node.stats.TransactionRetryCount.GetAndIncrement()
 }
 
 // commandPathMetrics returns the cached per-call sampler decision.

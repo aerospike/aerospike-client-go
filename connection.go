@@ -152,7 +152,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
 			if conn != nil {
-				if conn.node != nil && conn.node.metricsEnabled() {
+				if conn.node != nil {
 					conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 				}
 				if errors.Is(terr, os.ErrDeadlineExceeded) {
@@ -447,8 +447,8 @@ func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duratio
 	return nil
 }
 
-// Close closes the connection. When metrics are enabled, increments Tier 0 closed
-// and the SHOULD close-reason counter selected by closeReason (if any).
+// Close closes the connection. ConnectionsClosed always increments for
+// Client.Stats(); close-reason counters require metrics.enabled.
 func (ctn *Connection) Close() {
 	if ctn == nil {
 		return
@@ -458,8 +458,8 @@ func (ctn *Connection) Close() {
 			// deregister
 			if ctn.node != nil {
 				ctn.node.connectionCount.DecrementAndGet()
+				ctn.node.stats.ConnectionsClosed.IncrementAndGet()
 				if ctn.node.metricsEnabled() {
-					ctn.node.stats.ConnectionsClosed.IncrementAndGet()
 					switch ctn.closeReason {
 					case connCloseError:
 						ctn.node.stats.ConnectionsClosedError.IncrementAndGet()
