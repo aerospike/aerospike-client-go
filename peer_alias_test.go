@@ -182,27 +182,38 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 		gm.Consistently(func() []string { return names(opened) }, settle, 50*time.Millisecond).
 			Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
 		gm.Expect(nodeNamed(opened, nodeD).host.Port).To(gm.Equal(d.port()))
-		gm.Expect(warned("answers as node")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
+		gm.Expect(warned("Skip address")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
 		gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.msgs)
 	})
 
-	gg.It("(b) creates both nodes when a peer lists a known node's socket under another name first", func() {
+	gg.It("(b) stops a peer that lists a known node's socket under another name first", func() {
 		a := start(nodeA)
 		b := start(nodeB)
 		d := start(nodeD)
 		advertise(
 			entry{nodeA, []string{local(a)}},
 			entry{nodeB, []string{local(b)}},
-			entry{nodeD, []string{addr(alias("b"), b.port()), local(d)}},
 		)
 
 		opened := connect(a)
 		gm.Eventually(func() []string { return names(opened) }, joinBound, 20*time.Millisecond).
-			Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
+			Should(gm.Equal([]string{nodeA, nodeB}))
+		live := nodeNamed(opened, nodeB)
+
+		bAlias := addr(alias("b"), b.port())
+		advertise(
+			entry{nodeA, []string{local(a)}},
+			entry{nodeB, []string{local(b)}},
+			entry{nodeD, []string{bAlias, local(d)}},
+		)
+
+		gm.Eventually(func() bool {
+			return warned("TRANSLATION_COLLISION", "left node "+nodeD, bAlias+" is used by "+nodeB, "Not tried: "+local(d))
+		}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.msgs)
 		gm.Consistently(func() []string { return names(opened) }, settle, 50*time.Millisecond).
-			Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
-		gm.Expect(nodeNamed(opened, nodeD).host.Port).To(gm.Equal(d.port()))
-		gm.Expect(nodeNamed(opened, nodeB).host.Port).To(gm.Equal(b.port()))
+			Should(gm.Equal([]string{nodeA, nodeB}))
+		gm.Expect(nodeNamed(opened, nodeB)).To(gm.BeIdenticalTo(live))
+		gm.Expect(live.IsActive()).To(gm.BeTrue())
 	})
 
 	gg.It("(c) keeps the known node and does not create a peer whose only address answers as it", func() {
@@ -222,8 +233,8 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 			Should(gm.Equal([]string{nodeA, nodeB}))
 		gm.Expect(nodeNamed(opened, nodeA).IsActive()).To(gm.BeTrue())
 		gm.Expect(nodeNamed(opened, nodeB).IsActive()).To(gm.BeTrue())
-		gm.Expect(warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
-		gm.Expect(warned("answers as node")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
+		gm.Expect(warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "Address translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+		gm.Expect(warned("Skip address")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
 	})
 
 	gg.It("(d) creates an unadvertised node under the name it answers with", func() {
@@ -256,7 +267,7 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 		opened := connect(a)
 		gm.Eventually(func() []string { return names(opened) }, joinBound, 20*time.Millisecond).
 			Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
-		gm.Expect(warned("Peer node `"+nodeD+"` address `"+local(bAlias)+"` answers as node `"+nodeB+"`")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+		gm.Expect(warned("Skip address "+local(bAlias)+" of node "+nodeD+" because node "+nodeB+" also has it. Address translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
 		gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.msgs)
 	})
 
@@ -273,7 +284,7 @@ var _ = gg.Describe("Peer address answering as another node", gg.Label("discover
 
 		opened := connect(a)
 		gm.Eventually(func() bool {
-			return warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "translator static-map")
+			return warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "Address translator static-map")
 		}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.msgs)
 		gm.Expect(names(opened)).To(gm.Equal([]string{nodeA, nodeB}))
 	})

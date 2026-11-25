@@ -94,7 +94,7 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 	collisionsFor := func(capture *warnLogCapture, name string) []string {
 		var found []string
 		for _, message := range capture.snapshot() {
-			if strings.Contains(message, "to the same address") && strings.Contains(message, name) {
+			if strings.Contains(message, "TRANSLATION_COLLISION") && strings.Contains(message, name) {
 				found = append(found, message)
 			}
 		}
@@ -129,19 +129,44 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 	gg.It("keeps a healthy live node's address against a newcomer", func() {
 		cluster := clusterWithLiveNode(true, 0)
 		tendPeers := newcomerOnLiveAddress()
+		newcomer := tendPeers.peers()[0]
 
-		cluster.detectTranslationCollisions(tendPeers)
-
-		gm.Expect(tendPeers.collided.Exists(newcomerName)).To(gm.BeTrue(), "a newcomer on a healthy live node's address must be marked collided")
+		gm.Expect(cluster.sharedOwner(tendPeers, newcomer, newcomer.hosts[0])).To(gm.Equal(liveName), "a newcomer on a healthy live node's address must skip it")
 	})
 
 	gg.It("does not let a failing live node own its address against a newcomer", func() {
 		cluster := clusterWithLiveNode(true, 1)
 		tendPeers := newcomerOnLiveAddress()
+		newcomer := tendPeers.peers()[0]
 
-		cluster.detectTranslationCollisions(tendPeers)
+		gm.Expect(cluster.sharedOwner(tendPeers, newcomer, newcomer.hosts[0])).To(gm.BeEmpty(), "a live node with tend failures must not own its address")
+	})
 
-		gm.Expect(tendPeers.collided.Exists(newcomerName)).To(gm.BeFalse(), "a live node with tend failures must not own its address")
+	gg.It("adds every node when each also advertises one shared address", func() {
+		seed := startServer(0, seedName)
+		first := startServer(0, firstPeerName)
+		second := startServer(0, secondPeerName)
+		const bridge = "172.31.255.1:3000"
+		entry := func(name string, server *stubNodeServer) string {
+			return "[" + name + ",,[" + bridge + "," + loopback.String() + ":" + strconv.Itoa(server.port()) + "]]"
+		}
+		seed.setPeers(peerList(entry(firstPeerName, first), entry(secondPeerName, second)))
+		first.setPeers(peerList(entry(seedName, seed), entry(secondPeerName, second)))
+		second.setPeers(peerList(entry(seedName, seed), entry(firstPeerName, first)))
+
+		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
+		capture := captureWarnLogs()
+		client := connect(seed)
+		for range 2 {
+			_ = client.cluster.tend()
+		}
+
+		gm.Expect(client.GetNodes()).To(gm.HaveLen(3), "each peer should join through its own address")
+		gm.Expect(nodeNamed(client, firstPeerName).host.Port).To(gm.Equal(first.port()))
+		gm.Expect(nodeNamed(client, secondPeerName).host.Port).To(gm.Equal(second.port()))
+		gm.Expect(capture.snapshot()).ToNot(gm.ContainElement(gm.ContainSubstring("TRANSLATION_COLLISION")))
+		gm.Expect(capture.snapshot()).ToNot(gm.ContainElement(gm.ContainSubstring("Skip address")),
+			"an untranslated shared address is skipped at info level")
 	})
 
 	gg.It("keeps a healthy node on its address and does not add a newcomer advertised there", func() {

@@ -17,6 +17,7 @@ package aerospike
 import (
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -159,10 +160,43 @@ func (misses *translationMisses) warn(translator AddressTranslator, advertised E
 	)
 }
 
-func newTranslationCollision(translatorName, nodeName, otherNodeName string, shared *Host) Error {
-	return newError(types.TRANSLATION_COLLISION, fmt.Sprintf(
-		"Node %s has no address of its own: nodes %s and %s resolve to the same address %s:%d (translator %s). Give each node its own reachable address or mapping",
-		nodeName, nodeName, otherNodeName, shared.Name, shared.Port, translatorName))
+// sharedAddress is an address of a peer that node owner also has.
+type sharedAddress struct {
+	host  *Host
+	owner string
+}
+
+const maxListedCollisions = 3
+
+// newTranslationCollision reports a peer left with no address of its own.
+// shared is in the peer's address order; notTried are the addresses the peer
+// did not try after another node answered at one of its addresses.
+func newTranslationCollision(translatorName, nodeName string, shared []sharedAddress, notTried []*Host) Error {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Address translator %s left node %s with no address of its own: ", translatorName, nodeName)
+
+	listed := min(len(shared), maxListedCollisions)
+	for i, address := range shared[:listed] {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		fmt.Fprintf(&sb, "%s:%d is used by %s", address.host.Name, address.host.Port, address.owner)
+	}
+	if len(shared) > listed {
+		fmt.Fprintf(&sb, " and %d more", len(shared)-listed)
+	}
+
+	if len(notTried) > 0 {
+		sb.WriteString(". Not tried: ")
+		for i, host := range notTried {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			fmt.Fprintf(&sb, "%s:%d", host.Name, host.Port)
+		}
+	}
+	sb.WriteString(". Give each node its own reachable address or mapping")
+	return newError(types.TRANSLATION_COLLISION, sb.String())
 }
 
 func newTranslationMiss(translator AddressTranslator, advertised Endpoint) Error {

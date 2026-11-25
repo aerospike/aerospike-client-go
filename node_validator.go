@@ -47,7 +47,10 @@ type nodeValidator struct {
 	name        string
 	aliases     []*Host
 	primaryHost *Host
-	lookupName  string
+	// dialedHost is the alias that answered as the node, before load
+	// balancer detection replaces primaryHost.
+	dialedHost *Host
+	lookupName string
 
 	seedOnlyCluster    bool
 	detectLoadBalancer bool
@@ -285,6 +288,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 func (ndv *nodeValidator) validateAliasWithin(cluster *Cluster, alias *Host, timeout time.Duration) Error {
 	clientPolicy := *cluster.clientPolicy.Load()
 	clientPolicy.Timeout = timeout
+	dialed := alias
 
 	conn, err := NewConnection(&clientPolicy, alias)
 	if err != nil {
@@ -453,6 +457,7 @@ func (ndv *nodeValidator) validateAliasWithin(cluster *Cluster, alias *Host, tim
 	}
 
 	ndv.name = nodeName
+	ndv.dialedHost = dialed
 	ndv.primaryHost = alias
 
 	return nil
