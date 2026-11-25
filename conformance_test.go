@@ -60,7 +60,7 @@ var conformanceErrorMarkers = map[string]string{
 	"aws-error":        "DescribeInstances failed",
 	"timeout":          "timed out",
 
-	"translation-collision": "to the same address",
+	"translation-collision": "TRANSLATION_COLLISION",
 }
 
 var conformanceResultNames = map[string]struct{}{
@@ -348,7 +348,7 @@ func (row *conformanceRow) collision() conformanceOutcome {
 		peer := asMap(item)
 		names = append(names, asString(peer["nodeName"]))
 		entries = append(entries, fmt.Sprintf("[%s,%s,[%s]]", asString(peer["nodeName"]), asString(peer["tlsName"]),
-			net.JoinHostPort(asString(peer["host"]), asString(peer["port"]))))
+			strings.Join(collisionPeerHosts(peer), ",")))
 	}
 
 	server, err := newFakeInfoServer()
@@ -410,9 +410,13 @@ func (row *conformanceRow) collision() conformanceOutcome {
 		}
 	}
 
+	collided := make(map[string]bool, len(collisions))
+	for _, message := range collisions {
+		collided[collisionSubject(message, names)] = true
+	}
 	var nodes []string
 	for _, name := range names {
-		if !slices.ContainsFunc(collisions, func(message string) bool { return strings.Contains(message, name) }) {
+		if !collided[name] {
 			nodes = append(nodes, name)
 		}
 	}
@@ -423,6 +427,32 @@ func (row *conformanceRow) collision() conformanceOutcome {
 		return conformanceOutcome{conformanceFail, fmt.Sprintf("expected nodes %v, got %v", expNodes, nodes)}
 	}
 	return conformanceOutcome{conformancePass, ""}
+}
+
+// collisionPeerHosts returns the host:port addresses of a collision peer,
+// given as host and port or as hosts.
+func collisionPeerHosts(peer map[string]any) []string {
+	if peer["hosts"] == nil {
+		return []string{net.JoinHostPort(asString(peer["host"]), asString(peer["port"]))}
+	}
+	var hosts []string
+	for _, item := range asList(peer["hosts"]) {
+		host := asMap(item)
+		hosts = append(hosts, net.JoinHostPort(asString(host["host"]), asString(host["port"])))
+	}
+	return hosts
+}
+
+// collisionSubject returns the collided peer of a collision message, the
+// peer named first in it.
+func collisionSubject(message string, names []string) string {
+	subject, first := "", len(message)
+	for _, name := range names {
+		if index := strings.Index(message, name); index >= 0 && index < first {
+			subject, first = name, index
+		}
+	}
+	return subject
 }
 
 func (row *conformanceRow) merge() conformanceOutcome {

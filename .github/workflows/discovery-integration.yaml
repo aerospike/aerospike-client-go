@@ -44,7 +44,7 @@ jobs:
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
 
       - name: Report skipped layers
-        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@a30c0787dede434f15be3622e7007dc57b55209d # main
+        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
         with:
           layers: ${{ steps.gate.outputs.layers }}
 
