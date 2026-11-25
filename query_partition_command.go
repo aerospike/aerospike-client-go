@@ -68,12 +68,20 @@ func (cmd *queryPartitionCommand) commandType() commandType {
 
 func (cmd *queryPartitionCommand) Execute() Error {
 	err := cmd.execute(cmd)
-	if err != nil {
-		// signal to the executor that no retries should be attempted
-		// don't send error unless no retries are planned
-		if !cmd.shouldRetry(err) {
-			cmd.recordset.sendError(err)
-		}
+	if err == nil {
+		return nil
+	}
+	// signal to the executor that no retries should be attempted
+	// don't send error unless no retries are planned
+	if !cmd.shouldRetry(err) {
+		cmd.recordset.sendError(err)
+		return err
+	}
+	if cmd.topKMerger != nil {
+		// Top-K sends records only when every partition is done, so an error
+		// a later round recovers from is kept back.
+		cmd.tracker.keepRetriedError(err)
+		return nil
 	}
 	return err
 }

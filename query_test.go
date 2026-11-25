@@ -1818,6 +1818,125 @@ var _ = gg.Describe("Query Top-K", func() {
 			expectNoLastUpdateTime(lastUpdateTimes(as.NewStatement(ns, set)))
 		})
 	})
+
+	// Each spec filters on a bin with no index, so a round fails with
+	// INDEX_NOTFOUND, which the client retries. The recordset's task ID changes
+	// on every retry round.
+	gg.Context("when a round fails with a retryable error", func() {
+		const sleepBetweenRetries = 2 * time.Second
+
+		var indexName string
+
+		gg.BeforeEach(func() {
+			putScores(10, 70, 30, 90, 50, 20, 80, 40, 60, 0, 100, 25)
+			indexName = set + "score"
+			gg.DeferCleanup(func() { client.DropIndex(nil, ns, set, indexName) })
+		})
+
+		failedCommands := func() float64 {
+			stats, err := client.Stats()
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			return stats["cluster-aggregated-stats"].(map[string]any)["transaction-error-count"].(float64)
+		}
+
+		filteredStatement := func(topK bool) *as.Statement {
+			statement := as.NewStatement(ns, set, "score", "id")
+			gm.ExpectWithOffset(1, statement.SetFilter(as.NewRangeFilter("score", 0, 1000))).To(gm.Succeed())
+			if topK {
+				statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+				statement.SetTopK(5)
+			}
+			return statement
+		}
+
+		retryingPolicy := func(maxRetries int) *as.QueryPolicy {
+			policy := as.NewQueryPolicy()
+			policy.MaxRetries = maxRetries
+			policy.SleepBetweenRetries = sleepBetweenRetries
+			return policy
+		}
+
+		// startAndRecover starts the query, waits until failedRounds rounds
+		// have failed, then creates the index so the next round succeeds.
+		startAndRecover := func(statement *as.Statement, policy *as.QueryPolicy, failedRounds int) (recordset *as.Recordset, firstTaskID uint64) {
+			// Fill the connection pool so the first round isn't delayed.
+			warmUp, err := client.Query(nil, as.NewStatement(ns, set))
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			for range warmUp.Results() {
+			}
+			failedBefore := failedCommands()
+
+			recordset, err = client.Query(policy, statement)
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			firstTaskID = recordset.TaskId()
+
+			gm.EventuallyWithOffset(1, failedCommands).WithTimeout(time.Duration(failedRounds+1) * sleepBetweenRetries).
+				WithPolling(10 * time.Millisecond).Should(gm.BeNumerically(">=", failedBefore+float64(failedRounds*len(client.GetNodes()))))
+			createIndex(nil, ns, set, indexName, "score", as.NUMERIC)
+			return recordset, firstTaskID
+		}
+
+		gg.It("returns the top k with no error when a later round succeeds after two failed rounds", func() {
+			start := time.Now()
+			recordset, firstTaskID := startAndRecover(filteredStatement(true), retryingPolicy(3), 2)
+
+			var scores []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				scores = append(scores, result.Record.Bins["score"].(int))
+			}
+
+			gm.Expect(scores).To(gm.Equal([]int{100, 90, 80, 70, 60}))
+			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+			gm.Expect(time.Since(start)).To(gm.BeNumerically(">=", 2*sleepBetweenRetries))
+		})
+
+		gg.It("returns MAX_RETRIES_EXCEEDED over the retried INDEX_NOTFOUND errors when no round succeeds", func() {
+			statement := filteredStatement(true)
+			policy := retryingPolicy(2)
+			policy.SleepBetweenRetries = 100 * time.Millisecond
+			recordset, err := client.Query(policy, statement)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			firstTaskID := recordset.TaskId()
+
+			var records int
+			var firstErr as.Error
+			for result := range recordset.Results() {
+				if result.Err == nil {
+					records++
+				} else if firstErr == nil {
+					firstErr = result.Err
+				}
+			}
+
+			gm.Expect(records).To(gm.BeZero())
+			gm.Expect(firstErr).To(gm.HaveOccurred())
+			var aerospikeErr *as.AerospikeError
+			gm.Expect(errors.As(firstErr, &aerospikeErr)).To(gm.BeTrue())
+			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.MAX_RETRIES_EXCEEDED), firstErr.Error())
+			gm.Expect(firstErr.Matches(ast.INDEX_NOTFOUND)).To(gm.BeTrue(), firstErr.Error())
+			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+		})
+
+		gg.It("keeps a plain query returning every record and then the retried INDEX_NOTFOUND error", func() {
+			recordset, firstTaskID := startAndRecover(filteredStatement(false), retryingPolicy(3), 1)
+
+			var records int
+			var errs []as.Error
+			for result := range recordset.Results() {
+				if result.Err == nil {
+					records++
+				} else {
+					errs = append(errs, result.Err)
+				}
+			}
+
+			gm.Expect(records).To(gm.Equal(len(keys)))
+			gm.Expect(errs).To(gm.HaveLen(1))
+			gm.Expect(errs[0].Matches(ast.INDEX_NOTFOUND)).To(gm.BeTrue(), errs[0].Error())
+			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+		})
+	})
 })
 
 // The server stops a long query at query-max-run-time-ms or at the client's
