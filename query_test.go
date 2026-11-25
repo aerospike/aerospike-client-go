@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net"
 	"sort"
 	"strconv"
 	"time"
@@ -1828,6 +1829,9 @@ var _ = gg.Describe("Query Top-K", func() {
 		var indexName string
 
 		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K requires a server with Top-K support")
+			}
 			putScores(10, 70, 30, 90, 50, 20, 80, 40, 60, 0, 100, 25)
 			indexName = set + "score"
 			gg.DeferCleanup(func() { client.DropIndex(nil, ns, set, indexName) })
@@ -2188,6 +2192,32 @@ var _ = gg.Describe("Query run-time limits", func() {
 			gm.Expect(policy.TotalTimeout).To(gm.BeZero())
 		})
 
+		gg.It("stops at 10 seconds with TIMEOUT when a scan with no total and no socket timeout runs longer", func() {
+			const noTimeoutWait = 10 * time.Second
+			setRunTimeLimit(0)
+			// Three times the records at half the rate run the scan about 12 seconds.
+			for i := recordCount; i < 3*recordCount; i++ {
+				key, err := as.NewKey(ns, set, i)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.PutBins(nil, key, as.NewBin("score", i))).To(gm.Succeed())
+				keys = append(keys, key)
+			}
+			policy := throttledPolicy()
+			policy.RecordsPerSecond = max(1, recordsPerSecond()/2)
+			policy.SocketTimeout = 0
+			policy.TotalTimeout = 0
+
+			start := time.Now()
+			records, err := drain(client.Query(policy, topKStatement()))
+			elapsed := time.Since(start)
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(resultCodeOf(err)).To(gm.Equal(ast.TIMEOUT), err.Error())
+			gm.Expect(records).To(gm.BeZero())
+			gm.Expect(elapsed).To(gm.BeNumerically(">=", noTimeoutWait))
+			gm.Expect(elapsed).To(gm.BeNumerically("<", noTimeoutWait+stopMargin))
+		})
+
 		gg.It("refuses a query over order-by-jobs-limit with FAIL_FORBIDDEN and the server's reason", gg.Serial, func() {
 			previous, found := serverConfig("service", "order-by-jobs-limit")
 			if !found {
@@ -2224,6 +2254,46 @@ var _ = gg.Describe("Query run-time limits", func() {
 			gm.Eventually(running).WithTimeout(2 * runTime).Should(gm.Receive(&first))
 			gm.Expect(first.err).ToNot(gm.HaveOccurred())
 			gm.Expect(first.records).To(gm.Equal(k))
+		})
+
+		gg.It("fails with NETWORK_ERROR and doesn't retry when the client stops reading past the server's send timeout", func() {
+			const (
+				largeK       = 1000
+				payloadSize  = 20 * 1024
+				readingPause = 15 * time.Second
+			)
+			if len(client.GetNodes()) != 1 {
+				gg.Skip("the proxy fronts a single node")
+			}
+			setRunTimeLimit(0)
+
+			payload := bytes.Repeat([]byte{7}, payloadSize)
+			for i := recordCount; i < recordCount+largeK; i++ {
+				key, err := as.NewKey(ns, set, i)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.Put(nil, key, as.BinMap{"score": i, "payload": payload})).To(gm.Succeed())
+				keys = append(keys, key)
+			}
+
+			seed := dbHosts[0]
+			proxy := newPausableNodeProxy(net.JoinHostPort(seed.Name, strconv.Itoa(seed.Port)))
+			gg.DeferCleanup(proxy.close)
+			proxiedClient, err := as.NewClientWithPolicyAndHost(clientPolicy, proxy.host(seed.TLSName))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gg.DeferCleanup(proxiedClient.Close)
+
+			statement := as.NewStatement(ns, set, "score", "payload")
+			statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+			statement.SetTopK(largeK)
+			policy := as.NewQueryPolicy()
+
+			proxy.pauseNextResponse(0)
+			time.AfterFunc(readingPause, proxy.resumeResponse)
+			records, err := drain(proxiedClient.Query(policy, statement))
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(resultCodeOf(err)).To(gm.Equal(ast.NETWORK_ERROR), err.Error())
+			gm.Expect(records).To(gm.BeZero())
 		})
 	})
 

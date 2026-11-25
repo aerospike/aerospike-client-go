@@ -22,8 +22,8 @@ import (
 )
 
 // topKReplyWait is how long a Top-K read waits for a node when the policy sets
-// no timeout, the same as the default query socket timeout.
-const topKReplyWait = 30 * time.Second
+// no timeout.
+const topKReplyWait = 10 * time.Second
 
 type queryPartitionCommand queryCommand
 
@@ -60,8 +60,8 @@ func (cmd *queryPartitionCommand) writeBuffer(ifc command) Error {
 
 func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
 	// A Top-K node sends nothing until its scan finishes, so a retry after a
-	// timeout only runs the scan again.
-	if cmd.statement.hasTopK() && e.Matches(types.TIMEOUT) {
+	// timeout or a closed connection only runs the scan again.
+	if cmd.statement.hasTopK() && e.Matches(types.TIMEOUT, types.NETWORK_ERROR) {
 		return false
 	}
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)

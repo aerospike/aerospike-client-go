@@ -17,8 +17,6 @@ package aerospike_test
 import (
 	"net"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -28,173 +26,13 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-// holdProxy forwards client->server bytes immediately. When armed, it holds the
-// next server->client response on a data connection after forwarding passBytes of it.
-type holdProxy struct {
-	ln       net.Listener
-	upstream string
-
-	mu          sync.Mutex
-	armed       bool
-	passBytes   int
-	release     chan struct{}
-	releaseOnce *sync.Once
-	heldClosed  chan struct{}
-	held        atomic.Bool
-	conns       []net.Conn
-}
-
-func newHoldProxy(upstream string) *holdProxy {
-	// listen on the local interface that routes to the upstream
-	probe, err := net.Dial("tcp", upstream)
-	gm.Expect(err).ToNot(gm.HaveOccurred())
-	local := probe.LocalAddr().(*net.TCPAddr).IP
-	probe.Close()
-
-	ln, err := net.Listen("tcp", net.JoinHostPort(local.String(), "0"))
-	gm.Expect(err).ToNot(gm.HaveOccurred())
-
-	p := &holdProxy{ln: ln, upstream: upstream}
-	go p.serve()
-	return p
-}
-
-func (p *holdProxy) host(tlsName string) *as.Host {
-	addr := p.ln.Addr().(*net.TCPAddr)
-	return &as.Host{Name: addr.IP.String(), Port: addr.Port, TLSName: tlsName}
-}
-
-func (p *holdProxy) port() int {
-	return p.ln.Addr().(*net.TCPAddr).Port
-}
-
-func (p *holdProxy) serve() {
-	for {
-		c, err := p.ln.Accept()
-		if err != nil {
-			return
-		}
-		s, err := net.Dial("tcp", p.upstream)
-		if err != nil {
-			c.Close()
-			continue
-		}
-		p.mu.Lock()
-		p.conns = append(p.conns, c, s)
-		p.mu.Unlock()
-		go p.pipe(c, s)
-	}
-}
-
-func (p *holdProxy) pipe(c, s net.Conn) {
-	var isData atomic.Bool
-	var closedOnce sync.Once
-	var heldClosed chan struct{}
-	var heldMu sync.Mutex
-
-	go func() {
-		defer s.Close()
-		buf := make([]byte, 64*1024)
-		for {
-			n, err := c.Read(buf)
-			if n >= 2 && (buf[1] == 3 || buf[1] == 4) {
-				isData.Store(true)
-			}
-			if n > 0 {
-				if _, werr := s.Write(buf[:n]); werr != nil {
-					return
-				}
-			}
-			if err != nil {
-				heldMu.Lock()
-				if heldClosed != nil {
-					closedOnce.Do(func() { close(heldClosed) })
-				}
-				heldMu.Unlock()
-				return
-			}
-		}
-	}()
-
-	defer c.Close()
-	buf := make([]byte, 64*1024)
-	for {
-		n, err := s.Read(buf)
-		if n > 0 {
-			out := buf[:n]
-			if isData.Load() {
-				p.mu.Lock()
-				armed, pass, release := p.armed, p.passBytes, p.release
-				if armed {
-					p.armed = false
-					heldMu.Lock()
-					heldClosed = p.heldClosed
-					heldMu.Unlock()
-				}
-				p.mu.Unlock()
-
-				if armed {
-					if pass > len(out) {
-						pass = len(out)
-					}
-					if _, werr := c.Write(out[:pass]); werr != nil {
-						return
-					}
-					out = out[pass:]
-					p.held.Store(true)
-					<-release
-				}
-			}
-			if _, werr := c.Write(out); werr != nil {
-				return
-			}
-		}
-		if err != nil {
-			return
-		}
-	}
-}
-
-// holdNext arms the proxy and returns the channel closed once the client side of
-// the held connection closes.
-func (p *holdProxy) holdNext(passBytes int) <-chan struct{} {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.armed = true
-	p.passBytes = passBytes
-	p.release = make(chan struct{})
-	p.releaseOnce = new(sync.Once)
-	p.heldClosed = make(chan struct{})
-	p.held.Store(false)
-	return p.heldClosed
-}
-
-func (p *holdProxy) releaseHeld() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.release != nil {
-		p.releaseOnce.Do(func() { close(p.release) })
-	}
-}
-
-func (p *holdProxy) close() {
-	p.ln.Close()
-	p.releaseHeld()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.armed = false
-	for _, c := range p.conns {
-		c.Close()
-	}
-}
-
 var _ = gg.Describe("Connection salvage after a timeout", func() {
 
 	const followUps = 6
 
 	var ns = *namespace
 	var set = ""
-	var proxy *holdProxy
+	var proxy *pausableNodeProxy
 	var pclient *as.Client
 	var keys []*as.Key
 
@@ -249,12 +87,12 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 		_, err := pclient.Get(policy, keys[0])
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Matches(ast.TIMEOUT)).To(gm.BeTrue(), err.Error())
-		gm.Eventually(proxy.held.Load).Should(gm.BeTrue())
+		gm.Eventually(proxy.responsePaused.Load).Should(gm.BeTrue())
 	}
 
 	gg.BeforeEach(func() {
 		seed := dbHosts[0]
-		proxy = newHoldProxy(net.JoinHostPort(seed.Name, strconv.Itoa(seed.Port)))
+		proxy = newPausableNodeProxy(net.JoinHostPort(seed.Name, strconv.Itoa(seed.Port)))
 
 		cp := *clientPolicy
 		// one slot for the tend connection, one for commands
@@ -305,9 +143,9 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 	gg.It("must close, not pool, a connection whose read timed out before the response header arrived", func() {
 		before := recovered()
 
-		closed := proxy.holdNext(0)
+		closed := proxy.pauseNextResponse(0)
 		timeOutRead(timeoutPolicy(2*time.Second, 0))
-		proxy.releaseHeld()
+		proxy.resumeResponse()
 		time.Sleep(300 * time.Millisecond)
 
 		expectOwnRecords(2 * time.Second)
@@ -319,9 +157,9 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 	gg.It("must salvage a connection when the outstanding response is fully drained", func() {
 		before := recovered()
 
-		closed := proxy.holdNext(8)
+		closed := proxy.pauseNextResponse(8)
 		timeOutRead(timeoutPolicy(3*time.Second, 1))
-		proxy.releaseHeld()
+		proxy.resumeResponse()
 
 		gm.Eventually(recovered, 2*time.Second).Should(gm.Equal(before + 1))
 		gm.Expect(isClosed(closed)()).To(gm.BeFalse())
@@ -334,9 +172,9 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 		pclient.DisableMetrics()
 		before := recovered()
 
-		closed := proxy.holdNext(8)
+		closed := proxy.pauseNextResponse(8)
 		timeOutRead(timeoutPolicy(3*time.Second, 1))
-		proxy.releaseHeld()
+		proxy.resumeResponse()
 
 		gm.Eventually(recovered, 2*time.Second).Should(gm.Equal(before + 1))
 		gm.Expect(isClosed(closed)()).To(gm.BeFalse())
@@ -345,11 +183,11 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 	gg.It("must close the connection when the drain deadline expires", func() {
 		before := recovered()
 
-		closed := proxy.holdNext(8)
+		closed := proxy.pauseNextResponse(8)
 		timeOutRead(timeoutPolicy(300*time.Millisecond, 0))
 
 		gm.Eventually(isClosed(closed), 2*time.Second).Should(gm.BeTrue())
-		proxy.releaseHeld()
+		proxy.resumeResponse()
 
 		expectOwnRecords(300 * time.Millisecond)
 		gm.Consistently(recovered, 500*time.Millisecond).Should(gm.Equal(before))
@@ -358,11 +196,11 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 	gg.It("must close the connection without salvaging when TimeoutDelay is 0", func() {
 		before := recovered()
 
-		closed := proxy.holdNext(0)
+		closed := proxy.pauseNextResponse(0)
 		timeOutRead(timeoutPolicy(0, 0))
 
 		gm.Eventually(isClosed(closed), 2*time.Second).Should(gm.BeTrue())
-		proxy.releaseHeld()
+		proxy.resumeResponse()
 
 		expectOwnRecords(0)
 		gm.Consistently(recovered, 500*time.Millisecond).Should(gm.Equal(before))

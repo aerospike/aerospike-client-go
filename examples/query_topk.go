@@ -55,7 +55,8 @@ func runQueryTopK() error {
 	statement.ThenOrderBy("topkid", as.BinDataTypeInteger, as.OrderAsc)
 	statement.SetTopK(topK)
 
-	// Nodes reply only after their scan, and Top-K is not retried on TIMEOUT.
+	// Nodes reply only after their scan, and Top-K is not retried on TIMEOUT or
+	// NETWORK_ERROR.
 	// Set TotalTimeout above the scan time and leave SocketTimeout at 0.
 	queryPolicy := as.NewQueryPolicy()
 	queryPolicy.SocketTimeout = 0

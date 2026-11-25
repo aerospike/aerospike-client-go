@@ -24,9 +24,9 @@ import (
 //
 // Inherited Policy fields Policy.Txn are ignored in query commands.
 //
-// A Top-K query is not retried on TIMEOUT, because every node sends its
-// records only after its whole scan. Set TotalTimeout above the scan time and
-// leave SocketTimeout at 0.
+// A Top-K query is not retried on TIMEOUT or NETWORK_ERROR, because every node
+// sends its records only after its whole scan. Set TotalTimeout above the scan
+// time and leave SocketTimeout at 0.
 type QueryPolicy struct {
 	MultiPolicy
 

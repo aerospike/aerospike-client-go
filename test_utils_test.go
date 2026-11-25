@@ -19,6 +19,10 @@ import (
 	"math/rand"
 	"net"
 	"reflect"
+	"sync"
+	"sync/atomic"
+
+	as "github.com/aerospike/aerospike-client-go/v8"
 
 	gm "github.com/onsi/gomega"
 )
@@ -135,4 +139,165 @@ func getOutboundIP() net.IP {
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	return localAddr.IP
+}
+
+// pausableNodeProxy relays connections to one node. When armed, it stops passing
+// on the node's next response on a data connection after passBytes of it, until
+// resumed.
+type pausableNodeProxy struct {
+	ln       net.Listener
+	upstream string
+
+	mu             sync.Mutex
+	armed          bool
+	passBytes      int
+	release        chan struct{}
+	releaseOnce    *sync.Once
+	pausedClosed   chan struct{}
+	responsePaused atomic.Bool
+	conns          []net.Conn
+}
+
+func newPausableNodeProxy(upstream string) *pausableNodeProxy {
+	// listen on the local interface that routes to the upstream
+	probe, err := net.Dial("tcp", upstream)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+	local := probe.LocalAddr().(*net.TCPAddr).IP
+	probe.Close()
+
+	ln, err := net.Listen("tcp", net.JoinHostPort(local.String(), "0"))
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	p := &pausableNodeProxy{ln: ln, upstream: upstream}
+	go p.serve()
+	return p
+}
+
+func (p *pausableNodeProxy) host(tlsName string) *as.Host {
+	addr := p.ln.Addr().(*net.TCPAddr)
+	return &as.Host{Name: addr.IP.String(), Port: addr.Port, TLSName: tlsName}
+}
+
+func (p *pausableNodeProxy) port() int {
+	return p.ln.Addr().(*net.TCPAddr).Port
+}
+
+func (p *pausableNodeProxy) serve() {
+	for {
+		c, err := p.ln.Accept()
+		if err != nil {
+			return
+		}
+		s, err := net.Dial("tcp", p.upstream)
+		if err != nil {
+			c.Close()
+			continue
+		}
+		p.mu.Lock()
+		p.conns = append(p.conns, c, s)
+		p.mu.Unlock()
+		go p.pipe(c, s)
+	}
+}
+
+func (p *pausableNodeProxy) pipe(c, s net.Conn) {
+	var isData atomic.Bool
+	var closedOnce sync.Once
+	var pausedClosed chan struct{}
+	var pausedMu sync.Mutex
+
+	go func() {
+		defer s.Close()
+		buf := make([]byte, 64*1024)
+		for {
+			n, err := c.Read(buf)
+			if n >= 2 && (buf[1] == 3 || buf[1] == 4) {
+				isData.Store(true)
+			}
+			if n > 0 {
+				if _, werr := s.Write(buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				pausedMu.Lock()
+				if pausedClosed != nil {
+					closedOnce.Do(func() { close(pausedClosed) })
+				}
+				pausedMu.Unlock()
+				return
+			}
+		}
+	}()
+
+	defer c.Close()
+	buf := make([]byte, 64*1024)
+	for {
+		n, err := s.Read(buf)
+		if n > 0 {
+			out := buf[:n]
+			if isData.Load() {
+				p.mu.Lock()
+				armed, pass, release := p.armed, p.passBytes, p.release
+				if armed {
+					p.armed = false
+					pausedMu.Lock()
+					pausedClosed = p.pausedClosed
+					pausedMu.Unlock()
+				}
+				p.mu.Unlock()
+
+				if armed {
+					if pass > len(out) {
+						pass = len(out)
+					}
+					if _, werr := c.Write(out[:pass]); werr != nil {
+						return
+					}
+					out = out[pass:]
+					p.responsePaused.Store(true)
+					<-release
+				}
+			}
+			if _, werr := c.Write(out); werr != nil {
+				return
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+// pauseNextResponse arms the proxy and returns the channel closed once the client
+// side of the paused connection closes.
+func (p *pausableNodeProxy) pauseNextResponse(passBytes int) <-chan struct{} {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.armed = true
+	p.passBytes = passBytes
+	p.release = make(chan struct{})
+	p.releaseOnce = new(sync.Once)
+	p.pausedClosed = make(chan struct{})
+	p.responsePaused.Store(false)
+	return p.pausedClosed
+}
+
+func (p *pausableNodeProxy) resumeResponse() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.release != nil {
+		p.releaseOnce.Do(func() { close(p.release) })
+	}
+}
+
+func (p *pausableNodeProxy) close() {
+	p.ln.Close()
+	p.resumeResponse()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.armed = false
+	for _, c := range p.conns {
+		c.Close()
+	}
 }
