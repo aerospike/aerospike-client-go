@@ -49,6 +49,8 @@ func concreteNewValueReflect(v any) Value {
 		return NewLongValue(reflect.ValueOf(v).Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 		return NewLongValue(int64(reflect.ValueOf(v).Uint()))
+	case reflect.Uint64:
+		return uint64Value(rv.Uint())
 	case reflect.String:
 		return NewStringValue(rv.String())
 	}

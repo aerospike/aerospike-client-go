@@ -3036,7 +3036,11 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) Error {
 
 func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value any) Error {
 	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
-	sz, err := NewValue(value).EstimateSize()
+	v, err := newValueOrError(value)
+	if err != nil {
+		return err
+	}
+	sz, err := v.EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -3399,7 +3403,10 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val any, o
 		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than %d bytes.", name, maxBinNameLength))
 	}
 
-	v := NewValue(val)
+	v, err := newValueOrError(val)
+	if err != nil {
+		return err
+	}
 
 	valueLength, err := v.EstimateSize()
 	if err != nil {
@@ -3964,8 +3971,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
-			// chain the errors
-			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			// chain the errors; nothing was sent on this attempt, so only earlier attempts can leave it in doubt
+			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter-1)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.

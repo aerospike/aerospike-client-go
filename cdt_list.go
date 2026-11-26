@@ -737,7 +737,7 @@ func ListClearOp(binName string, ctx ...*CDTContext) *Operation {
 func ListIncrementOp(binName string, index int, value any, ctx ...*CDTContext) *Operation {
 	val := NewValue(value)
 	switch val.(type) {
-	case LongValue, IntegerValue, FloatValue:
+	case LongValue, IntegerValue, FloatValue, invalidValue:
 	default:
 		panic("Increment operation only accepts Integer or Float values")
 	}
@@ -764,7 +764,7 @@ func ListIncrementByOneWithPolicyOp(policy *ListPolicy, binName string, index in
 func ListIncrementWithPolicyOp(policy *ListPolicy, binName string, index int, value any, ctx ...*CDTContext) *Operation {
 	val := NewValue(value)
 	switch val.(type) {
-	case LongValue, IntegerValue, FloatValue:
+	case LongValue, IntegerValue, FloatValue, invalidValue:
 	default:
 		panic("Increment operation only accepts Integer or Float values")
 	}
