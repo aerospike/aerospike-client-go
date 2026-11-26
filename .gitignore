@@ -33,5 +33,4 @@ ginkgo.report
 /test/discovery/.run/
 /test/discovery/awsrealprobe/awsrealprobe
 /test/discovery/l5driver/l5driver
-/test/tls/.run/
 .idea
