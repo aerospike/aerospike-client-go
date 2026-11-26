@@ -27,6 +27,8 @@ type queryCommand struct {
 	operations  []*Operation
 	// sendTopK asks the node to rank a Top-K statement itself.
 	sendTopK bool
+	// replyInterrupted is set when a timeout or network error cuts off a Top-K reply.
+	replyInterrupted bool
 }
 
 func newQueryCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation, recordset *Recordset) *queryCommand {

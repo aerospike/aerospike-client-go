@@ -23,6 +23,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -1938,6 +1939,93 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(records).To(gm.Equal(len(keys)))
 			gm.Expect(errs).To(gm.HaveLen(1))
 			gm.Expect(errs[0].Matches(ast.INDEX_NOTFOUND)).To(gm.BeTrue(), errs[0].Error())
+			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+		})
+
+		// holdEveryConnection returns a client whose pools allow no more connections,
+		// and a function that gives the held connections back.
+		holdEveryConnection := func() (limitedClient *as.Client, release func()) {
+			limitedPolicy := *clientPolicy
+			limitedPolicy.LimitConnectionsToQueueSize = true
+			limitedPolicy.ConnectionQueueSize = 4
+			limitedClient, err := as.NewClientWithPolicyAndHost(&limitedPolicy, dbHosts...)
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			gg.DeferCleanup(limitedClient.Close)
+
+			held := map[*as.Node][]*as.Connection{}
+			for _, node := range limitedClient.GetNodes() {
+				for {
+					conn, err := node.GetConnection(0)
+					if err != nil {
+						gm.ExpectWithOffset(1, errors.Is(err, as.ErrConnectionPoolExhausted)).To(gm.BeTrue(), err.Error())
+						break
+					}
+					held[node] = append(held[node], conn)
+				}
+			}
+
+			var once sync.Once
+			release = func() {
+				once.Do(func() {
+					for node, conns := range held {
+						for _, conn := range conns {
+							node.PutConnection(conn)
+						}
+					}
+				})
+			}
+			gg.DeferCleanup(release)
+			return limitedClient, release
+		}
+
+		exitFastTopK := func(queryClient *as.Client, sleep time.Duration) (recordset *as.Recordset, firstTaskID uint64) {
+			policy := retryingPolicy(3)
+			policy.SleepBetweenRetries = sleep
+			policy.ExitFastOnExhaustedConnectionPool = true
+			statement := rankByScore()
+			statement.SetTopK(5)
+			recordset, err := queryClient.Query(policy, statement)
+			gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+			return recordset, recordset.TaskId()
+		}
+
+		gg.It("returns the top k with no error when a later round gets a connection", func() {
+			limitedClient, release := holdEveryConnection()
+			// Free the connections while the query waits to retry.
+			time.AfterFunc(sleepBetweenRetries/2, release)
+			recordset, firstTaskID := exitFastTopK(limitedClient, sleepBetweenRetries)
+
+			var scores []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				scores = append(scores, result.Record.Bins["score"].(int))
+			}
+
+			gm.Expect(scores).To(gm.Equal([]int{100, 90, 80, 70, 60}))
+			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+		})
+
+		gg.It("returns MAX_RETRIES_EXCEEDED over the pool-exhausted errors when no round gets a connection", func() {
+			const sleep = 100 * time.Millisecond
+			limitedClient, _ := holdEveryConnection()
+			recordset, firstTaskID := exitFastTopK(limitedClient, sleep)
+
+			var records int
+			var errs []as.Error
+			for result := range recordset.Results() {
+				if result.Err == nil {
+					records++
+				} else {
+					errs = append(errs, result.Err)
+				}
+			}
+
+			gm.Expect(records).To(gm.BeZero())
+			gm.Expect(errs).To(gm.HaveLen(1))
+			var aerospikeErr *as.AerospikeError
+			gm.Expect(errors.As(errs[0], &aerospikeErr)).To(gm.BeTrue())
+			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.MAX_RETRIES_EXCEEDED), errs[0].Error())
+			gm.Expect(errors.Is(errs[0], as.ErrConnectionPoolExhausted)).To(gm.BeTrue(), errs[0].Error())
 			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
 		})
 	})

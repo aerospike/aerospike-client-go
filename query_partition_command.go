@@ -59,9 +59,7 @@ func (cmd *queryPartitionCommand) writeBuffer(ifc command) Error {
 }
 
 func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
-	// A Top-K node sends nothing until its scan finishes, so a retry after a
-	// timeout or a closed connection only runs the scan again.
-	if cmd.statement.hasTopK() && e.Matches(types.TIMEOUT, types.NETWORK_ERROR) {
+	if cmd.replyInterrupted {
 		return false
 	}
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)
@@ -73,7 +71,11 @@ func (cmd *queryPartitionCommand) parseResult(ifc command, conn *Connection) Err
 	if cmd.topKWithoutTimeout() {
 		conn.SetTimeout(time.Time{}, topKReplyWait)
 	}
-	return cmd.baseMultiCommand.parseResult(ifc, conn)
+	err := cmd.baseMultiCommand.parseResult(ifc, conn)
+	if cmd.statement.hasTopK() {
+		cmd.replyInterrupted = err != nil && (err.resultCode() == types.TIMEOUT || err.resultCode() == types.NETWORK_ERROR)
+	}
+	return err
 }
 
 // topKWithoutTimeout reports whether this is a Top-K query whose policy sets
