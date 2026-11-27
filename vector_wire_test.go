@@ -233,22 +233,22 @@ var _ = gg.Describe("Vector encoding", func() {
 		}
 	})
 
-	gg.Context("decoding", func() {
-		valid := mustVector(NewVectorFloat32([]float32{1, 2})).Bytes()
-		malformedInputs := []struct {
-			name        string
-			input       []byte
-			messagePart string
-		}{
-			{"shorter than the header", valid[:5], "vector: value size 5 smaller than 6-byte header"},
-			{"of an unknown version", append([]byte{0x02}, valid[1:]...), "vector: unsupported format version 2 (expected 1)"},
-			{"of an unknown element type", append([]byte{0x01, 0x09}, valid[2:]...), "vector: invalid element type 9"},
-			{"with no dimensions", []byte{0x01, 0x03, 0x00, 0x00, 0x00, 0x00}, "vector: must have at least 1 dimension"},
-			{"with more dimensions than the element type allows", []byte{0x01, 0x04, 0x01, 0x80, 0x00, 0x00}, "vector: 32769 dimensions exceed max 32768"},
-			{"with truncated elements", valid[:len(valid)-1], "vector: value size 13 does not match 14 (2 dimensions of 4 bytes, little-endian)"},
-			{"with trailing bytes", append(append([]byte{}, valid...), 0x00), "vector: value size 15 does not match 14 (2 dimensions of 4 bytes, little-endian)"},
-		}
+	valid := mustVector(NewVectorFloat32([]float32{1, 2})).Bytes()
+	malformedInputs := []struct {
+		name        string
+		input       []byte
+		messagePart string
+	}{
+		{"shorter than the header", valid[:5], "vector: value size 5 smaller than 6-byte header"},
+		{"of an unknown version", append([]byte{0x02}, valid[1:]...), "vector: unsupported format version 2 (expected 1)"},
+		{"of an unknown element type", append([]byte{0x01, 0x09}, valid[2:]...), "vector: invalid element type 9"},
+		{"with no dimensions", []byte{0x01, 0x03, 0x00, 0x00, 0x00, 0x00}, "vector: must have at least 1 dimension"},
+		{"with more dimensions than the element type allows", []byte{0x01, 0x04, 0x01, 0x80, 0x00, 0x00}, "vector: 32769 dimensions exceed max 32768"},
+		{"with truncated elements", valid[:len(valid)-1], "vector: value size 13 does not match 14 (2 dimensions of 4 bytes, little-endian)"},
+		{"with trailing bytes", append(append([]byte{}, valid...), 0x00), "vector: value size 15 does not match 14 (2 dimensions of 4 bytes, little-endian)"},
+	}
 
+	gg.Context("decoding", func() {
 		for _, malformed := range malformedInputs {
 			gg.It("rejects bytes "+malformed.name, func() {
 				vector, err := NewVectorFromBytes(malformed.input)
@@ -334,6 +334,29 @@ var _ = gg.Describe("Vector encoding", func() {
 			expectParseError(err, message)
 		})
 
+		for _, malformed := range malformedInputs {
+			gg.It("fail a query, scan or batch read with a parse error for bytes "+malformed.name, func() {
+				// The particle sits inside a larger reply, so only its own length counts.
+				reply := append(append([]byte{0xaa, 0xbb, 0xcc}, malformed.input...), 0xdd, 0xee)
+				const offset = 3
+
+				decoded, err := bytesToParticle(ParticleType.VECTOR, reply, offset, len(malformed.input))
+				gm.Expect(decoded).To(gm.BeNil())
+				expectParseError(err, malformed.messagePart)
+
+				for _, rawCDT := range []bool{false, true} {
+					decoded, err = bytesToParticleRaw(ParticleType.VECTOR, reply, offset, len(malformed.input), rawCDT)
+					gm.Expect(decoded).To(gm.BeNil(), "rawCDT %v", rawCDT)
+					expectParseError(err, malformed.messagePart)
+				}
+
+				packedList := append([]byte{0x91, 0xa0 | byte(len(malformed.input)+1), ParticleType.VECTOR}, malformed.input...)
+				decoded, err = newUnpacker(packedList, 0, len(packedList)).unpackObjects()
+				gm.Expect(decoded).To(gm.BeNil())
+				expectParseError(err, malformed.messagePart)
+			})
+		}
+
 		gg.It("read as no bin in a single-record read, as a type the client doesn't know does", func() {
 			wire := recordOps(
 				binOp{"vec", ParticleType.VECTOR, invalid},
@@ -371,20 +394,20 @@ var _ = gg.Describe("Vector encoding", func() {
 		}
 
 		metrics := []struct {
-			name   string
-			metric VectorDistanceMetric
-			opCode byte
+			name        string
+			metric      VectorDistanceMetric
+			metricValue byte
 		}{
-			{"squared Euclidean", VectorEuclideanSquared, 52},
-			{"dot product", VectorDotProduct, 53},
-			{"cosine", VectorCosineSimilarity, 54},
+			{"squared Euclidean", VectorEuclideanSquared, 0},
+			{"dot product", VectorDotProduct, 1},
+			{"cosine", VectorCosineSimilarity, 2},
 		}
 
 		for _, testCase := range metrics {
-			gg.It("packs "+testCase.name+" as [op, vector bin, query as blob]", func() {
+			gg.It("packs "+testCase.name+" as [52, metric, vector bin, query as blob]", func() {
 				wire := query.Bytes()
-				// fixarray(3), op, [BIN(81), VECTOR(10), "v"], fixstr(len+1), BLOB, wire.
-				want := append([]byte{0x93, testCase.opCode, 0x93, 0x51, 0x0a, 0xa1, 'v',
+				// fixarray(4), 52, metric, [BIN(81), VECTOR(10), "v"], fixstr(len+1), BLOB, wire.
+				want := append([]byte{0x94, 52, testCase.metricValue, 0x93, 0x51, 0x0a, 0xa1, 'v',
 					0xa0 | byte(len(wire)+1), ParticleType.BLOB}, wire...)
 
 				got, err := packedExpression(ExpVectorDistance(testCase.metric, query, ExpVectorBin("v")))

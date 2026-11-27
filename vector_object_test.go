@@ -117,4 +117,27 @@ var _ = gg.Describe("Vector Object API Test", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(record.Bins).To(gm.Equal(as.BinMap{"name": "doc"}))
 	})
+
+	gg.It("refuses a Top-K statement in the object query commands before sending it", func() {
+		statement := as.NewStatement(*namespace, key.SetName())
+		statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)
+		statement.SetTopK(10)
+
+		objects := make(chan *embedding)
+		for command, query := range map[string]func() (*as.Recordset, as.Error){
+			"QueryObjects": func() (*as.Recordset, as.Error) { return client.QueryObjects(nil, statement, objects) },
+			"QueryPartitionObjects": func() (*as.Recordset, as.Error) {
+				return client.QueryPartitionObjects(nil, statement, objects, as.NewPartitionFilterAll())
+			},
+			"QueryNodeObjects": func() (*as.Recordset, as.Error) {
+				return client.QueryNodeObjects(nil, client.GetNodes()[0], statement, objects)
+			},
+		} {
+			recordset, err := query()
+			gm.Expect(recordset).To(gm.BeNil(), command)
+			gm.Expect(err).To(gm.HaveOccurred(), command)
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("only supported by Query, QueryPartitions and QueryNode"))
+		}
+	})
 })

@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -178,5 +179,17 @@ var _ = gg.Describe("Query Aggregate with vectors", func() {
 
 	gg.It("passes a vector argument to client-side Lua as a list of its bytes", func() {
 		gm.Expect(aggregate("argument", as.NewVectorValue(vector))).To(gm.Equal(asLuaList(wire)))
+	})
+
+	gg.It("refuses a Top-K statement before sending it", func() {
+		statement := as.NewStatement(*namespace, set)
+		statement.SetOrderBy("id", as.BinDataTypeInteger, as.OrderDesc)
+		statement.SetTopK(10)
+
+		recordset, err := client.QueryAggregate(nil, statement, module, "stored", as.NewValue("v"))
+		gm.Expect(recordset).To(gm.BeNil())
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("only supported by Query, QueryPartitions and QueryNode"))
 	})
 })

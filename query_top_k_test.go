@@ -493,6 +493,40 @@ func TestTopKMergerLastUpdateTime(t *testing.T) {
 			},
 			want: [][2]int64{{12, 1}, {7, 3}},
 		},
+		// In the cases below record 1 has two copies: score 95 at time 1000 and
+		// score 40 at time 2000.
+		{
+			name:    "fills the place of a newer copy that ranked out with a record that arrives later",
+			k:       3,
+			records: [][3]int64{{95, 1, 1000}, {90, 2, 500}, {80, 3, 500}, {40, 1, 2000}, {70, 4, 500}},
+			want:    [][2]int64{{90, 2}, {80, 3}, {70, 4}},
+		},
+		{
+			name:    "keeps a newer copy that ranks worse when the better record was dropped before it",
+			k:       3,
+			records: [][3]int64{{95, 1, 1000}, {90, 2, 500}, {80, 3, 500}, {70, 4, 500}, {40, 1, 2000}},
+			want:    [][2]int64{{90, 2}, {80, 3}, {40, 1}},
+		},
+		{
+			name:    "keeps the newer copy when the older one arrives after it",
+			k:       3,
+			records: [][3]int64{{40, 1, 2000}, {95, 1, 1000}, {90, 2, 500}, {80, 3, 500}},
+			want:    [][2]int64{{90, 2}, {80, 3}, {40, 1}},
+		},
+		{
+			name:    "keeps the better-ranked copy when no copy has a time",
+			k:       3,
+			records: [][3]int64{{40, 1, 0}, {95, 1, 0}, {90, 2, 0}, {80, 3, 0}},
+			want:    [][2]int64{{95, 1}, {90, 2}, {80, 3}},
+		},
+		{
+			// A merger keeps only k records, so it no longer knows a newer copy it
+			// dropped.
+			name:    "keeps an older copy that arrives after the newer copy ranked out",
+			k:       3,
+			records: [][3]int64{{90, 2, 500}, {80, 3, 500}, {70, 4, 500}, {40, 1, 2000}, {95, 1, 1000}},
+			want:    [][2]int64{{95, 1}, {90, 2}, {80, 3}},
+		},
 	}
 
 	for _, testCase := range testCases {
