@@ -1076,6 +1076,122 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 			})
 		})
+
+		gg.Context("Batch write in-doubt", func() {
+			const seededBin = "score"
+			const writtenBin = "written"
+
+			var keys []*as.Key
+
+			// Both keys share a master node, so each batch goes to that node as one multi-record command.
+			twoKeysOnOneNode := func() []*as.Key {
+				keySet := randString(50)
+				policy := as.NewPolicy()
+				var sharedNode *as.Node
+				var found []*as.Key
+				for userKey := 0; len(found) < 2 && userKey < 100_000; userKey++ {
+					key, err := as.NewKey(ns, keySet, userKey)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					partition, err := as.PartitionForWrite(client.Cluster(), policy, key)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					node, err := partition.GetNodeWrite(client.Cluster())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					if sharedNode != nil && node.GetName() != sharedNode.GetName() {
+						continue
+					}
+					sharedNode = node
+					found = append(found, key)
+				}
+				gm.Expect(found).To(gm.HaveLen(2))
+				return found
+			}
+
+			gg.BeforeEach(func() {
+				keys = twoKeysOnOneNode()
+				for index, key := range keys {
+					gm.Expect(client.PutBins(nil, key, as.NewBin(seededBin, index))).To(gm.Succeed())
+				}
+			})
+
+			batchWrites := func() []as.BatchRecordIfc {
+				return []as.BatchRecordIfc{
+					as.NewBatchWrite(nil, keys[0], as.PutOp(as.NewBin(writtenBin, 1))),
+					as.NewBatchWrite(nil, keys[1], as.PutOp(as.NewBin(writtenBin, 1))),
+				}
+			}
+
+			expectRecordsInDoubt := func(records []*as.BatchRecord, inDoubt bool) {
+				gm.Expect(records).To(gm.HaveLen(len(keys)))
+				for index, record := range records {
+					gm.Expect(record.InDoubt).To(gm.Equal(inDoubt), "record %d", index)
+				}
+			}
+
+			gg.Context("when the server rejects the batch filter expression", func() {
+				var rejectedPolicy *as.BatchPolicy
+
+				gg.BeforeEach(func() {
+					rejectedPolicy = as.NewBatchPolicy()
+					rejectedPolicy.FilterExpression = as.ExpEq(as.ExpIntBin(seededBin), as.ExpNumAdd(as.ExpIntVal(1), as.ExpFloatVal(1.5)))
+				})
+
+				expectNotInDoubtAndUnchanged := func(batchErr as.Error, records []*as.BatchRecord) {
+					gm.Expect(batchErr).To(gm.HaveOccurred())
+					gm.Expect(batchErr.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue(), batchErr.Error())
+					gm.Expect(batchErr.IsInDoubt()).To(gm.BeFalse())
+					expectRecordsInDoubt(records, false)
+
+					for index, key := range keys {
+						record, err := client.Get(nil, key)
+						gm.Expect(err).ToNot(gm.HaveOccurred(), "record %d", index)
+						gm.Expect(record.Bins).To(gm.Equal(as.BinMap{seededBin: index}), "record %d", index)
+					}
+				}
+
+				gg.It("leaves batch write records out of doubt", func() {
+					records := batchWrites()
+
+					batchErr := client.BatchOperate(rejectedPolicy, records)
+
+					expectNotInDoubtAndUnchanged(batchErr, []*as.BatchRecord{records[0].BatchRec(), records[1].BatchRec()})
+				})
+
+				gg.It("leaves batch delete records out of doubt", func() {
+					records, batchErr := client.BatchDelete(rejectedPolicy, nil, keys)
+
+					expectNotInDoubtAndUnchanged(batchErr, records)
+				})
+
+				gg.It("leaves batch UDF records out of doubt", func() {
+					const udfModule = "batch_write_in_doubt"
+					registerUDF(sendKeyUDFBody, udfModule+".lua")
+					gg.DeferCleanup(removeUDF, udfModule+".lua")
+
+					records, batchErr := client.BatchExecute(rejectedPolicy, nil, keys, udfModule, "writeBin", as.NewValue(writtenBin), as.NewValue(1))
+
+					expectNotInDoubtAndUnchanged(batchErr, records)
+				})
+			})
+
+			gg.It("reports a batch delete that times out in doubt, like a batch write", func() {
+				timeoutPolicy := as.NewBatchPolicy()
+				timeoutPolicy.TotalTimeout = time.Nanosecond
+				timeoutPolicy.SocketTimeout = time.Nanosecond
+				timeoutPolicy.MaxRetries = 0
+
+				writeErr := client.BatchOperate(timeoutPolicy, batchWrites())
+				records, deleteErr := client.BatchDelete(timeoutPolicy, nil, keys)
+
+				gm.Expect(writeErr).To(gm.HaveOccurred())
+				gm.Expect(writeErr.Matches(types.TIMEOUT)).To(gm.BeTrue(), writeErr.Error())
+				gm.Expect(writeErr.IsInDoubt()).To(gm.BeTrue())
+
+				gm.Expect(deleteErr).To(gm.HaveOccurred())
+				gm.Expect(deleteErr.Matches(types.TIMEOUT)).To(gm.BeTrue(), deleteErr.Error())
+				gm.Expect(deleteErr.IsInDoubt()).To(gm.BeTrue())
+				expectRecordsInDoubt(records, true)
+			})
+		})
 	})
 
 	gg.Describe("AllowPartialResults should not suppress timeout errors on single-key batches", func() {

@@ -56,6 +56,8 @@ var _ = gg.Describe("Stats with metrics disabled", func() {
 		policy.TotalTimeout = 2 * time.Millisecond
 		policy.SocketTimeout = 20 * time.Microsecond
 		policy.MaxRetries = 3
+		// Retry at once, so a slow first attempt cannot run out the total timeout before the retry is counted.
+		policy.SleepBetweenRetries = 0
 		policy.ReadModeSC = client.DefaultPolicy.ReadModeSC
 
 		failed := 0

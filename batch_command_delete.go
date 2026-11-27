@@ -185,6 +185,10 @@ func (cmd *batchCommandDelete) commandType() commandType {
 	return ttBatchWrite
 }
 
+func (cmd *batchCommandDelete) isRead() bool {
+	return !cmd.attr.hasWrite
+}
+
 func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy, client.dynConfig)
 	// Honor sendKey from BOTH the parent BatchPolicy and the per-record policy.
@@ -222,7 +226,7 @@ func (cmd *batchCommandDelete) Execute() Error {
 		return cmd.executeSingle(cmd.client)
 	}
 	err := cmd.execute(cmd)
-	if err != nil {
+	if err != nil && err.IsInDoubt() {
 		cmd.setInDoubt(cmd)
 	}
 	return err

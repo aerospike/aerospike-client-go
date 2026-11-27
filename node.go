@@ -582,7 +582,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 
 	// try to get a valid connection from the connection pool
 	for conn = nd.connections.Poll(hint); conn != nil; conn = nd.connections.Poll(hint) {
-		if conn.IsConnected() {
+		if conn.IsConnected() && (conn.usedWithin(_PEER_PROBE_MIN_IDLE) || !conn.closedByPeer()) {
 			break
 		}
 
