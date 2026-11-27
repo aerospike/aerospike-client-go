@@ -231,7 +231,7 @@ func (cmd *batchCommandUDF) Execute() Error {
 		return cmd.executeSingle(cmd.client)
 	}
 	err := cmd.execute(cmd)
-	if err != nil {
+	if err != nil && err.IsInDoubt() {
 		cmd.setInDoubt(cmd)
 	}
 	return err
