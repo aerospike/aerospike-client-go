@@ -27,7 +27,7 @@ const (
 	// client initialization and no usable seed host was left.
 	SEED_DISCOVERY_FAILED ResultCode = -27
 
-	// TRANSLATION_COLLISION means two nodes translated to the same address.
+	// TRANSLATION_COLLISION means a node was left with no address of its own.
 	TRANSLATION_COLLISION ResultCode = -26
 
 	// TRANSLATION_MISS means the address translator had no mapping for a

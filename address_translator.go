@@ -160,13 +160,13 @@ func (misses *translationMisses) warn(translator AddressTranslator, advertised E
 	)
 }
 
-// sharedAddress is an address of a peer that node owner also has.
+// sharedAddress is a peer address that the node named owner also has.
 type sharedAddress struct {
 	host  *Host
 	owner string
 }
 
-const maxListedCollisions = 3
+const maxListedSharedAddresses = 3
 
 // newTranslationCollision reports a peer left with no address of its own.
 // shared is in the peer's address order; notTried are the addresses the peer
@@ -175,7 +175,7 @@ func newTranslationCollision(translatorName, nodeName string, shared []sharedAdd
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Address translator %s left node %s with no address of its own: ", translatorName, nodeName)
 
-	listed := min(len(shared), maxListedCollisions)
+	listed := min(len(shared), maxListedSharedAddresses)
 	for i, address := range shared[:listed] {
 		if i > 0 {
 			sb.WriteString(", ")

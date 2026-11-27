@@ -63,7 +63,7 @@ var _ = gg.Describe("Translation collision detection", gg.Label("discovery"), fu
 		gm.Expect(cluster.sharedOwner(tendPeers, second, second.hosts[1])).To(gm.BeEmpty())
 	})
 
-	gg.It("gives the live node's address to the live node", func() {
+	gg.It("reports the live node as the owner of its address", func() {
 		liveNode := &Node{name: "BB9010011AC4202", host: NewHost("gateway.example.com", 30001)}
 		liveNode.active.Set(true)
 		cluster := &Cluster{translatorName: "pass-through", nodesMap: *sm.New[string, *Node](4)}
@@ -77,7 +77,7 @@ var _ = gg.Describe("Translation collision detection", gg.Label("discovery"), fu
 		gm.Expect(cluster.sharedOwner(tendPeers, newcomer, newcomer.hosts[0])).To(gm.Equal(liveNode.name))
 	})
 
-	gg.It("lists every shared address, the first three with a count of the rest, and the addresses not tried", func() {
+	gg.It("lists the first three shared addresses, counts the rest and lists the addresses not tried", func() {
 		shared := []sharedAddress{
 			{host: NewHost("h1", 3000), owner: "B"},
 			{host: NewHost("h2", 3000), owner: "D"},

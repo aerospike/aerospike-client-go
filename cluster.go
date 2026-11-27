@@ -19,7 +19,6 @@ import (
 	"maps"
 	"net"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -678,11 +677,6 @@ func (clstr *Cluster) healthyNodeAt(host *Host, skipNodeName string) *Node {
 		}
 	}
 	return nil
-}
-
-// addressKey is host as a map key that matches hostnames case-insensitively.
-func addressKey(host *Host) hostAndPort {
-	return hostAndPort{host: strings.ToLower(host.Name), port: host.Port}
 }
 
 func (clstr *Cluster) warnAddressCollision(nodeName, otherNodeName string, host *Host) {

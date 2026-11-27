@@ -412,7 +412,7 @@ func (row *conformanceRow) collision() conformanceOutcome {
 
 	collided := make(map[string]bool, len(collisions))
 	for _, message := range collisions {
-		collided[collisionSubject(message, names)] = true
+		collided[collisionSubject(message)] = true
 	}
 	var nodes []string
 	for _, name := range names {
@@ -443,15 +443,10 @@ func collisionPeerHosts(peer map[string]any) []string {
 	return hosts
 }
 
-// collisionSubject returns the collided peer of a collision message, the
-// peer named first in it.
-func collisionSubject(message string, names []string) string {
-	subject, first := "", len(message)
-	for _, name := range names {
-		if index := strings.Index(message, name); index >= 0 && index < first {
-			subject, first = name, index
-		}
-	}
+// collisionSubject returns the node a collision message says was left with no address.
+func collisionSubject(message string) string {
+	_, rest, _ := strings.Cut(message, "left node ")
+	subject, _, _ := strings.Cut(rest, " ")
 	return subject
 }
 

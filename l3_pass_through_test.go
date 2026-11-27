@@ -357,7 +357,7 @@ func l3AssertReachableAt(t *testing.T, name, advertised string) {
 // Fails if a pod was left with no address of its own.
 func l3AssertNoCollisions(t *testing.T, logs *l2LogCapture) {
 	t.Helper()
-	if got := logs.containing(l2CollisionSuffix); len(got) > 0 {
+	if got := logs.containing(l2CollisionMarker); len(got) > 0 {
 		t.Fatalf("pass-through collided: %v", got)
 	}
 }

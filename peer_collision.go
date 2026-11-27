@@ -115,3 +115,8 @@ func (clstr *Cluster) logSkippedAddress(p *peer, host *Host, owner string) {
 func sameAddress(h1, h2 *Host) bool {
 	return h1.Port == h2.Port && strings.EqualFold(h1.Name, h2.Name)
 }
+
+// addressKey is host as a map key that matches hostnames case-insensitively.
+func addressKey(host *Host) hostAndPort {
+	return hostAndPort{host: strings.ToLower(host.Name), port: host.Port}
+}
