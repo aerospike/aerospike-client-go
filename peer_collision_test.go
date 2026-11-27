@@ -156,7 +156,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 		first.setPeers(peerList(entry(seedName, seed), entry(secondPeerName, second)))
 		second.setPeers(peerList(entry(seedName, seed), entry(firstPeerName, first)))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		for range 2 {
@@ -177,7 +176,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 		seed.setPeers(peerList(peerEntry(liveName, loopback.String(), live.port())))
 		live.setPeers(peerList(peerEntry(seedName, loopback.String(), seed.port())))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		gm.Expect(nodeNamed(client, liveName)).ToNot(gm.BeNil(), "the live node should join before the newcomer is advertised")
@@ -204,7 +202,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 		seed.setPeers(peerList(peerEntry(liveName, loopback.String(), port)))
 		live.setPeers(peerList(peerEntry(seedName, loopback.String(), seed.port())))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		failed := nodeNamed(client, liveName)
@@ -241,7 +238,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			peerEntry(secondPeerName, second, other.port()),
 		))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		for range 2 {
@@ -265,7 +261,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			peerEntry(secondPeerName, loopback.String(), secondServer.port()),
 		))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		for range 2 {
@@ -295,7 +290,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			peerEntry(secondPeerName, alias, other.port()),
 		))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		for range 2 {
@@ -319,7 +313,6 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			peerEntry(secondPeerName, loopback.String(), aliasServer.port()),
 		))
 
-		// The logger level is not synchronised with the tend goroutine; capture before the client starts.
 		capture := captureWarnLogs()
 		client := connect(seed)
 		for range 2 {
@@ -416,9 +409,7 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 		}
 
 		warned := func(parts ...string) bool {
-			logs.mu.Lock()
-			defer logs.mu.Unlock()
-			for _, msg := range logs.msgs {
+			for _, msg := range logs.snapshot() {
 				all := true
 				for _, part := range parts {
 					if !strings.Contains(msg, part) {
@@ -450,8 +441,8 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			gm.Consistently(func() []string { return names(opened) }, settle, 50*time.Millisecond).
 				Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
 			gm.Expect(nodeNamed(opened, nodeD).host.Port).To(gm.Equal(d.port()))
-			gm.Expect(warned("Skip address")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
-			gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.msgs)
+			gm.Expect(warned("Skip address")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.snapshot())
+			gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.snapshot())
 		})
 
 		gg.It("stops a peer that lists a known node's socket under another name first", func() {
@@ -477,7 +468,7 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 
 			gm.Eventually(func() bool {
 				return warned("TRANSLATION_COLLISION", "left node "+nodeD, bAlias+" is used by "+nodeB, "Not tried: "+local(d))
-			}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.msgs)
+			}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.snapshot())
 			gm.Consistently(func() []string { return names(opened) }, settle, 50*time.Millisecond).
 				Should(gm.Equal([]string{nodeA, nodeB}))
 			gm.Expect(nodeNamed(opened, nodeB)).To(gm.BeIdenticalTo(live))
@@ -501,8 +492,8 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 				Should(gm.Equal([]string{nodeA, nodeB}))
 			gm.Expect(nodeNamed(opened, nodeA).IsActive()).To(gm.BeTrue())
 			gm.Expect(nodeNamed(opened, nodeB).IsActive()).To(gm.BeTrue())
-			gm.Expect(warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "Address translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
-			gm.Expect(warned("Skip address")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.msgs)
+			gm.Expect(warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "Address translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.snapshot())
+			gm.Expect(warned("Skip address")).To(gm.BeFalse(), "an untranslated shared address logs at INFO: %v", logs.snapshot())
 		})
 
 		gg.It("creates an unadvertised node under the name it answers with", func() {
@@ -517,7 +508,7 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			gm.Eventually(func() *Node { return nodeNamed(opened, nodeX) }, joinBound, 20*time.Millisecond).
 				ShouldNot(gm.BeNil())
 			gm.Expect(nodeNamed(opened, nodeD)).To(gm.BeNil())
-			gm.Expect(warned("Peer node `"+nodeD+"` is different than actual node `"+nodeX+"`")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
+			gm.Expect(warned("Peer node `"+nodeD+"` is different than actual node `"+nodeX+"`")).To(gm.BeTrue(), "warnings: %v", logs.snapshot())
 		})
 
 		gg.It("warns when the translator produced the shared address", func() {
@@ -535,8 +526,8 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			opened := connectTending(a)
 			gm.Eventually(func() []string { return names(opened) }, joinBound, 20*time.Millisecond).
 				Should(gm.Equal([]string{nodeA, nodeB, nodeD}))
-			gm.Expect(warned("Skip address "+local(bAlias)+" of node "+nodeD+" because node "+nodeB+" also has it. Address translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.msgs)
-			gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.msgs)
+			gm.Expect(warned("Skip address "+local(bAlias)+" of node "+nodeD+" because node "+nodeB+" also has it. Address translator static-map")).To(gm.BeTrue(), "warnings: %v", logs.snapshot())
+			gm.Expect(warned("TRANSLATION_COLLISION")).To(gm.BeFalse(), "warnings: %v", logs.snapshot())
 		})
 
 		gg.It("reports a collision naming the translator when a translated peer has no address left", func() {
@@ -553,7 +544,7 @@ var _ = gg.Describe("Peer address collisions", gg.Label("discovery"), func() {
 			opened := connectTending(a)
 			gm.Eventually(func() bool {
 				return warned("TRANSLATION_COLLISION", nodeD, nodeB, local(bAlias), "Address translator static-map")
-			}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.msgs)
+			}, joinBound, 20*time.Millisecond).Should(gm.BeTrue(), "warnings: %v", logs.snapshot())
 			gm.Expect(names(opened)).To(gm.Equal([]string{nodeA, nodeB}))
 		})
 
