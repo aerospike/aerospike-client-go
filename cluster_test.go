@@ -30,50 +30,68 @@ var _ = gg.Describe("Translation collision detection", gg.Label("discovery"), fu
 		return &peer{nodeName: nodeName, hosts: hosts}
 	}
 
-	gg.It("marks both new peers that share one translated address", func() {
+	gg.It("finds the other new peer on a shared translated address", func() {
 		cluster := &Cluster{translatorName: "port-map"}
+		first := newTestPeer("BB9010011AC4202", NewHost("gateway.example.com", 30001))
+		second := newTestPeer("BB9020011AC4202", NewHost("gateway.example.com", 30001))
 		tendPeers := newPeers(8, 8)
-		tendPeers.appendPeers([]*peer{
-			newTestPeer("BB9010011AC4202", NewHost("gateway.example.com", 30001)),
-			newTestPeer("BB9020011AC4202", NewHost("gateway.example.com", 30001)),
-		})
+		tendPeers.appendPeers([]*peer{first, second})
 
-		cluster.detectTranslationCollisions(tendPeers)
-
-		gm.Expect(tendPeers.collided.Exists("BB9010011AC4202")).To(gm.BeTrue())
-		gm.Expect(tendPeers.collided.Exists("BB9020011AC4202")).To(gm.BeTrue())
+		gm.Expect(cluster.sharedOwner(tendPeers, first, first.hosts[0])).To(gm.Equal("BB9020011AC4202"))
+		gm.Expect(cluster.sharedOwner(tendPeers, second, second.hosts[0])).To(gm.Equal("BB9010011AC4202"))
 	})
 
-	gg.It("keeps distinct addresses apart", func() {
+	gg.It("keeps distinct ports apart", func() {
 		cluster := &Cluster{translatorName: "port-map"}
+		first := newTestPeer("BB9010011AC4202", NewHost("gateway.example.com", 30001))
+		second := newTestPeer("BB9020011AC4202", NewHost("gateway.example.com", 30002))
 		tendPeers := newPeers(8, 8)
-		tendPeers.appendPeers([]*peer{
-			newTestPeer("BB9010011AC4202", NewHost("gateway.example.com", 30001)),
-			newTestPeer("BB9020011AC4202", NewHost("gateway.example.com", 30002)),
-		})
+		tendPeers.appendPeers([]*peer{first, second})
 
-		cluster.detectTranslationCollisions(tendPeers)
-
-		gm.Expect(tendPeers.collided.Exists("BB9010011AC4202")).To(gm.BeFalse())
-		gm.Expect(tendPeers.collided.Exists("BB9020011AC4202")).To(gm.BeFalse())
+		gm.Expect(cluster.sharedOwner(tendPeers, first, first.hosts[0])).To(gm.BeEmpty())
+		gm.Expect(cluster.sharedOwner(tendPeers, second, second.hosts[0])).To(gm.BeEmpty())
 	})
 
-	gg.It("keeps the live node and marks only the newcomer on a clash", func() {
+	gg.It("compares hostnames case-insensitively", func() {
+		cluster := &Cluster{translatorName: "pass-through"}
+		first := newTestPeer("BB9010011AC4202", NewHost("AS.Priv.Example.com", 31001))
+		second := newTestPeer("BB9020011AC4202", NewHost("as.priv.example.com", 31001), NewHost("as.priv.example.com", 31002))
+		tendPeers := newPeers(8, 8)
+		tendPeers.appendPeers([]*peer{first, second})
+
+		gm.Expect(cluster.sharedOwner(tendPeers, first, first.hosts[0])).To(gm.Equal("BB9020011AC4202"))
+		gm.Expect(cluster.sharedOwner(tendPeers, second, second.hosts[1])).To(gm.BeEmpty())
+	})
+
+	gg.It("reports the live node as the owner of its address", func() {
 		liveNode := &Node{name: "BB9010011AC4202", host: NewHost("gateway.example.com", 30001)}
 		liveNode.active.Set(true)
 		cluster := &Cluster{translatorName: "pass-through", nodesMap: *sm.New[string, *Node](4)}
 		cluster.nodes.Set([]*Node{liveNode})
 		cluster.nodesMap.Set(liveNode.name, liveNode)
 
+		newcomer := newTestPeer("BB9090011AC4202", NewHost("gateway.example.com", 30001))
 		tendPeers := newPeers(8, 8)
-		tendPeers.appendPeers([]*peer{
-			newTestPeer("BB9090011AC4202", NewHost("gateway.example.com", 30001)),
-		})
+		tendPeers.appendPeers([]*peer{newcomer})
 
-		cluster.detectTranslationCollisions(tendPeers)
+		gm.Expect(cluster.sharedOwner(tendPeers, newcomer, newcomer.hosts[0])).To(gm.Equal(liveNode.name))
+	})
 
-		gm.Expect(tendPeers.collided.Exists("BB9090011AC4202")).To(gm.BeTrue())
-		gm.Expect(tendPeers.collided.Exists("BB9010011AC4202")).To(gm.BeFalse())
+	gg.It("lists the first three shared addresses, counts the rest and lists the addresses not tried", func() {
+		shared := []sharedAddress{
+			{host: NewHost("h1", 3000), owner: "B"},
+			{host: NewHost("h2", 3000), owner: "D"},
+			{host: NewHost("h3", 3000), owner: "E"},
+			{host: NewHost("h4", 3000), owner: "F"},
+			{host: NewHost("h5", 3000), owner: "G"},
+		}
+		message := newTranslationCollision("port-map", "A", shared, nil).Error()
+		gm.Expect(message).To(gm.ContainSubstring("TRANSLATION_COLLISION"))
+		gm.Expect(message).To(gm.ContainSubstring("Address translator port-map left node A with no address of its own: h1:3000 is used by B, h2:3000 is used by D, h3:3000 is used by E and 2 more. Give each node its own reachable address or mapping"))
+		gm.Expect(message).ToNot(gm.ContainSubstring("h4"))
+
+		message = newTranslationCollision("static-map", "A", shared[:1], []*Host{NewHost("own.example.com", 3000), NewHost("10.0.0.9", 3000)}).Error()
+		gm.Expect(message).To(gm.ContainSubstring("h1:3000 is used by B. Not tried: own.example.com:3000, 10.0.0.9:3000. Give each node"))
 	})
 
 	gg.It("adds a node advertised twice once and neither of two nodes validated on one address", func() {

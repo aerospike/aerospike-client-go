@@ -114,6 +114,9 @@ type peerListParser struct {
 	// translation. missingAlternates names peers with no alternate address.
 	parsedHostCount   int
 	missingAlternates []string
+
+	// translatedHosts collects the current peer's hosts that translation changed.
+	translatedHosts map[*Host]bool
 }
 
 func (p *peerListParser) generation() int64 {
@@ -245,17 +248,26 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 		}
 	}
 
+	changed := false
 	if p.cluster != nil && p.cluster.addressTranslator != nil {
 		translated, err := p.cluster.translate(p.nodeName, p.tlsName, addr, port)
 		if err != nil {
 			logger.Logger.Warn("%s", err)
 			return nil, nil
 		}
+		changed = translated.Name != addr || translated.Port != port
 		addr = translated.Name
 		port = translated.Port
 	}
 
-	return NewHost(addr, port), nil
+	parsed := NewHost(addr, port)
+	if changed {
+		if p.translatedHosts == nil {
+			p.translatedHosts = make(map[*Host]bool, 1)
+		}
+		p.translatedHosts[parsed] = true
+	}
+	return parsed, nil
 }
 
 // parseTranslationValue splits a translation map value into the host and port
@@ -349,6 +361,7 @@ func (p *peerListParser) readPeer() (*peer, Error) {
 
 	p.nodeName = nodeName
 	p.tlsName = tlsName
+	p.translatedHosts = nil
 	hostList, err := p.readHosts(tlsName)
 	if err != nil {
 		return nil, err
@@ -362,7 +375,7 @@ func (p *peerListParser) readPeer() (*peer, Error) {
 		return nil, aeroerr
 	}
 
-	nodeData := &peer{nodeName: nodeName, tlsName: tlsName, hosts: hostList}
+	nodeData := &peer{nodeName: nodeName, tlsName: tlsName, hosts: hostList, translated: p.translatedHosts}
 	return nodeData, nil
 }
 

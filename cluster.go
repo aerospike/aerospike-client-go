@@ -411,8 +411,6 @@ func (clstr *Cluster) tend() Error {
 		})
 	}
 
-	clstr.detectTranslationCollisions(peers)
-
 	// find the first host that connects
 	candidates := peers.peers()
 	seq.ParDo(candidates, func(_peer *peer) {
@@ -420,31 +418,7 @@ func (clstr *Cluster) tend() Error {
 			// Node already exists. Do not even try to connect to hosts.
 			return
 		}
-
-		if peers.collided.Exists(_peer.nodeName) {
-			return
-		}
-
-		seq.Do(_peer.hosts, func(host *Host) error {
-			// attempt connection to the host
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
-			if err := nv.validateNode(clstr, host); err != nil {
-				// IpMap/NLB fork: include the advertised peer node name so a
-				// failing peer can be correlated against server-side membership
-				// (asadm / `peers-clear-std`). `host` here is the post-IpMap target
-				// address; the pre-translation address is logged in peers_parser.go.
-				logger.Logger.Warn("Add node `%s` (peer node `%s`) failed: `%s`", host, _peer.nodeName, err)
-				return nil
-			}
-
-			// Must look for new node name in the unlikely event that node names do not agree.
-			if _peer.nodeName != nv.name {
-				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
-			}
-
-			_peer.validated = &nv
-			return seq.Break
-		})
+		clstr.validatePeer(peers, _peer)
 	})
 
 	seq.ParDo(clstr.addValidatedPeers(peers, candidates), func(node *Node) {
@@ -596,45 +570,6 @@ func (clstr *Cluster) setAddressTranslator(policy *ClientPolicy) {
 	}
 }
 
-// detectTranslationCollisions marks new peers whose translated addresses
-// clash with another peer in the same view or with a live node. A colliding
-// pair of new peers creates neither node, a clash with a live node keeps the
-// live node. Runs on the tend goroutine before new nodes are validated.
-func (clstr *Cluster) detectTranslationCollisions(peers *peers) {
-	newPeers := peers.peers()
-	if len(newPeers) == 0 {
-		return
-	}
-
-	addressOwners := make(map[hostAndPort]string, len(newPeers))
-	for _, newPeer := range newPeers {
-		for _, host := range newPeer.hosts {
-			address := hostAndPort{host: host.Name, port: host.Port}
-			if owner := clstr.healthyNodeAt(address, newPeer.nodeName); owner != nil {
-				peers.collided.Set(newPeer.nodeName, owner.name)
-				clstr.warnAddressCollision(newPeer.nodeName, owner.name, address)
-				continue
-			}
-
-			ownerName, taken := addressOwners[address]
-			if !taken {
-				addressOwners[address] = newPeer.nodeName
-				continue
-			}
-			if ownerName == newPeer.nodeName {
-				continue
-			}
-
-			peers.collided.Set(newPeer.nodeName, ownerName)
-			if clstr.findNodeByName(ownerName) == nil {
-				// Both owners are new peers; neither becomes a node.
-				peers.collided.Set(ownerName, newPeer.nodeName)
-			}
-			clstr.warnAddressCollision(newPeer.nodeName, ownerName, address)
-		}
-	}
-}
-
 // addValidatedPeers creates the nodes of the peers validated this tend and
 // returns them. A peer that validated as a node the cluster already holds, or
 // whose validated address or node name another validated peer shares, is not
@@ -649,7 +584,7 @@ func (clstr *Cluster) addValidatedPeers(peers *peers, candidates []*peer) []*Nod
 	byName := make(map[string][]*peer, len(candidates))
 	for _, candidate := range candidates {
 		if nv := candidate.validated; nv != nil {
-			address := hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}
+			address := addressKey(nv.primaryHost)
 			byAddress[address] = append(byAddress[address], candidate)
 			byName[nv.name] = append(byName[nv.name], candidate)
 		}
@@ -662,23 +597,23 @@ func (clstr *Cluster) addValidatedPeers(peers *peers, candidates []*peer) []*Nod
 			continue
 		}
 
-		address := hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}
+		address := addressKey(nv.primaryHost)
 		if existing := clstr.findNodeByName(nv.name); existing != nil && existing.name != candidate.nodeName {
-			clstr.warnAddressCollision(candidate.nodeName, existing.name, address)
+			clstr.warnAddressCollision(candidate.nodeName, existing.name, nv.primaryHost)
 			continue
 		}
 		if owner := peerNamed(byName[nv.name], nv.name); owner != nil {
 			if owner != candidate {
-				clstr.warnAddressCollision(candidate.nodeName, owner.nodeName, address)
+				clstr.warnAddressCollision(candidate.nodeName, owner.nodeName, nv.primaryHost)
 				continue
 			}
 			if other := otherPeerNamedOtherwise(byAddress[address], candidate, nv.name); other != nil {
-				clstr.warnAddressCollision(candidate.nodeName, other.nodeName, address)
+				clstr.warnAddressCollision(candidate.nodeName, other.nodeName, nv.primaryHost)
 				continue
 			}
 		} else {
 			if other := otherPeer(byAddress[address], candidate); other != nil {
-				clstr.warnAddressCollision(candidate.nodeName, other.nodeName, address)
+				clstr.warnAddressCollision(candidate.nodeName, other.nodeName, nv.primaryHost)
 				continue
 			}
 			if other := otherPeer(byName[nv.name], candidate); other != nil {
@@ -730,21 +665,22 @@ func otherPeerNamedOtherwise(list []*peer, self *peer, name string) *peer {
 	return nil
 }
 
-// healthyNodeAt returns the node on address, or nil. Only an active node
-// without tend failures owns its address, so a failing node does not block a
-// newcomer or a move. The node named skipNodeName is ignored.
-func (clstr *Cluster) healthyNodeAt(address hostAndPort, skipNodeName string) *Node {
+// healthyNodeAt returns the node whose address or dialed address is host, or
+// nil. Only an active node without tend failures owns its address, so a
+// failing node does not block a newcomer or a move. The node named
+// skipNodeName is ignored.
+func (clstr *Cluster) healthyNodeAt(host *Host, skipNodeName string) *Node {
 	for _, node := range clstr.GetNodes() {
 		if node.name != skipNodeName && node.active.Get() && node.failures.Get() == 0 &&
-			node.host.Name == address.host && node.host.Port == address.port {
+			(sameAddress(node.host, host) || (node.dialedHost != nil && sameAddress(node.dialedHost, host))) {
 			return node
 		}
 	}
 	return nil
 }
 
-func (clstr *Cluster) warnAddressCollision(nodeName, otherNodeName string, address hostAndPort) {
-	logger.Logger.Warn("Address translator %s translated nodes %s and %s to the same address %s:%d. Give each node its own reachable address or mapping", clstr.translatorName, nodeName, otherNodeName, address.host, address.port)
+func (clstr *Cluster) warnAddressCollision(nodeName, otherNodeName string, host *Host) {
+	logger.Logger.Warn("%s", newTranslationCollision(clstr.translatorName, nodeName, []sharedAddress{{host: host, owner: otherNodeName}}, nil))
 }
 
 // notifyClusterViewChanged tells the translator's observer when the node set
@@ -819,9 +755,8 @@ func (clstr *Cluster) moveFailedNode(peers *peers, node *Node, partMap *iatomic.
 		logger.Logger.Debug("Address %s of %s is node %s, not node %s", nv.primaryHost, node.lookupName, nv.name, node.name)
 		return
 	}
-	target := hostAndPort{host: nv.primaryHost.Name, port: nv.primaryHost.Port}
-	if owner := clstr.healthyNodeAt(target, node.name); owner != nil {
-		clstr.warnAddressCollision(node.name, owner.name, target)
+	if owner := clstr.healthyNodeAt(nv.primaryHost, node.name); owner != nil {
+		clstr.warnAddressCollision(node.name, owner.name, nv.primaryHost)
 		return
 	}
 

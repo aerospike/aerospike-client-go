@@ -29,11 +29,6 @@ type peers struct {
 	// partialView is set when a peers reply named nodes it could not
 	// address; node removal is skipped for that tend.
 	partialView atomic.Bool
-
-	// collided maps a peer that translated to an address another node
-	// already uses to that other node's name. Colliding peers are not
-	// added to the cluster.
-	collided sm.Map[string, string]
 }
 
 // newPeers creates a new peers object
@@ -43,8 +38,6 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 		_nodes:         *sm.New[string, *Node](addCapacity),
 		_nodesToRemove: *sm.New[string, *Node](addCapacity),
 		genChanged:     *atomic.NewBool(true),
-
-		collided: *sm.New[string, string](4),
 	}
 }
 
@@ -110,4 +103,6 @@ type peer struct {
 	hosts       []*Host
 	replaceNode *Node
 	validated   *nodeValidator
+	// translated holds the hosts the address translator changed from what the server advertised.
+	translated map[*Host]bool
 }

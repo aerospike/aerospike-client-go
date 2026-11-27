@@ -40,8 +40,9 @@ var supportedVersions = map[string]struct{}{
 type DynConfig struct {
 	lock sync.RWMutex
 
-	config *dynconfig.Config
-	cancel context.CancelFunc
+	config  *dynconfig.Config
+	cancel  context.CancelFunc
+	stopped chan struct{} // closed when the watcher returns, so Close does not race its last log
 
 	configInitialized *atomic.Bool
 	client            *Client // Reference to the client to use for callbacks and cached policies.
@@ -122,6 +123,7 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 		dsn:                            urlPath,
 		configProvider:                 provider,
 		cancel:                         cancel,
+		stopped:                        make(chan struct{}),
 		seedCandidateProviderFactories: maps.Clone(policy.seedCandidateProviderFactories),
 		addressTranslatorFactories:     maps.Clone(policy.addressTranslatorFactories),
 	}
@@ -140,6 +142,9 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 func (dc *DynConfig) Close() {
 	if dc != nil && dc.cancel != nil {
 		dc.cancel()
+		if dc.stopped != nil {
+			<-dc.stopped
+		}
 	}
 }
 
@@ -646,6 +651,9 @@ Loop:
 		select {
 		case <-ctx.Done():
 			logger.Logger.Debug("Stopping config watch goroutine.")
+			if dc.stopped != nil {
+				close(dc.stopped)
+			}
 			break Loop
 		case <-time.After(configInterval):
 			tm := time.Now()

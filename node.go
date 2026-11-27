@@ -60,6 +60,9 @@ type Node struct {
 	// Cleared by a successful Refresh. Refresh and moveFailedNode never run
 	// concurrently for one node, so it needs no lock.
 	moveAddress string
+	// dialedHost is the address the node answered on when it was validated.
+	// It differs from host when load balancer detection replaced host.
+	dialedHost  *Host
 	aliases     iatomic.TypedVal[[]*Host]
 	stats       nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]
@@ -100,6 +103,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		cluster:    cluster,
 		name:       nv.name,
 		host:       nv.primaryHost,
+		dialedHost: nv.dialedHost,
 		lookupName: nv.lookupName,
 
 		features:      nv.features,

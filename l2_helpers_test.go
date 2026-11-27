@@ -50,6 +50,7 @@ const (
 	l2MissKeyCount     = 200
 	l2MissRetries      = 3
 	l2CollisionRetries = 3
+	l2CollisionMarker  = " with no address of its own: "
 	l2TLSProxySuffix   = "-tls"
 	l2HoldToxic        = "hold"
 )
@@ -120,9 +121,9 @@ func (capture *l2LogCapture) misses(node string) []string {
 	return capture.containing("has no mapping for node " + node + " ")
 }
 
-// collisions returns translation-collision warnings that name node.
+// collisions returns the translation-collision warnings for node.
 func (capture *l2LogCapture) collisions(node string) []string {
-	return capture.containing("to the same address", node)
+	return capture.containing("left node " + node + l2CollisionMarker)
 }
 
 // l2Failure is one command that failed under l2Load.

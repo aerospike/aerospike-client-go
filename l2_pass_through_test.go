@@ -104,7 +104,7 @@ func TestL2PassThroughCustomTranslatorCollidingNodesCreateNoNode(t *testing.T) {
 		}
 		return true
 	}) {
-		t.Fatalf("custom translator collisions not retried every tend: %v", logs.containing("to the same address"))
+		t.Fatalf("custom translator collisions not retried every tend: %v", logs.containing(l2CollisionMarker))
 	}
 	for _, peer := range nodes[1:] {
 		assertL2Collision(t, logs.collisions(peer.name)[0], peer.name, first.name, net.JoinHostPort(target.Name, strconv.Itoa(target.Port)), fmt.Sprintf("%T", l2SingleAddressTranslator{}))
@@ -133,7 +133,7 @@ func TestL2PassThroughPortMapCollidingNodesCreateNoNode(t *testing.T) {
 		}
 		return len(logs.collisions(a.name)) >= l2CollisionRetries && len(logs.collisions(b.name)) >= l2CollisionRetries
 	}) {
-		t.Fatalf("port-map collisions not retried every tend: %v", logs.containing("to the same address"))
+		t.Fatalf("port-map collisions not retried every tend: %v", logs.containing(l2CollisionMarker))
 	}
 	assertL2Collision(t, logs.collisions(a.name)[0], a.name, b.name, net.JoinHostPort(host, strconv.Itoa(a.port)), "port-map")
 	assertL2SeedKeysWork(t, client, first)
@@ -162,7 +162,7 @@ func TestL2PassThroughNewcomerCollidingWithNodeIsNotCreated(t *testing.T) {
 	if !waitL2(l2Poll, func() bool {
 		return len(logs.collisions(newcomer)) >= l2CollisionRetries || len(client.GetNodes()) > len(names)
 	}) {
-		t.Fatalf("no collision logged for %s: %v", newcomer, logs.containing("to the same address"))
+		t.Fatalf("no collision logged for %s: %v", newcomer, logs.containing(l2CollisionMarker))
 	}
 	got := slices.Sorted(slices.Values(client.GetNodeNames()))
 	if slices.Contains(got, newcomer) {
@@ -172,7 +172,7 @@ func TestL2PassThroughNewcomerCollidingWithNodeIsNotCreated(t *testing.T) {
 		t.Fatalf("nodes %v, want %v", got, names)
 	}
 	if len(logs.collisions(newcomer)) < l2CollisionRetries {
-		t.Fatalf("no collision logged for %s: %v", newcomer, logs.containing("to the same address"))
+		t.Fatalf("no collision logged for %s: %v", newcomer, logs.containing(l2CollisionMarker))
 	}
 	hostname, _ := l2HostPort(t, endpoint)
 	assertL2Collision(t, logs.collisions(newcomer)[0], newcomer, existing.name, net.JoinHostPort(hostname, strconv.Itoa(port)), "pass-through")
@@ -206,7 +206,7 @@ func assertL2PassThroughCollidingNodesCreateNoNode(t *testing.T, policy *as.Clie
 		}
 		return len(logs.collisions(colliding[0])) >= l2CollisionRetries && len(logs.collisions(colliding[1])) >= l2CollisionRetries
 	}) {
-		t.Fatalf("colliding nodes not retried every tend: %v", logs.containing("to the same address"))
+		t.Fatalf("colliding nodes not retried every tend: %v", logs.containing(l2CollisionMarker))
 	}
 	assertL2Collision(t, logs.collisions(colliding[0])[0], colliding[0], colliding[1], endpoint, translator)
 	assertL2OthersServe(t, client, names)
