@@ -82,9 +82,8 @@ func initTestVars() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
 	logger.SetOutput(os.Stdout)
-	asl.Logger.SetLogger(logger)
-
 	if *debug {
+		as.SetSuiteLogOutput(logger)
 		asl.Logger.SetLevel(asl.DEBUG)
 	}
 

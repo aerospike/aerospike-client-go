@@ -35,7 +35,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	"gopkg.in/yaml.v3"
 )
@@ -370,14 +369,8 @@ func (row *conformanceRow) collision() conformanceOutcome {
 	}
 	defer func() { lookupHost = previousLookup }()
 
-	capture := &warnLogCapture{}
-	previousLogger := logger.Logger.Logger
-	logger.Logger.SetLogger(capture)
-	logger.Logger.SetLevel(logger.WARNING)
-	defer func() {
-		logger.Logger.SetLogger(previousLogger)
-		logger.Logger.SetLevel(logger.OFF)
-	}()
+	capture, stopCapture := startLogCapture()
+	defer stopCapture()
 
 	client, clientErr := NewClientWithPolicyAndHost(policy, server.host())
 	if clientErr != nil {
@@ -392,7 +385,7 @@ func (row *conformanceRow) collision() conformanceOutcome {
 	_ = client.cluster.tend()
 
 	var collisions []string
-	for _, message := range capture.msgs {
+	for _, message := range capture.snapshot() {
 		if strings.Contains(message, conformanceErrorMarkers["translation-collision"]) {
 			collisions = append(collisions, message)
 		}

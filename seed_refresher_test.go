@@ -629,7 +629,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			gm.Expect(hostAddresses(recorder.last())).To(gm.Equal([]string{"10.0.0.4:65535"}))
 
 			prefix := "Seed candidate provider *aerospike.scriptedSeedProvider returned host "
-			gm.Expect(logs.msgs).To(gm.Equal([]string{
+			gm.Expect(logs.snapshot()).To(gm.Equal([]string{
 				prefix + "10.0.0.1 with port 0 outside 1-65535. Host dropped",
 				prefix + "10.0.0.3 with port 65536 outside 1-65535. Host dropped",
 				prefix + "10.0.0.3 with port 65536 outside 1-65535. Host dropped",
@@ -649,7 +649,7 @@ var _ = gg.Describe("Seed refresher", gg.Label("discovery"), func() {
 			merged, serr := refresher.start()
 			gm.Expect(serr).ToNot(gm.HaveOccurred())
 			gm.Expect(hostAddresses(merged)).To(gm.Equal([]string{"10.0.0.2:3000"}))
-			gm.Expect(logs.msgs).To(gm.Equal([]string{
+			gm.Expect(logs.snapshot()).To(gm.Equal([]string{
 				"Seed candidate provider static returned host 10.0.0.1 with port 65536 outside 1-65535. Host dropped",
 			}))
 		})
