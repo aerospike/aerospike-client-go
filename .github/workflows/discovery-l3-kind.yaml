@@ -44,7 +44,7 @@ jobs:
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
 
       - name: Report skipped layers
-        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@ad070c54237112d8cbab2df0b40144a2df43e5fc # main
         with:
           layers: ${{ steps.gate.outputs.layers }}
 
@@ -81,7 +81,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.profiles.outputs.profiles) }}
-    uses: aerospike/aerospike-client-conformance/.github/workflows/l3-kind.yaml@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l3-kind.yaml@ad070c54237112d8cbab2df0b40144a2df43e5fc # main
     with:
       client-repository: ${{ github.repository }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -90,6 +90,6 @@ jobs:
       ako-version: ${{ matrix.ako-version }}
       ako-helm-repo: ${{ matrix.ako-helm-repo }}
       cluster-chart-version: ${{ matrix.cluster-chart-version }}
-      conformance-ref: 42db5e9c508226cc0ad1496d7dff1cb23dac2bb0
+      conformance-ref: ad070c54237112d8cbab2df0b40144a2df43e5fc
     secrets:
       FEATURES_CONF: ${{ secrets.FEATURES_CONF }}

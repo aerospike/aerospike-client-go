@@ -49,7 +49,7 @@ jobs:
           echo "layers=${layers}" >> "${GITHUB_OUTPUT}"
 
       - name: Report skipped layers
-        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+        uses: aerospike/aerospike-client-conformance/.github/actions/report-skipped-layers@ad070c54237112d8cbab2df0b40144a2df43e5fc # main
         with:
           layers: ${{ steps.gate.outputs.layers }}
 
@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aerospike/aerospike-client-conformance
-          ref: 42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+          ref: ad070c54237112d8cbab2df0b40144a2df43e5fc # main
 
       - name: List the default rows that are not exempt
         id: rows
@@ -106,7 +106,7 @@ jobs:
           - label: other profiles
             profile: reachable,pass-through-names,pass-through-ports,port-map-range,port-range,low-mtu,idle-reset,unresolved-access
             rows: ""
-    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@ad070c54237112d8cbab2df0b40144a2df43e5fc # main
     with:
       client-repository: ${{ github.repository }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -114,7 +114,7 @@ jobs:
       profile: ${{ matrix.profile }}
       rows: ${{ matrix.rows }}
       edition: ce
-      conformance-ref: 42db5e9c508226cc0ad1496d7dff1cb23dac2bb0
+      conformance-ref: ad070c54237112d8cbab2df0b40144a2df43e5fc
 
   l2-proxy-ee:
     name: L2 proxy (ee ${{ matrix.profile }})
@@ -128,7 +128,7 @@ jobs:
             rows: ${{ needs.default-rows.outputs.rows }}
           - profile: cn-only
             rows: ""
-    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@ad070c54237112d8cbab2df0b40144a2df43e5fc # main
     with:
       client-repository: ${{ github.repository }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -136,7 +136,7 @@ jobs:
       profile: ${{ matrix.profile }}
       rows: ${{ matrix.rows }}
       edition: ee
-      conformance-ref: 42db5e9c508226cc0ad1496d7dff1cb23dac2bb0
+      conformance-ref: ad070c54237112d8cbab2df0b40144a2df43e5fc
     secrets:
       FEATURES_CONF: ${{ secrets.FEATURES_CONF }}
 
@@ -156,7 +156,7 @@ jobs:
           - profile: unresolved-access
             unresolved-hostname: false
             verbatim-access-address: true
-    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@42db5e9c508226cc0ad1496d7dff1cb23dac2bb0 # main
+    uses: aerospike/aerospike-client-conformance/.github/workflows/l2-proxy.yaml@ad070c54237112d8cbab2df0b40144a2df43e5fc # main
     with:
       client-repository: ${{ github.repository }}
       commit: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -167,7 +167,7 @@ jobs:
       registry: aerospike.jfrog.io
       unresolved-hostname: ${{ matrix.unresolved-hostname }}
       verbatim-access-address: ${{ matrix.verbatim-access-address }}
-      conformance-ref: 42db5e9c508226cc0ad1496d7dff1cb23dac2bb0
+      conformance-ref: ad070c54237112d8cbab2df0b40144a2df43e5fc
     secrets:
       JFROG_OIDC_PROVIDER: ${{ vars.OIDC_PROVIDER }}
       JFROG_OIDC_AUDIENCE: ${{ vars.OIDC_AUDIENCE }}
