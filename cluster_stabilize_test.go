@@ -27,32 +27,28 @@ import (
 
 var _ = gg.Describe("Cluster start with a flapping node count", gg.Label("discovery"), func() {
 	gg.It("returns before the timeout when a peer sits behind a round-robin load balancer", func() {
-		loopback := net.ParseIP("127.0.0.1")
-		var servers []*stubNodeServer
-		start := func(name string) *stubNodeServer {
+		const localhost = "127.0.0.1"
+		loopback := net.ParseIP(localhost)
+		startNode := func(name string) *stubNodeServer {
 			server, err := newStubNodeServer(loopback, 0, name)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			servers = append(servers, server)
+			gg.DeferCleanup(server.close)
 			return server
 		}
-		local := func(port int) string {
-			return loopback.String() + ":" + strconv.Itoa(port)
-		}
 
-		a := start("BB9A00000000000A")
-		b := start("BB9B00000000000B")
-		c := start("BB9C00000000000C")
-		lb := newRoundRobinProxy(loopback, local(b.port()), local(c.port()))
-		defer func() {
-			lb.close()
-			for _, server := range servers {
-				server.close()
-			}
-		}()
+		// nodeB is reachable only through the balancer, which alternates between nodeB and nodeC.
+		seedNode := startNode("BB9A00000000000A")
+		nodeB := startNode("BB9B00000000000B")
+		nodeC := startNode("BB9C00000000000C")
+		balancer := newRoundRobinProxy(loopback,
+			net.JoinHostPort(localhost, strconv.Itoa(nodeB.port())),
+			net.JoinHostPort(localhost, strconv.Itoa(nodeC.port())))
+		gg.DeferCleanup(balancer.close)
 
-		peers := "1,3000,[[BB9A00000000000A,,[" + local(a.port()) + "]],[BB9B00000000000B,,[" + local(lb.port()) +
-			"]],[BB9C00000000000C,,[" + local(c.port()) + "]]]"
-		for _, server := range servers {
+		peers := peersFor(localhost,
+			[]string{"BB9A00000000000A", "BB9B00000000000B", "BB9C00000000000C"},
+			[]int{seedNode.port(), balancer.port(), nodeC.port()}, -1)
+		for _, server := range []*stubNodeServer{seedNode, nodeB, nodeC} {
 			server.setPeers(peers)
 		}
 
@@ -62,18 +58,15 @@ var _ = gg.Describe("Cluster start with a flapping node count", gg.Label("discov
 
 		logs := captureWarnLogs()
 		began := time.Now()
-		client, err := NewClientWithPolicyAndHost(policy, NewHost(loopback.String(), a.port()))
+		client, err := NewClientWithPolicyAndHost(policy, NewHost(localhost, seedNode.port()))
 		elapsed := time.Since(began)
 		if client != nil {
-			defer client.Close()
+			gg.DeferCleanup(client.Close)
 		}
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(elapsed).To(gm.BeNumerically("<", policy.Timeout))
-
-		logs.mu.Lock()
-		defer logs.mu.Unlock()
-		gm.Expect(logs.msgs).To(gm.ContainElement(gm.ContainSubstring("Node count did not settle during cluster start")))
+		gm.Expect(logs.snapshot()).To(gm.ContainElement(gm.ContainSubstring("Node count did not settle during cluster start")))
 	})
 })
 
