@@ -241,8 +241,8 @@ var _ = gg.Describe("Address translators", gg.Label("discovery"), func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(host).To(gm.Equal(advertisedHost))
 			}
-			gm.Expect(logs.msgs).To(gm.HaveLen(1))
-			gm.Expect(logs.msgs[0]).To(gm.ContainSubstring("node BB9A advertised address 10.0.0.9:3000"))
+			gm.Expect(logs.snapshot()).To(gm.HaveLen(1))
+			gm.Expect(logs.snapshot()[0]).To(gm.ContainSubstring("node BB9A advertised address 10.0.0.9:3000"))
 		})
 
 		gg.DescribeTable("a static-map value outside 1-65535 is a miss at translation time",

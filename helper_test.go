@@ -15,10 +15,15 @@
 package aerospike
 
 import (
+	"fmt"
 	"io"
+	"sync"
 	"time"
 
+	gg "github.com/onsi/ginkgo/v2"
+
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -318,4 +323,84 @@ func replayReplies(cmd command, base *baseMultiCommand, tracker *partitionTracke
 		PartsUnavailable: nodeParts.partsUnavailable,
 		PartitionRetry:   tracker.partitions[partitionID].Retry,
 	}
+}
+
+type logPrinter = interface {
+	Printf(format string, v ...any)
+}
+
+// suiteLogSink is the client logger for the whole test run. It is installed
+// before any client starts and never replaced, so tests capture log lines
+// without writing the shared logger while clients read it.
+type suiteLogSink struct {
+	mu        sync.Mutex
+	output    logPrinter
+	recorders map[logPrinter]struct{}
+}
+
+var suiteLogs = &suiteLogSink{recorders: map[logPrinter]struct{}{}}
+
+func init() {
+	logger.Logger.SetLogger(suiteLogs)
+	logger.Logger.SetLevel(logger.WARNING)
+}
+
+func (sink *suiteLogSink) Printf(format string, v ...any) {
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	for recorder := range sink.recorders {
+		recorder.Printf(format, v...)
+	}
+	if sink.output != nil {
+		sink.output.Printf(format, v...)
+	}
+}
+
+// SetSuiteLogOutput prints every client log line to output.
+func SetSuiteLogOutput(output logPrinter) {
+	suiteLogs.mu.Lock()
+	defer suiteLogs.mu.Unlock()
+	suiteLogs.output = output
+}
+
+// CaptureClientLogs sends every client log line to recorder until stop is called.
+func CaptureClientLogs(recorder logPrinter) (stop func()) {
+	suiteLogs.mu.Lock()
+	defer suiteLogs.mu.Unlock()
+	suiteLogs.recorders[recorder] = struct{}{}
+	return func() {
+		suiteLogs.mu.Lock()
+		defer suiteLogs.mu.Unlock()
+		delete(suiteLogs.recorders, recorder)
+	}
+}
+
+type warnLogCapture struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (capture *warnLogCapture) Printf(format string, v ...any) {
+	capture.mu.Lock()
+	defer capture.mu.Unlock()
+	capture.msgs = append(capture.msgs, fmt.Sprintf(format, v...))
+}
+
+func (capture *warnLogCapture) snapshot() []string {
+	capture.mu.Lock()
+	defer capture.mu.Unlock()
+	return append([]string(nil), capture.msgs...)
+}
+
+// startLogCapture records client log lines until stop is called.
+func startLogCapture() (capture *warnLogCapture, stop func()) {
+	capture = &warnLogCapture{}
+	return capture, CaptureClientLogs(capture)
+}
+
+// captureWarnLogs records client log lines until the current spec ends.
+func captureWarnLogs() *warnLogCapture {
+	capture, stop := startLogCapture()
+	gg.DeferCleanup(stop)
+	return capture
 }

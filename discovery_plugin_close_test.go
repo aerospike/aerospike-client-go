@@ -346,9 +346,3 @@ type closeWithoutErrorTranslator struct {
 }
 
 func (translator *closeWithoutErrorTranslator) Close() { translator.closeCalls.Add(1) }
-
-func (capture *warnLogCapture) snapshot() []string {
-	capture.mu.Lock()
-	defer capture.mu.Unlock()
-	return append([]string(nil), capture.msgs...)
-}

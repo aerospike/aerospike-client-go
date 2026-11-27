@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"maps"
 	"net"
 	"net/http"
@@ -36,7 +37,6 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
-	asl "github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -78,7 +78,7 @@ func (l2EmptyTranslator) Translate(as.Endpoint) (as.Host, bool) {
 	return as.Host{}, false
 }
 
-// l2LogCapture records every client log line and forwards it to the logger it replaced.
+// l2LogCapture records every client log line and prints it unless -debug already does.
 type l2LogCapture struct {
 	forward interface{ Printf(string, ...any) }
 
@@ -90,7 +90,9 @@ func (capture *l2LogCapture) Printf(format string, v ...any) {
 	capture.mu.Lock()
 	capture.lines = append(capture.lines, fmt.Sprintf(format, v...))
 	capture.mu.Unlock()
-	capture.forward.Printf(format, v...)
+	if capture.forward != nil {
+		capture.forward.Printf(format, v...)
+	}
 }
 
 // containing returns captured lines that include every part.
@@ -544,22 +546,14 @@ func newL2Client(t *testing.T, policy *as.ClientPolicy, seeds ...*as.Host) *as.C
 	return client
 }
 
-// captureL2Logs raises the client log level to warnings for the test.
-// Call it before creating the client, so the client is closed before the
-// logger is restored.
+// captureL2Logs records client log lines for the test and prints them.
 func captureL2Logs(t *testing.T) *l2LogCapture {
 	t.Helper()
-	capture := &l2LogCapture{forward: asl.Logger.Logger}
-	asl.Logger.SetLogger(capture)
-	asl.Logger.SetLevel(asl.WARNING)
-	t.Cleanup(func() {
-		asl.Logger.SetLogger(capture.forward)
-		if *debug {
-			asl.Logger.SetLevel(asl.DEBUG)
-		} else {
-			asl.Logger.SetLevel(asl.OFF)
-		}
-	})
+	capture := &l2LogCapture{}
+	if !*debug {
+		capture.forward = log.New(os.Stdout, "", log.LstdFlags)
+	}
+	t.Cleanup(as.CaptureClientLogs(capture))
 	return capture
 }
 
