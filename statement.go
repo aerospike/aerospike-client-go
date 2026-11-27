@@ -200,13 +200,15 @@ func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direct
 // be true and MaxRecords 0. A PartitionFilter that resumes an earlier query
 // is refused with a PARAMETER_ERROR.
 //
-// Records arrive only after every node finishes its scan. For large scans,
-// set TotalTimeout above the scan duration and leave SocketTimeout at 0. A
-// timed-out attempt restarts that node's scan.
+// Records arrive only after every node finishes its scan. Set TotalTimeout
+// above the scan duration and leave SocketTimeout at 0. When both are 0, the
+// query waits up to 10 seconds for each node. A Top-K query that times out or
+// loses its connection is not retried.
+// The server's query-max-run-time-ms ends it with QUERY_TIMEOUT.
 //
-// A node at its Top-K memory limit refuses a new query with FAIL_FORBIDDEN;
-// retry it later. A running query can also fail with FAIL_FORBIDDEN when a
-// node runs short of that memory.
+// A node at its Top-K memory limit or at order-by-jobs-limit refuses a new
+// query with FAIL_FORBIDDEN; retry it later. A running query can also fail
+// with FAIL_FORBIDDEN when a node runs short of that memory.
 func (stmt *Statement) SetTopK(k int) {
 	stmt.topK = k
 	stmt.topKSet = true

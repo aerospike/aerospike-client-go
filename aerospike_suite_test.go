@@ -280,6 +280,45 @@ func info(client *as.Client, feature string) string {
 	return infoMap[feature]
 }
 
+// serverConfig returns one setting from the first node's get-config for
+// context, such as "service" or "namespace;id=test".
+func serverConfig(context, name string) (string, bool) {
+	for _, setting := range strings.Split(info(client, "get-config:context="+context), ";") {
+		if value, found := strings.CutPrefix(setting, name+"="); found {
+			return value, true
+		}
+	}
+	return "", false
+}
+
+// setConfigOnEveryNode sends a set-config command to every node and expects
+// each to accept it.
+func setConfigOnEveryNode(command string) {
+	for _, node := range client.GetNodes() {
+		result, err := node.RequestInfo(as.NewInfoPolicy(), command)
+		gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+		gm.ExpectWithOffset(1, result[command]).To(gm.Equal("ok"), node.GetName())
+	}
+}
+
+// serverStat sums a statistic over the nodes, read with infoCommand such as
+// "statistics" or "namespace/test".
+func serverStat(infoCommand, name string) int {
+	total := 0
+	for _, node := range client.GetNodes() {
+		result, err := node.RequestInfo(as.NewInfoPolicy(), infoCommand)
+		gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+		for _, stat := range strings.Split(result[infoCommand], ";") {
+			if value, found := strings.CutPrefix(stat, name+"="); found {
+				count, err := strconv.Atoi(value)
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				total += count
+			}
+		}
+	}
+	return total
+}
+
 func initTLS() *tls.Config {
 	if len(*rootCA) == 0 && len(*certFile) == 0 && len(*keyFile) == 0 {
 		return nil

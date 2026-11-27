@@ -63,6 +63,9 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 
 		done, err := tracker.isClusterComplete(clnt.Cluster(), &policy.BasePolicy)
 		if !recordset.IsActive() || done || err != nil {
+			if err != nil && merger != nil {
+				err = chainErrors(err, tracker.retriedErrors())
+			}
 			errs = chainErrors(err, errs)
 			// Query is complete.
 			if errs != nil {

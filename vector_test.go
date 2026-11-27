@@ -17,7 +17,6 @@ package aerospike_test
 import (
 	"errors"
 	"math"
-	"strings"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
@@ -561,22 +560,15 @@ var _ = gg.Describe("Vector Test", func() {
 				mustVector(as.NewVectorFloat64([]float64{1 << 24, 1, 1, 1})), mustVector(as.NewVectorFloat64([]float64{1, 1, 1, 1}))}
 
 			distancePrecision := func() string {
-				for _, setting := range strings.Split(info(client, "get-config:context=service"), ";") {
-					if value, found := strings.CutPrefix(setting, "vector-distance-precision="); found {
-						return value
-					}
+				precision, found := serverConfig("service", "vector-distance-precision")
+				if !found {
+					gg.Fail("the server reports no vector-distance-precision")
 				}
-				gg.Fail("the server reports no vector-distance-precision")
-				return ""
+				return precision
 			}
 
 			setDistancePrecision := func(precision string) {
-				command := "set-config:context=service;vector-distance-precision=" + precision
-				for _, node := range client.GetNodes() {
-					result, err := node.RequestInfo(as.NewInfoPolicy(), command)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-					gm.Expect(result[command]).To(gm.Equal("ok"), node.GetName())
-				}
+				setConfigOnEveryNode("set-config:context=service;vector-distance-precision=" + precision)
 			}
 
 			// distances stores pair's vector and returns its dot product,
