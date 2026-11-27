@@ -73,9 +73,12 @@ func (clstr *Cluster) validatePeer(ps *peers, p *peer) {
 	}
 }
 
-// sharedOwner returns the name of another peer of this tend or a healthy
-// node that also has host, or "".
+// sharedOwner names the node that already serves host, or "" if host is free.
 func (clstr *Cluster) sharedOwner(ps *peers, p *peer, host *Host) string {
+	if node := clstr.healthyNodeAt(host, p.nodeName); node != nil {
+		return node.name
+	}
+
 	for _, other := range ps.peers() {
 		if other.nodeName == p.nodeName {
 			continue
@@ -85,10 +88,6 @@ func (clstr *Cluster) sharedOwner(ps *peers, p *peer, host *Host) string {
 				return other.nodeName
 			}
 		}
-	}
-
-	if node := clstr.healthyNodeAt(host, p.nodeName); node != nil {
-		return node.name
 	}
 	return ""
 }
