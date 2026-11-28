@@ -31,6 +31,9 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 	interval := policy.SleepBetweenRetries
 
 	var errs Error
+	// retriedErrs holds the Top-K errors of every round, reported only if
+	// the query gives up.
+	var retriedErrs Error
 	for {
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
 		if err == nil {
@@ -59,12 +62,15 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 				weg.execute(cmd)
 			}
 			errs = chainErrors(weg.wait(), errs)
+			for _, nodePartition := range list {
+				retriedErrs = chainErrors(nodePartition.retriedErr, retriedErrs)
+			}
 		}
 
 		done, err := tracker.isClusterComplete(clnt.Cluster(), &policy.BasePolicy)
 		if !recordset.IsActive() || done || err != nil {
 			if err != nil && merger != nil {
-				err = chainErrors(err, tracker.retriedErrors())
+				err = chainErrors(err, retriedErrs)
 			}
 			errs = chainErrors(err, errs)
 			// Query is complete.

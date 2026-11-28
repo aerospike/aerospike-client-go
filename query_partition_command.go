@@ -73,7 +73,7 @@ func (cmd *queryPartitionCommand) parseResult(ifc command, conn *Connection) Err
 	}
 	err := cmd.baseMultiCommand.parseResult(ifc, conn)
 	if cmd.statement.hasTopK() {
-		cmd.replyInterrupted = err != nil && (err.resultCode() == types.TIMEOUT || err.resultCode() == types.NETWORK_ERROR)
+		cmd.replyInterrupted = err != nil && err.Matches(types.TIMEOUT, types.NETWORK_ERROR)
 	}
 	return err
 }
@@ -102,7 +102,7 @@ func (cmd *queryPartitionCommand) Execute() Error {
 	if cmd.topKMerger != nil {
 		// Top-K sends records only when every partition is done, so an error
 		// a later round recovers from is kept back.
-		cmd.tracker.keepRetriedError(err)
+		cmd.nodePartitions.retriedErr = err
 		return nil
 	}
 	return err
