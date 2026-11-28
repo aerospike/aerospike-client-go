@@ -73,7 +73,7 @@ func (cmd *queryPartitionCommand) parseResult(ifc command, conn *Connection) Err
 	}
 	err := cmd.baseMultiCommand.parseResult(ifc, conn)
 	if cmd.statement.hasTopK() {
-		cmd.replyInterrupted = err != nil && (err.resultCode() == types.TIMEOUT || err.resultCode() == types.NETWORK_ERROR)
+		cmd.replyInterrupted = err != nil && err.Matches(types.TIMEOUT, types.NETWORK_ERROR)
 	}
 	return err
 }
