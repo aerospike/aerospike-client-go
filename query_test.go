@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -2221,8 +2222,9 @@ var _ = gg.Describe("Query Top-K", func() {
 		})
 
 		// holdEveryConnection returns a client whose pools allow no more connections,
-		// and a function that gives the held connections back.
-		holdEveryConnection := func() (limitedClient *as.Client, release func()) {
+		// only on the named nodes when any are given, and a function that gives the
+		// held connections back.
+		holdEveryConnection := func(nodeNames ...string) (limitedClient *as.Client, release func()) {
 			limitedPolicy := *clientPolicy
 			limitedPolicy.LimitConnectionsToQueueSize = true
 			limitedPolicy.ConnectionQueueSize = 4
@@ -2232,6 +2234,9 @@ var _ = gg.Describe("Query Top-K", func() {
 
 			held := map[*as.Node][]*as.Connection{}
 			for _, node := range limitedClient.GetNodes() {
+				if len(nodeNames) > 0 && !slices.Contains(nodeNames, node.GetName()) {
+					continue
+				}
 				for {
 					conn, err := node.GetConnection(0)
 					if err != nil {
@@ -2256,10 +2261,11 @@ var _ = gg.Describe("Query Top-K", func() {
 			return limitedClient, release
 		}
 
-		exitFastTopK := func(queryClient *as.Client, sleep time.Duration) (recordset *as.Recordset, firstTaskID uint64) {
+		exitFastTopK := func(queryClient *as.Client, sleep time.Duration, replica as.ReplicaPolicy) (recordset *as.Recordset, firstTaskID uint64) {
 			policy := retryingPolicy(3)
 			policy.SleepBetweenRetries = sleep
 			policy.ExitFastOnExhaustedConnectionPool = true
+			policy.ReplicaPolicy = replica
 			statement := rankByScore()
 			statement.SetTopK(5)
 			recordset, err := queryClient.Query(policy, statement)
@@ -2271,7 +2277,7 @@ var _ = gg.Describe("Query Top-K", func() {
 			limitedClient, release := holdEveryConnection()
 			// Free the connections while the query waits to retry.
 			time.AfterFunc(sleepBetweenRetries/2, release)
-			recordset, firstTaskID := exitFastTopK(limitedClient, sleepBetweenRetries)
+			recordset, firstTaskID := exitFastTopK(limitedClient, sleepBetweenRetries, as.SEQUENCE)
 
 			var scores []int
 			for result := range recordset.Results() {
@@ -2286,7 +2292,7 @@ var _ = gg.Describe("Query Top-K", func() {
 		gg.It("returns MAX_RETRIES_EXCEEDED over the pool-exhausted errors when no round gets a connection", func() {
 			const sleep = 100 * time.Millisecond
 			limitedClient, _ := holdEveryConnection()
-			recordset, firstTaskID := exitFastTopK(limitedClient, sleep)
+			recordset, firstTaskID := exitFastTopK(limitedClient, sleep, as.SEQUENCE)
 
 			var records int
 			var errs []as.Error
@@ -2305,6 +2311,51 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.MAX_RETRIES_EXCEEDED), errs[0].Error())
 			gm.Expect(errors.Is(errs[0], as.ErrConnectionPoolExhausted)).To(gm.BeTrue(), errs[0].Error())
 			gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+		})
+
+		gg.Context("when only one node fails and the rest return their candidates", func() {
+			// topScoreMaster returns the node that masters the highest-score record, so
+			// failing it takes a top-k record out of the first round.
+			topScoreMaster := func() string {
+				if len(client.GetNodes()) < 2 {
+					gg.Skip("needs a cluster of two or more nodes")
+				}
+				topKey := keys[0]
+				topScore := math.MinInt
+				for _, key := range keys {
+					record, err := client.Get(nil, key, "score")
+					gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+					if score := record.Bins["score"].(int); score > topScore {
+						topKey, topScore = key, score
+					}
+				}
+				partition, err := as.PartitionForWrite(client.Cluster(), as.NewPolicy(), topKey)
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				master, err := partition.GetNodeWrite(client.Cluster())
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				return master.GetName()
+			}
+
+			gg.It("returns the whole top k with no error when the retry reads that node's partitions from their replicas", func() {
+				if replicationFactor, _ := strconv.Atoi(nsInfo(ns, "effective_replication_factor")); replicationFactor < 2 {
+					gg.Skip("needs a replication factor of two or more")
+				}
+				failingNode := topScoreMaster()
+				limitedClient, _ := holdEveryConnection(failingNode)
+				recordset, firstTaskID := exitFastTopK(limitedClient, 100*time.Millisecond, as.SEQUENCE)
+
+				var scores []int
+				var servingNodes []string
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+					scores = append(scores, result.Record.Bins["score"].(int))
+					servingNodes = append(servingNodes, result.Record.Node.GetName())
+				}
+
+				gm.Expect(scores).To(gm.Equal([]int{100, 90, 80, 70, 60}))
+				gm.Expect(servingNodes).ToNot(gm.ContainElement(failingNode))
+				gm.Expect(recordset.TaskId()).ToNot(gm.Equal(firstTaskID))
+			})
 		})
 	})
 })
