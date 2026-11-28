@@ -102,7 +102,7 @@ func (cmd *queryPartitionCommand) Execute() Error {
 	if cmd.topKMerger != nil {
 		// Top-K sends records only when every partition is done, so an error
 		// a later round recovers from is kept back.
-		cmd.tracker.keepRetriedError(err)
+		cmd.nodePartitions.retriedErr = err
 		return nil
 	}
 	return err

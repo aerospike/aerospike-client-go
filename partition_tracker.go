@@ -18,7 +18,6 @@ package aerospike
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	atmc "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
@@ -42,11 +41,6 @@ type partitionTracker struct {
 	totalTimeout        time.Duration
 	iteration           int //= 1
 	deadline            time.Time
-
-	// retriedErrs holds the errors a Top-K query retried, reported only if
-	// the query gives up.
-	retriedErrsLock sync.Mutex
-	retriedErrs     Error
 }
 
 func newPartitionTrackerForNodes(policy *MultiPolicy, nodes []*Node) *partitionTracker {
@@ -433,20 +427,6 @@ func (pt *partitionTracker) shouldRetry(nodePartitions *nodePartitions, e Error)
 	return res
 }
 
-// keepRetriedError records an error that a later round retries.
-func (pt *partitionTracker) keepRetriedError(err Error) {
-	pt.retriedErrsLock.Lock()
-	pt.retriedErrs = chainErrors(err, pt.retriedErrs)
-	pt.retriedErrsLock.Unlock()
-}
-
-// retriedErrors returns the errors kept by keepRetriedError, latest first.
-func (pt *partitionTracker) retriedErrors() Error {
-	pt.retriedErrsLock.Lock()
-	defer pt.retriedErrsLock.Unlock()
-	return pt.retriedErrs
-}
-
 func (pt *partitionTracker) markRetrySequence(nodePartitions *nodePartitions) {
 	// Mark retry for next replica.
 	for _, ps := range nodePartitions.partsFull {
@@ -499,6 +479,9 @@ type nodePartitions struct {
 	recordMax        int64
 	disallowedCount  int64
 	partsUnavailable int
+	// retriedErr is this node's Top-K error from the round, which the next
+	// round retries.
+	retriedErr Error
 }
 
 func newNodePartitions(node *Node, capacity int) *nodePartitions {
